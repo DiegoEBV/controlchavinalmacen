@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Container, Button, Table, Badge, Accordion, ProgressBar, Row, Col, Form, Card } from 'react-bootstrap';
+import { Button, Table, Badge, Accordion, ProgressBar, Row, Col, Form, Card } from 'react-bootstrap';
 import { getRequerimientos, createRequerimiento, getObras } from '../services/requerimientosService';
-import { Requerimiento, Obra } from '../types';
+import { getSolicitudesCompra } from '../services/comprasService';
+import { Requerimiento, Obra, SolicitudCompra } from '../types';
 import RequerimientoForm from '../components/RequerimientoForm';
 
 const GestionRequerimientos: React.FC = () => {
     const [requerimientos, setRequerimientos] = useState<Requerimiento[]>([]);
+    const [solicitudes, setSolicitudes] = useState<SolicitudCompra[]>([]);
     const [obras, setObras] = useState<Obra[]>([]);
     const [showForm, setShowForm] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
@@ -15,10 +17,14 @@ const GestionRequerimientos: React.FC = () => {
     }, []);
 
     const loadData = async () => {
-        const reqs = await getRequerimientos();
-        if (reqs.data) setRequerimientos(reqs.data);
+        const [reqs, scs, obs] = await Promise.all([
+            getRequerimientos(),
+            getSolicitudesCompra(),
+            getObras()
+        ]);
 
-        const obs = await getObras();
+        if (reqs.data) setRequerimientos(reqs.data);
+        if (scs) setSolicitudes(scs);
         setObras(obs || []);
     };
 
@@ -98,30 +104,48 @@ const GestionRequerimientos: React.FC = () => {
                                                 <th>Item</th>
                                                 <th>Desc.</th>
                                                 <th>Cant. Sol.</th>
+                                                <th>SC Aprob.</th>
                                                 <th>Cant. Atend.</th>
                                                 <th>Estado</th>
                                                 <th>Logística</th>
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {req.detalles?.map(d => (
-                                                <tr key={d.id}>
-                                                    <td>{d.tipo}</td>
-                                                    <td>
-                                                        <div className="fw-bold">{d.descripcion}</div>
-                                                        <small className="text-muted">{d.material_categoria}</small>
-                                                    </td>
-                                                    <td>{d.cantidad_solicitada} {d.unidad}</td>
-                                                    <td>{d.cantidad_atendida}</td>
-                                                    <td><Badge bg={getStatusColor(d.estado)}>{d.estado}</Badge></td>
-                                                    <td>
-                                                        <small>
-                                                            {d.orden_compra ? <div><strong>OC:</strong> {d.orden_compra}</div> : '-'}
-                                                            {d.proveedor && <div><strong>Prov:</strong> {d.proveedor}</div>}
-                                                        </small>
-                                                    </td>
-                                                </tr>
-                                            ))}
+                                            {req.detalles?.map(d => {
+                                                // Find related SC item
+                                                const relatedSC = solicitudes.find(s => s.requerimiento_id === req.id);
+                                                const relatedSCItem = relatedSC?.detalles?.find(sd =>
+                                                    sd.material?.descripcion === d.descripcion &&
+                                                    sd.material?.categoria === d.material_categoria
+                                                );
+
+                                                return (
+                                                    <tr key={d.id}>
+                                                        <td>{d.tipo}</td>
+                                                        <td>
+                                                            <div className="fw-bold">{d.descripcion}</div>
+                                                            <small className="text-muted">{d.material_categoria}</small>
+                                                        </td>
+                                                        <td>{d.cantidad_solicitada} {d.unidad}</td>
+                                                        <td>
+                                                            {relatedSCItem ? (
+                                                                <div>
+                                                                    <div className="fw-bold text-primary">{relatedSCItem.cantidad} {relatedSCItem.unidad}</div>
+                                                                    <small className="text-muted">{relatedSC?.numero_sc}</small>
+                                                                </div>
+                                                            ) : '-'}
+                                                        </td>
+                                                        <td>{d.cantidad_atendida}</td>
+                                                        <td><Badge bg={getStatusColor(d.estado)}>{d.estado}</Badge></td>
+                                                        <td>
+                                                            <small>
+                                                                {d.orden_compra ? <div><strong>OC:</strong> {d.orden_compra}</div> : '-'}
+                                                                {d.proveedor && <div><strong>Prov:</strong> {d.proveedor}</div>}
+                                                            </small>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
                                         </tbody>
                                     </Table>
                                 </Accordion.Body>

@@ -54,7 +54,8 @@ export const getMovimientos = async () => {
         .from('movimientos_almacen')
         .select(`
             *,
-            material:materiales(descripcion, categoria, unidad)
+            material:materiales(descripcion, categoria, unidad),
+            requerimiento:requerimientos(item_correlativo)
         `)
         .order('created_at', { ascending: false })
         .limit(100);

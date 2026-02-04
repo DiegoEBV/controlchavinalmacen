@@ -10,6 +10,8 @@ import SalidasAlmacen from './pages/SalidasAlmacen';
 import StockAlmacen from './pages/StockAlmacen';
 import GestionSolicitantes from './pages/GestionSolicitantes';
 import GestionCategorias from './pages/GestionCategorias';
+import GestionSolicitudes from './pages/GestionSolicitudes';
+import GestionOrdenes from './pages/GestionOrdenes';
 import Layout from './components/Layout';
 import { Outlet } from 'react-router-dom';
 
@@ -32,6 +34,8 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                     <Route path="/almacen/entradas" element={<EntradasAlmacen />} />
                     <Route path="/almacen/salidas" element={<SalidasAlmacen />} />
                     <Route path="/almacen/stock" element={<StockAlmacen />} />
+                    <Route path="/solicitudes" element={<GestionSolicitudes />} />
+                    <Route path="/ordenes" element={<GestionOrdenes />} />
                     <Route path="/solicitantes" element={<GestionSolicitantes />} />
                     <Route path="/categorias" element={<GestionCategorias />} />
                 </Route>

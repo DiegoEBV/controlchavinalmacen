@@ -20,6 +20,14 @@ const Navigation: React.FC = () => {
                     <span className="me-2">📋</span> Requerimientos
                 </Nav.Link>
 
+                <Nav.Link as={Link} to="/solicitudes" className={`nav-link ${isActive('/solicitudes') ? 'active' : ''}`}>
+                    <span className="me-2">📑</span> Solicitudes Compra
+                </Nav.Link>
+
+                <Nav.Link as={Link} to="/ordenes" className={`nav-link ${isActive('/ordenes') ? 'active' : ''}`}>
+                    <span className="me-2">🚛</span> Ordenes Compra
+                </Nav.Link>
+
                 <Nav.Link as={Link} to="/materiales" className={`nav-link ${isActive('/materiales') ? 'active' : ''}`}>
                     <span className="me-2">🧱</span> Materiales
                 </Nav.Link>

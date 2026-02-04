@@ -65,3 +65,46 @@ export interface MovimientoAlmacen {
     destino_o_uso?: string;
     created_at: string;
 }
+
+export interface SolicitudCompra {
+    id: string;
+    requerimiento_id: string;
+    requerimiento?: Requerimiento;
+    numero_sc: string;
+    fecha_sc: string;
+    estado: 'Pendiente' | 'Aprobada' | 'Anulada' | 'Atendida';
+    created_at: string;
+    detalles?: DetalleSC[];
+}
+
+export interface DetalleSC {
+    id: string;
+    sc_id: string;
+    material_id: string;
+    material?: Material;
+    cantidad: number;
+    unidad: string;
+    estado: 'Pendiente' | 'En Orden';
+    created_at: string;
+}
+
+export interface OrdenCompra {
+    id: string;
+    numero_oc: string;
+    proveedor: string;
+    fecha_oc: string;
+    estado: 'Emitida' | 'Anulada' | 'Recepcionada';
+    sc_id?: string;
+    created_at: string;
+    detalles?: DetalleOC[];
+}
+
+export interface DetalleOC {
+    id: string;
+    oc_id: string;
+    detalle_sc_id: string;
+    detalle_sc?: DetalleSC; // Joined
+    cantidad: number;
+    precio_unitario?: number;
+    created_at: string;
+}
