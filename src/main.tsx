@@ -12,6 +12,8 @@ import GestionSolicitantes from './pages/GestionSolicitantes';
 import GestionCategorias from './pages/GestionCategorias';
 import GestionSolicitudes from './pages/GestionSolicitudes';
 import GestionOrdenes from './pages/GestionOrdenes';
+import ReporteMateriales from './pages/ReporteMateriales';
+import EstadisticasMateriales from './pages/EstadisticasMateriales';
 import Layout from './components/Layout';
 import { Outlet } from 'react-router-dom';
 
@@ -34,6 +36,8 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                     <Route path="/almacen/entradas" element={<EntradasAlmacen />} />
                     <Route path="/almacen/salidas" element={<SalidasAlmacen />} />
                     <Route path="/almacen/stock" element={<StockAlmacen />} />
+                    <Route path="/reportes/materiales" element={<ReporteMateriales />} />
+                    <Route path="/reportes/estadisticas" element={<EstadisticasMateriales />} />
                     <Route path="/solicitudes" element={<GestionSolicitudes />} />
                     <Route path="/ordenes" element={<GestionOrdenes />} />
                     <Route path="/solicitantes" element={<GestionSolicitantes />} />

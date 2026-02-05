@@ -14,6 +14,7 @@ const GestionOrdenes: React.FC = () => {
     // Form Inputs
     const [proveedor, setProveedor] = useState('');
     const [manualOCNumber, setManualOCNumber] = useState('');
+    const [fechaAtencion, setFechaAtencion] = useState('');
     const [itemsToOrder, setItemsToOrder] = useState<any[]>([]);
 
     useEffect(() => {
@@ -52,6 +53,7 @@ const GestionOrdenes: React.FC = () => {
         setSelectedSC(sc);
         setManualOCNumber(''); // Reset
         setProveedor(''); // Reset
+        setFechaAtencion(''); // Reset
         // Pre-fill with items from SC
         // Logic: Allow selecting partial items.
         const initialItems = sc.detalles?.map(d => {
@@ -92,6 +94,7 @@ const GestionOrdenes: React.FC = () => {
                 numero_oc: manualOCNumber,
                 proveedor,
                 fecha_oc: new Date().toISOString().split('T')[0],
+                fecha_aproximada_atencion: fechaAtencion || undefined,
                 estado: 'Emitida' as const
             };
 
@@ -100,6 +103,7 @@ const GestionOrdenes: React.FC = () => {
             setShowModal(false);
             setProveedor('');
             setManualOCNumber('');
+            setFechaAtencion('');
             loadData();
         } catch (e: any) {
             console.error(e);
@@ -152,6 +156,7 @@ const GestionOrdenes: React.FC = () => {
                                 <th>SC Ref</th>
                                 <th>Estado</th>
                                 <th>Fecha</th>
+                                <th>Fecha Est. Atención</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -167,6 +172,7 @@ const GestionOrdenes: React.FC = () => {
                                         <td>{(oc as any).sc?.numero_sc || '-'}</td>
                                         <td><Badge bg="secondary">{oc.estado}</Badge></td>
                                         <td>{oc.fecha_oc}</td>
+                                        <td>{oc.fecha_aproximada_atencion || '-'}</td>
                                     </tr>
                                 );
                             })}
@@ -198,6 +204,18 @@ const GestionOrdenes: React.FC = () => {
                                     value={proveedor}
                                     onChange={e => setProveedor(e.target.value)}
                                     placeholder="Nombre del proveedor"
+                                />
+                            </Form.Group>
+                        </Col>
+                    </Row>
+                    <Row className="mb-3">
+                        <Col md={6}>
+                            <Form.Group>
+                                <Form.Label>Fecha Aproximada de Atención</Form.Label>
+                                <Form.Control
+                                    type="date"
+                                    value={fechaAtencion}
+                                    onChange={e => setFechaAtencion(e.target.value)}
                                 />
                             </Form.Group>
                         </Col>

@@ -95,6 +95,7 @@ export interface OrdenCompra {
     fecha_oc: string;
     estado: 'Emitida' | 'Anulada' | 'Recepcionada';
     sc_id?: string;
+    fecha_aproximada_atencion?: string;
     created_at: string;
     detalles?: DetalleOC[];
 }

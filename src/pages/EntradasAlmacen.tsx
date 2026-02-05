@@ -289,7 +289,7 @@ const EntradasAlmacen: React.FC = () => {
 
                                 return (
                                     <tr key={h.id}>
-                                        <td>{new Date(h.fecha).toLocaleDateString()}</td>
+                                        <td>{new Date(h.fecha).toISOString().split('T')[0]}</td>
                                         <td className="fw-bold text-primary">
                                             {reqNum !== '-' ? `#${reqNum}` : '-'}
                                         </td>

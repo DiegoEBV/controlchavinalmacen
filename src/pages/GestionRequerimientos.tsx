@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { Button, Table, Badge, Accordion, ProgressBar, Row, Col, Form, Card } from 'react-bootstrap';
 import { getRequerimientos, createRequerimiento, getObras } from '../services/requerimientosService';
-import { getSolicitudesCompra } from '../services/comprasService';
-import { Requerimiento, Obra, SolicitudCompra } from '../types';
+import { getSolicitudesCompra, getOrdenesCompra } from '../services/comprasService';
+import { Requerimiento, Obra, SolicitudCompra, OrdenCompra } from '../types';
 import RequerimientoForm from '../components/RequerimientoForm';
 
 const GestionRequerimientos: React.FC = () => {
     const [requerimientos, setRequerimientos] = useState<Requerimiento[]>([]);
     const [solicitudes, setSolicitudes] = useState<SolicitudCompra[]>([]);
     const [obras, setObras] = useState<Obra[]>([]);
+    const [ordenes, setOrdenes] = useState<OrdenCompra[]>([]);
     const [showForm, setShowForm] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
 
@@ -17,15 +18,17 @@ const GestionRequerimientos: React.FC = () => {
     }, []);
 
     const loadData = async () => {
-        const [reqs, scs, obs] = await Promise.all([
+        const [reqs, scs, obs, ocs] = await Promise.all([
             getRequerimientos(),
             getSolicitudesCompra(),
-            getObras()
+            getObras(),
+            getOrdenesCompra()
         ]);
 
         if (reqs.data) setRequerimientos(reqs.data);
         if (scs) setSolicitudes(scs);
         setObras(obs || []);
+        setOrdenes(ocs || []);
     };
 
     const handleCreate = async (header: any, items: any[]) => {
@@ -139,8 +142,36 @@ const GestionRequerimientos: React.FC = () => {
                                                         <td><Badge bg={getStatusColor(d.estado)}>{d.estado}</Badge></td>
                                                         <td>
                                                             <small>
-                                                                {d.orden_compra ? <div><strong>OC:</strong> {d.orden_compra}</div> : '-'}
-                                                                {d.proveedor && <div><strong>Prov:</strong> {d.proveedor}</div>}
+                                                                {(() => {
+                                                                    // Dynamic lookup of OC based on the SC Item
+                                                                    const relatedOC = ordenes.find(oc =>
+                                                                        oc.estado !== 'Anulada' &&
+                                                                        oc.detalles?.some(od => relatedSCItem && od.detalle_sc_id === relatedSCItem.id)
+                                                                    );
+
+                                                                    if (relatedOC) {
+                                                                        return (
+                                                                            <div>
+                                                                                <div className="fw-bold text-success">{relatedOC.numero_oc}</div>
+                                                                                <div>{relatedOC.proveedor}</div>
+                                                                                {relatedOC.fecha_aproximada_atencion && (
+                                                                                    <div className="text-primary mt-1" style={{ fontSize: '0.9em' }}>
+                                                                                        <i className="bi bi-calendar-event me-1"></i>
+                                                                                        {relatedOC.fecha_aproximada_atencion}
+                                                                                    </div>
+                                                                                )}
+                                                                            </div>
+                                                                        );
+                                                                    }
+
+                                                                    // Fallback to static fields
+                                                                    return (
+                                                                        <>
+                                                                            {d.orden_compra ? <div><strong>OC:</strong> {d.orden_compra}</div> : '-'}
+                                                                            {d.proveedor && <div><strong>Prov:</strong> {d.proveedor}</div>}
+                                                                        </>
+                                                                    );
+                                                                })()}
                                                             </small>
                                                         </td>
                                                     </tr>

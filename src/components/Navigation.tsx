@@ -46,6 +46,16 @@ const Navigation: React.FC = () => {
                     <span className="me-2">📊</span> Stock Actual
                 </Nav.Link>
 
+                <div className="nav-section-title">Reportes</div>
+
+                <Nav.Link as={Link} to="/reportes/materiales" className={`nav-link ${isActive('/reportes/materiales') ? 'active' : ''}`}>
+                    <span className="me-2">📈</span> Reporte Materiales
+                </Nav.Link>
+
+                <Nav.Link as={Link} to="/reportes/estadisticas" className={`nav-link ${isActive('/reportes/estadisticas') ? 'active' : ''}`}>
+                    <span className="me-2">📊</span> Estadísticas
+                </Nav.Link>
+
                 <div className="nav-section-title">Configuración</div>
 
                 <Nav.Link as={Link} to="/solicitantes" className={`nav-link ${isActive('/solicitantes') ? 'active' : ''}`}>
