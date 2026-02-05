@@ -85,6 +85,7 @@ export interface DetalleSC {
     cantidad: number;
     unidad: string;
     estado: 'Pendiente' | 'En Orden';
+    comentario?: string;
     created_at: string;
 }
 

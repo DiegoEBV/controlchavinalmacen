@@ -39,7 +39,8 @@ export const createSolicitudCompra = async (
         material_id: item.material_id, // Must ensure mapped correctly from UI
         cantidad: item.cantidad,
         unidad: item.unidad,
-        estado: 'Pendiente'
+        estado: 'Pendiente',
+        comentario: item.comentario || ''
     }));
 
     const { error: detError } = await supabase

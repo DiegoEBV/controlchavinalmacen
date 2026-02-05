@@ -176,6 +176,7 @@ const GestionSolicitudes: React.FC = () => {
                                             <thead className="bg-light">
                                                 <tr>
                                                     <th>Material</th>
+                                                    <th>Comentario</th>
                                                     <th>Categoría</th>
                                                     <th>Cantidad Aprobada</th>
                                                     <th>Cant. Atendida</th>
@@ -192,6 +193,7 @@ const GestionSolicitudes: React.FC = () => {
                                                     return (
                                                         <tr key={d.id}>
                                                             <td>{d.material?.descripcion || 'Desconocido'}</td>
+                                                            <td><small className="text-muted">{d.comentario || '-'}</small></td>
                                                             <td className="text-muted small">{d.material?.categoria}</td>
                                                             <td className="fw-bold text-primary">{d.cantidad}</td>
                                                             <td className={`fw-bold ${d.isAttended ? 'text-success' : 'text-warning'}`}>{d.consumed}</td>
@@ -238,6 +240,7 @@ const GestionSolicitudes: React.FC = () => {
                             <tr>
                                 <th>Desc</th>
                                 <th>Cantidad</th>
+                                <th>Comentario</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -259,6 +262,19 @@ const GestionSolicitudes: React.FC = () => {
                                             />
                                             <span>{it.unidad}</span>
                                         </div>
+                                    </td>
+                                    <td>
+                                        <Form.Control
+                                            type="text"
+                                            placeholder="Detalle/Marca..."
+                                            value={it.comentario || ''}
+                                            onChange={(e) => {
+                                                const newItems = [...items];
+                                                newItems[idx].comentario = e.target.value;
+                                                setItems(newItems);
+                                            }}
+                                            size="sm"
+                                        />
                                     </td>
                                 </tr>
                             ))}
