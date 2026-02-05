@@ -148,7 +148,7 @@ const EntradasAlmacen: React.FC = () => {
             {successMsg && <Alert variant="success" onClose={() => setSuccessMsg('')} dismissible>{successMsg}</Alert>}
 
             <Row className="mb-4">
-                <Col md={6}>
+                <Col xs={12} md={6}>
                     <Form.Group>
                         <Form.Label>Buscar Solicitud de Compra (Solo Pendientes)</Form.Label>
                         <Form.Select onChange={e => handleSelectSC(e.target.value)} value={selectedSC?.id || ''}>
@@ -233,7 +233,7 @@ const EntradasAlmacen: React.FC = () => {
                         <div className="bg-light p-4 rounded-3 border-0 mt-4 fade-in">
                             <h6 className="text-primary fw-bold mb-3">Registrar Ingreso: {selectedDetailSC.material?.descripcion}</h6>
                             <Row className="align-items-end g-3">
-                                <Col md={4}>
+                                <Col xs={12} md={4}>
                                     <Form.Label>Doc. Referencia</Form.Label>
                                     <Form.Control
                                         value={docReferencia}
@@ -241,7 +241,7 @@ const EntradasAlmacen: React.FC = () => {
                                         placeholder="Ej. Guía 001"
                                     />
                                 </Col>
-                                <Col md={4}>
+                                <Col xs={12} md={4}>
                                     <Form.Label>Cantidad a Ingresar</Form.Label>
                                     <Form.Control
                                         type="number"
@@ -249,7 +249,7 @@ const EntradasAlmacen: React.FC = () => {
                                         onChange={e => setCantidadIngreso(parseFloat(e.target.value))}
                                     />
                                 </Col>
-                                <Col md={4}>
+                                <Col xs={12} md={4}>
                                     <Button
                                         variant="success"
                                         className="w-100 btn-primary"

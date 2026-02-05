@@ -375,8 +375,8 @@ const EstadisticasMateriales: React.FC = () => {
 
     return (
         <div className="fade-in container-fluid" id="dashboard-content">
-            <div className="d-flex justify-content-between align-items-center mb-4">
-                <h2 className="mb-0">Dashboard de Estadísticas de Materiales</h2>
+            <div className="d-flex flex-column flex-md-row justify-content-between align-items-center mb-4 gap-2">
+                <h2 className="mb-0 text-center text-md-start">Dashboard de Estadísticas de Materiales</h2>
                 <button className="btn btn-danger" onClick={handleExportPDF}>
                     📑 Descargar PDF
                 </button>
@@ -386,7 +386,7 @@ const EstadisticasMateriales: React.FC = () => {
             <Card className="custom-card mb-4">
                 <Card.Body>
                     <Row className="g-3 align-items-end">
-                        <Col md={3}>
+                        <Col xs={12} sm={6} md={3}>
                             <label className="form-label">Fecha Inicio</label>
                             <input
                                 type="date"
@@ -395,7 +395,7 @@ const EstadisticasMateriales: React.FC = () => {
                                 onChange={(e) => setStartDate(e.target.value)}
                             />
                         </Col>
-                        <Col md={3}>
+                        <Col xs={12} sm={6} md={3}>
                             <label className="form-label">Fecha Fin</label>
                             <input
                                 type="date"
@@ -404,7 +404,7 @@ const EstadisticasMateriales: React.FC = () => {
                                 onChange={(e) => setEndDate(e.target.value)}
                             />
                         </Col>
-                        <Col md={3}>
+                        <Col xs={12} sm={6} md={3}>
                             <label className="form-label">Categoría</label>
                             <select
                                 className="form-select"
@@ -417,7 +417,7 @@ const EstadisticasMateriales: React.FC = () => {
                                 ))}
                             </select>
                         </Col>
-                        <Col md={3}>
+                        <Col xs={12} sm={6} md={3}>
                             <button
                                 className="btn btn-secondary w-100"
                                 onClick={() => {
@@ -434,8 +434,8 @@ const EstadisticasMateriales: React.FC = () => {
             </Card>
 
             {/* Global Ratio & Efficiency */}
-            <Row className="mb-4">
-                <Col md={4}>
+            <Row className="mb-4 g-3">
+                <Col xs={12} md={4}>
                     <Card className="custom-card text-center text-white bg-primary h-100">
                         <Card.Body className="d-flex flex-column justify-content-center">
                             <h3>Ratio Global de Atención</h3>
@@ -444,7 +444,7 @@ const EstadisticasMateriales: React.FC = () => {
                         </Card.Body>
                     </Card>
                 </Col>
-                <Col md={4}>
+                <Col xs={12} md={4}>
                     <Card className="custom-card text-center text-dark bg-info bg-opacity-10 h-100 border-info">
                         <Card.Body className="d-flex flex-column justify-content-center">
                             <h5 className="text-info">⏱️ Tiempo Promedio de Atención</h5>
@@ -453,7 +453,7 @@ const EstadisticasMateriales: React.FC = () => {
                         </Card.Body>
                     </Card>
                 </Col>
-                <Col md={4}>
+                <Col xs={12} md={4}>
                     <Card className="custom-card text-center text-dark bg-danger bg-opacity-10 h-100 border-danger">
                         <Card.Body className="d-flex flex-column justify-content-center">
                             <h5 className="text-danger">⏳ Pendientes y Retrasos</h5>
@@ -475,9 +475,9 @@ const EstadisticasMateriales: React.FC = () => {
                 </Col>
             </Row>
 
-            <Row className="mb-4">
+            <Row className="mb-4 g-3">
                 {/* Top Consumed Chart */}
-                <Col md={6} className="mb-4">
+                <Col xs={12} md={6}>
                     <Card className="custom-card h-100">
                         <Card.Header>Top 10 Materiales Más Consumidos</Card.Header>
                         <Card.Body style={{ height: '300px' }}>
@@ -495,7 +495,7 @@ const EstadisticasMateriales: React.FC = () => {
                 </Col>
 
                 {/* Specialty Pie Chart */}
-                <Col md={6} className="mb-4">
+                <Col xs={12} md={6}>
                     <Card className="custom-card h-100">
                         <Card.Header>Consumo por Especialidad</Card.Header>
                         <Card.Body style={{ height: '300px' }}>
@@ -526,7 +526,7 @@ const EstadisticasMateriales: React.FC = () => {
 
             <Row className="mb-4">
                 {/* Requester Bar Chart */}
-                <Col md={12} className="mb-4">
+                <Col xs={12} className="mb-4">
                     <Card className="custom-card h-100">
                         <Card.Header>Consumo por Solicitante (Top 10)</Card.Header>
                         <Card.Body style={{ height: '300px' }}>
@@ -547,7 +547,7 @@ const EstadisticasMateriales: React.FC = () => {
 
             <Row className="mb-4">
                 {/* Stock vs Consumed Scatter/Bar */}
-                <Col md={12}>
+                <Col xs={12}>
                     <Card className="custom-card">
                         <Card.Header>Consumo Acumulado vs Stock Máximo (Items Críticos)</Card.Header>
                         <Card.Body style={{ height: '350px' }}>
@@ -569,7 +569,7 @@ const EstadisticasMateriales: React.FC = () => {
 
             {/* Trends Section */}
             <Row className="mb-4">
-                <Col md={12}>
+                <Col xs={12}>
                     <Card className="custom-card">
                         <Card.Header>📈 Tendencia de Consumo (Atendido en el Tiempo)</Card.Header>
                         <Card.Body style={{ height: '300px' }}>
@@ -590,7 +590,7 @@ const EstadisticasMateriales: React.FC = () => {
 
             {/* Predictive Analysis Table */}
             <Row className="mb-4">
-                <Col md={12}>
+                <Col xs={12}>
                     <Card className="custom-card">
                         <Card.Header className="d-flex justify-content-between align-items-center">
                             <span>🔮 Predicción de Necesidades (Basado en consumo de 30 días)</span>
@@ -631,10 +631,10 @@ const EstadisticasMateriales: React.FC = () => {
             </Row>
 
             {/* Inventory Health Section */}
-            <h3 className="mb-3 text-muted">Salud del Inventario</h3>
-            <Row className="mb-5">
+            <h3 className="mb-3 text-muted text-center text-md-start">Salud del Inventario</h3>
+            <Row className="mb-5 g-3">
                 {/* Stockout Risk */}
-                <Col md={4}>
+                <Col xs={12} md={4}>
                     <Card className="custom-card h-100 border-warning">
                         <Card.Header className="bg-warning text-dark fw-bold">⚠️ Riesgo de Quiebre (Stock Bajo)</Card.Header>
                         <Card.Body>
@@ -653,7 +653,7 @@ const EstadisticasMateriales: React.FC = () => {
                 </Col>
 
                 {/* Dead Stock */}
-                <Col md={4}>
+                <Col xs={12} md={4}>
                     <Card className="custom-card h-100 border-secondary">
                         <Card.Header className="bg-secondary text-white fw-bold">🕸️ Inventario Inmovilizado (+60 días)</Card.Header>
                         <Card.Body>
@@ -672,7 +672,7 @@ const EstadisticasMateriales: React.FC = () => {
                 </Col>
 
                 {/* Excess Stock */}
-                <Col md={4}>
+                <Col xs={12} md={4}>
                     <Card className="custom-card h-100 border-primary">
                         <Card.Header className="bg-primary text-white fw-bold">📦 Exceso de Stock ({'>'} Máx)</Card.Header>
                         <Card.Body>

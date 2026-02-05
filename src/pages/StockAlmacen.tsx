@@ -28,11 +28,17 @@ const StockAlmacen: React.FC = () => {
             </div>
 
             <Card className="custom-card">
-                <Form.Control
-                    placeholder="Buscar material..."
-                    value={searchTerm}
-                    onChange={e => setSearchTerm(e.target.value)}
-                />
+                <Card.Body>
+                    <div className="row">
+                        <div className="col-12 col-md-4">
+                            <Form.Control
+                                placeholder="Buscar material..."
+                                value={searchTerm}
+                                onChange={e => setSearchTerm(e.target.value)}
+                            />
+                        </div>
+                    </div>
+                </Card.Body>
             </Card>
 
 

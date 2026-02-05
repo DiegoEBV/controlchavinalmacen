@@ -48,6 +48,17 @@ h6 {
   min-height: 100vh;
 }
 
+@media (max-width: 991.98px) {
+  .main-content {
+    margin-left: 0;
+    padding: 20px;
+  }
+
+  .app-container {
+    flex-direction: column;
+  }
+}
+
 /* Animations */
 @keyframes fadeIn {
   from {
@@ -74,24 +85,33 @@ h6 {
   top: 0;
   background: linear-gradient(180deg, #1B9C85 0%, #16806C 100%);
   color: white;
-  padding: 30px 20px;
-  display: flex;
+  display: flex !important;
+  /* Force flex for Navbar */
   flex-direction: column;
   z-index: 1000;
   box-shadow: 4px 0 25px rgba(0, 0, 0, 0.05);
+}
+
+@media (max-width: 991.98px) {
+  .sidebar {
+    width: 100%;
+    height: auto;
+    position: sticky;
+    top: 0;
+    flex-direction: row;
+    padding: 0;
+  }
 }
 
 .sidebar-brand {
   font-family: 'Outfit', sans-serif;
   font-size: 1.5rem;
   font-weight: 700;
-  margin-bottom: 50px;
   color: white;
   text-decoration: none;
   display: flex;
   align-items: center;
   gap: 12px;
-  padding-left: 10px;
 }
 
 .nav-link {

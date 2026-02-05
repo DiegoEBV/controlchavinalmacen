@@ -98,7 +98,7 @@ const GestionSolicitudes: React.FC = () => {
             </div>
 
             <Row>
-                <Col md={12} className="mb-4">
+                <Col xs={12} className="mb-4">
                     <Card className="custom-card">
                         <Card.Header className="bg-white fw-bold">Requerimientos Pendientes</Card.Header>
                         <Table hover responsive className="table-borderless-custom mb-0">
@@ -129,7 +129,7 @@ const GestionSolicitudes: React.FC = () => {
                     </Card>
                 </Col>
 
-                <Col md={12}>
+                <Col xs={12}>
                     <h4 className="text-secondary mt-4">Solicitudes Generadas</h4>
                     <Accordion defaultActiveKey="0" flush className="custom-card p-0 overflow-hidden mt-3">
                         {solicitudes.map((sc, idx) => {
@@ -158,13 +158,13 @@ const GestionSolicitudes: React.FC = () => {
                             return (
                                 <Accordion.Item eventKey={String(idx)} key={sc.id}>
                                     <Accordion.Header>
-                                        <div className="d-flex w-100 justify-content-between align-items-center me-3">
+                                        <div className="d-flex flex-column flex-md-row w-100 justify-content-between align-items-md-center me-3 gap-2">
                                             <div>
                                                 <span className="fw-bold text-primary me-3">{sc.numero_sc}</span>
-                                                <span className="text-muted small me-3">Fecha: {sc.fecha_sc}</span>
+                                                <span className="text-muted small me-3 d-block d-md-inline">Fecha: {sc.fecha_sc}</span>
                                                 <Badge bg={headerVariant}>{headerStatus}</Badge>
                                             </div>
-                                            <div className="text-end">
+                                            <div className="text-start text-md-end mt-2 mt-md-0">
                                                 <small className="text-muted d-block">Req Origen</small>
                                                 <strong>#{sc.requerimiento?.item_correlativo || 'N/A'}</strong>
                                             </div>

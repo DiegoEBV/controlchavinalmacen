@@ -68,7 +68,7 @@ const SalidasAlmacen: React.FC = () => {
 
             <Card className="custom-card">
                 <Row className="mb-3">
-                    <Col md={6}>
+                    <Col xs={12} md={6}>
                         <Form.Group>
                             <Form.Label>Seleccionar Material (Stock Disponible)</Form.Label>
                             <Form.Select
@@ -90,8 +90,8 @@ const SalidasAlmacen: React.FC = () => {
                 </Row>
 
                 {selectedItem && (
-                    <Row className="align-items-end">
-                        <Col md={4}>
+                    <Row className="align-items-end g-3">
+                        <Col xs={12} md={4}>
                             <Form.Group>
                                 <Form.Label>Cantidad a Retirar (Máx: {selectedItem.cantidad_actual})</Form.Label>
                                 <Form.Control
@@ -101,7 +101,7 @@ const SalidasAlmacen: React.FC = () => {
                                 />
                             </Form.Group>
                         </Col>
-                        <Col md={4}>
+                        <Col xs={12} md={4}>
                             <Form.Group>
                                 <Form.Label>Destino / Uso</Form.Label>
                                 <Form.Control
@@ -111,7 +111,7 @@ const SalidasAlmacen: React.FC = () => {
                                 />
                             </Form.Group>
                         </Col>
-                        <Col md={4}>
+                        <Col xs={12} md={4}>
                             <Button variant="danger" className="w-100" onClick={handleRegister} disabled={loading}>
                                 Registrar Salida
                             </Button>

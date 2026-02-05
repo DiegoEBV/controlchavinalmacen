@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Container, Row, Col, Table, Button, Form, Modal, Card } from 'react-bootstrap';
+import { Row, Col, Table, Button, Form, Modal, Card } from 'react-bootstrap';
 import { getSolicitantes, createSolicitante, deleteSolicitante } from '../services/requerimientosService';
 
 const GestionSolicitantes: React.FC = () => {
@@ -53,17 +53,21 @@ const GestionSolicitantes: React.FC = () => {
 
     return (
         <div className="fade-in">
-            <div className="page-header">
-                <h2>Gestión de Solicitantes</h2>
-                <Button onClick={() => setShowModal(true)} className="btn-primary">+ Nuevo Solicitante</Button>
+            <div className="page-header d-flex flex-column flex-md-row justify-content-between align-items-center mb-4 gap-3">
+                <h2 className="mb-0 text-center text-md-start">Gestión de Solicitantes</h2>
+                <Button onClick={() => setShowModal(true)} className="btn-primary w-100 w-md-auto">+ Nuevo Solicitante</Button>
             </div>
 
             <Card className="custom-card">
-                <Form.Control
-                    placeholder="Buscar solicitante..."
-                    value={searchTerm}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
-                />
+                <Row className="g-2">
+                    <Col xs={12} md={6}>
+                        <Form.Control
+                            placeholder="Buscar solicitante..."
+                            value={searchTerm}
+                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
+                        />
+                    </Col>
+                </Row>
             </Card>
 
             <Card className="custom-card p-0">

@@ -240,12 +240,12 @@ const ReporteMateriales: React.FC = () => {
 
     return (
         <div className="fade-in container-fluid">
-            <div className="page-header d-flex justify-content-between align-items-center mb-4">
-                <h2>Generador de Reportes de Materiales</h2>
-                <div>
+            <div className="page-header d-flex flex-column flex-md-row justify-content-between align-items-center mb-4 gap-2">
+                <h2 className="mb-0 text-center text-md-start">Generador de Reportes de Materiales</h2>
+                <div className="d-flex gap-2">
                     {generated && (
                         <>
-                            <Button variant="success" className="me-2" onClick={exportExcel}>Exportar Excel</Button>
+                            <Button variant="success" onClick={exportExcel}>Exportar Excel</Button>
                             <Button variant="danger" onClick={exportPDF}>Exportar PDF</Button>
                         </>
                     )}
@@ -255,22 +255,22 @@ const ReporteMateriales: React.FC = () => {
             <Card className="custom-card mb-4">
                 <Card.Body>
                     <Row className="g-3">
-                        <Col md={3}>
+                        <Col xs={12} sm={6} md={3}>
                             <Form.Label>Fecha Inicio</Form.Label>
                             <Form.Control type="date" value={fechaInicio} onChange={e => setFechaInicio(e.target.value)} />
                         </Col>
-                        <Col md={3}>
+                        <Col xs={12} sm={6} md={3}>
                             <Form.Label>Fecha Fin</Form.Label>
                             <Form.Control type="date" value={fechaFin} onChange={e => setFechaFin(e.target.value)} />
                         </Col>
-                        <Col md={3}>
+                        <Col xs={12} sm={6} md={3}>
                             <Form.Label>Categoría</Form.Label>
                             <Form.Select value={categoria} onChange={e => setCategoria(e.target.value)}>
                                 <option value="">Todas</option>
                                 {categorias.map(c => <option key={c} value={c}>{c}</option>)}
                             </Form.Select>
                         </Col>
-                        <Col md={3}>
+                        <Col xs={12} sm={6} md={3}>
                             <Form.Label>Material</Form.Label>
                             <Form.Select value={materialId} onChange={e => setMaterialId(e.target.value)}>
                                 <option value="">Todos</option>
@@ -281,14 +281,14 @@ const ReporteMateriales: React.FC = () => {
                                     ))}
                             </Form.Select>
                         </Col>
-                        <Col md={3}>
+                        <Col xs={12} sm={6} md={3}>
                             <Form.Label>Solicitante</Form.Label>
                             <Form.Select value={solicitante} onChange={e => setSolicitante(e.target.value)}>
                                 <option value="">Todos</option>
                                 {solicitantes.map(s => <option key={s} value={s}>{s}</option>)}
                             </Form.Select>
                         </Col>
-                        <Col md={3}>
+                        <Col xs={12} sm={6} md={3}>
                             <Form.Label>Estado</Form.Label>
                             <Form.Select value={estado} onChange={e => setEstado(e.target.value)}>
                                 <option value="">Todos</option>
@@ -298,7 +298,7 @@ const ReporteMateriales: React.FC = () => {
                                 <option value="Cancelado">Cancelado</option>
                             </Form.Select>
                         </Col>
-                        <Col md={3} className="d-flex align-items-end">
+                        <Col xs={12} md={6} className="d-flex align-items-end mt-3 mt-md-0">
                             <Button variant="primary" className="w-100 me-2" onClick={handleGenerate}>Generar Reporte</Button>
                             <Button variant="secondary" onClick={handleClear}>Limpiar</Button>
                         </Col>

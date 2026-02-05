@@ -118,7 +118,7 @@ const GestionOrdenes: React.FC = () => {
             </div>
 
             <Row>
-                <Col md={12} className="mb-4">
+                <Col xs={12} className="mb-4">
                     <Card className="custom-card">
                         <Card.Header className="bg-white fw-bold">Solicitudes Disponibles</Card.Header>
                         <Table hover responsive className="table-borderless-custom mb-0">
@@ -187,7 +187,7 @@ const GestionOrdenes: React.FC = () => {
                 </Modal.Header>
                 <Modal.Body>
                     <Row className="mb-3">
-                        <Col md={6}>
+                        <Col xs={12} md={6}>
                             <Form.Group>
                                 <Form.Label>Número de Orden de Compra</Form.Label>
                                 <Form.Control
@@ -197,7 +197,7 @@ const GestionOrdenes: React.FC = () => {
                                 />
                             </Form.Group>
                         </Col>
-                        <Col md={6}>
+                        <Col xs={12} md={6}>
                             <Form.Group>
                                 <Form.Label>Proveedor</Form.Label>
                                 <Form.Control
@@ -209,7 +209,7 @@ const GestionOrdenes: React.FC = () => {
                         </Col>
                     </Row>
                     <Row className="mb-3">
-                        <Col md={6}>
+                        <Col xs={12} md={6}>
                             <Form.Group>
                                 <Form.Label>Fecha Aproximada de Atención</Form.Label>
                                 <Form.Control

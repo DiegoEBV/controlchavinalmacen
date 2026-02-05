@@ -66,16 +66,18 @@ const GestionRequerimientos: React.FC = () => {
             </div>
 
             <Card className="custom-card">
-                <Form.Group as={Row} className="align-items-center">
-                    <Form.Label column sm="auto" className="fw-bold text-secondary">Filtrar:</Form.Label>
-                    <Col>
+                <Row className="align-items-center g-2">
+                    <Col xs={12} sm="auto">
+                        <Form.Label className="fw-bold text-secondary mb-0">Filtrar:</Form.Label>
+                    </Col>
+                    <Col xs={12} sm>
                         <Form.Control
                             placeholder="Buscar por Solicitante, Número o Bloque..."
                             value={searchTerm}
                             onChange={e => setSearchTerm(e.target.value)}
                         />
                     </Col>
-                </Form.Group>
+                </Row>
             </Card>
 
             <div className="custom-card p-0 overflow-hidden">
@@ -85,16 +87,18 @@ const GestionRequerimientos: React.FC = () => {
                         return (
                             <Accordion.Item eventKey={String(idx)} key={req.id}>
                                 <Accordion.Header>
-                                    <div className="d-flex w-100 justify-content-between align-items-center me-3">
+                                    <div className="d-flex flex-column flex-md-row w-100 justify-content-between align-items-md-center me-3 gap-2">
                                         <div>
                                             <strong>REQ #{req.item_correlativo}</strong>
-                                            <span className="mx-2 text-muted">|</span>
-                                            <span className="text-primary fw-bold">Bloque: {req.bloque}</span>
+                                            <span className="mx-2 text-muted d-none d-md-inline">|</span>
+                                            <div className="d-md-inline d-block">
+                                                <span className="text-primary fw-bold">Bloque: {req.bloque}</span>
+                                            </div>
                                             <div className="small text-muted mt-1">
                                                 Solicitado por: <strong>{req.solicitante}</strong> ({req.fecha_solicitud})
                                             </div>
                                         </div>
-                                        <div style={{ width: 150, textAlign: 'right' }}>
+                                        <div style={{ width: '100%', maxWidth: '200px', textAlign: 'left' }} className="mt-2 mt-md-0">
                                             <small className="d-block mb-1 text-muted">Atención</small>
                                             <ProgressBar now={progress} label={`${progress}%`} variant={progress === 100 ? 'success' : 'warning'} style={{ height: '20px' }} />
                                         </div>
