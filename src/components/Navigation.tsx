@@ -27,7 +27,7 @@ const Navigation: React.FC = () => {
                     <Navbar.Toggle aria-controls="sidebar-nav" className="border-0 text-white" />
                 </div>
 
-                <Navbar.Collapse id="sidebar-nav" className="w-100 px-3 px-lg-0">
+                <Navbar.Collapse id="sidebar-nav" className="w-100 px-3 px-lg-0 sidebar-scroll">
                     <Nav className="flex-column w-100 px-2 px-lg-4 pb-4">
                         <div className="nav-section-title">Principal</div>
 
