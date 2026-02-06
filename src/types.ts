@@ -42,6 +42,7 @@ export interface Material {
     descripcion: string;
     unidad: string;
     stock_maximo: number;
+    informacion_adicional?: string;
     created_at?: string;
 }
 

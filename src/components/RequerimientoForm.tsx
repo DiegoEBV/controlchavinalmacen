@@ -204,7 +204,9 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
                                 >
                                     <option value="">Seleccione Material...</option>
                                     {filteredMaterials.map(m => (
-                                        <option key={m.id} value={m.descripcion}>{m.descripcion}</option>
+                                        <option key={m.id} value={m.descripcion}>
+                                            {m.descripcion} {m.informacion_adicional ? `- ${m.informacion_adicional}` : ''}
+                                        </option>
                                     ))}
                                 </Form.Select>
                             ) : (

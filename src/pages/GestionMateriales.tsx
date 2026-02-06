@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Row, Col, Table, Button, Form, Modal, Card } from 'react-bootstrap';
-import { getMateriales, createMaterial, deleteMaterial, getCategorias } from '../services/requerimientosService';
+import { getMateriales, createMaterial, deleteMaterial, updateMaterial, getCategorias } from '../services/requerimientosService';
 import { Material } from '../types';
 
 
@@ -9,12 +9,14 @@ const GestionMateriales: React.FC = () => {
     const [categoriasList, setCategoriasList] = useState<any[]>([]);
     const [showModal, setShowModal] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
+    const [editingId, setEditingId] = useState<string | null>(null);
 
     const [newMaterial, setNewMaterial] = useState<Partial<Material>>({
         categoria: '',
         descripcion: '',
         unidad: 'und',
-        stock_maximo: 0
+        stock_maximo: 0,
+        informacion_adicional: ''
     });
 
 
@@ -42,14 +44,32 @@ const GestionMateriales: React.FC = () => {
         if (!newMaterial.categoria || !newMaterial.descripcion) return alert("Complete los campos obligatorios");
 
         try {
-            await createMaterial(newMaterial);
+            if (editingId) {
+                await updateMaterial(editingId, newMaterial);
+            } else {
+                await createMaterial(newMaterial);
+            }
             setShowModal(false);
-            setNewMaterial({ categoria: '', descripcion: '', unidad: 'und', stock_maximo: 0 });
+            setShowModal(false);
+            setNewMaterial({ categoria: '', descripcion: '', unidad: 'und', stock_maximo: 0, informacion_adicional: '' });
+            setEditingId(null);
             loadMateriales();
         } catch (error) {
             console.error(error);
             alert("Error al guardar");
         }
+    };
+
+    const handleEdit = (material: Material) => {
+        setEditingId(material.id);
+        setNewMaterial({
+            categoria: material.categoria,
+            descripcion: material.descripcion,
+            unidad: material.unidad,
+            stock_maximo: material.stock_maximo,
+            informacion_adicional: material.informacion_adicional || ''
+        });
+        setShowModal(true);
     };
 
     const handleDelete = async (id: string) => {
@@ -68,7 +88,11 @@ const GestionMateriales: React.FC = () => {
         <div className="fade-in">
             <div className="page-header d-flex flex-column flex-md-row justify-content-between align-items-center mb-4 gap-3">
                 <h2 className="mb-0 text-center text-md-start">Gestión de Materiales</h2>
-                <Button onClick={() => setShowModal(true)} className="btn-primary w-100 w-md-auto">+ Nuevo Material</Button>
+                <Button onClick={() => {
+                    setEditingId(null);
+                    setNewMaterial({ categoria: '', descripcion: '', unidad: 'und', stock_maximo: 0, informacion_adicional: '' });
+                    setShowModal(true);
+                }} className="btn-primary w-100 w-md-auto">+ Nuevo Material</Button>
             </div>
 
             <Card className="custom-card">
@@ -91,6 +115,7 @@ const GestionMateriales: React.FC = () => {
                             <th>Descripción</th>
                             <th>Unidad</th>
                             <th>Stock Max (Metrado)</th>
+                            <th>Info Adicional</th>
                             <th>Acciones</th>
                         </tr>
                     </thead>
@@ -101,7 +126,9 @@ const GestionMateriales: React.FC = () => {
                                 <td>{m.descripcion}</td>
                                 <td>{m.unidad}</td>
                                 <td>{m.stock_maximo}</td>
+                                <td>{m.informacion_adicional || '-'}</td>
                                 <td>
+                                    <Button variant="warning" size="sm" className="me-2 text-white" onClick={() => handleEdit(m)}>Editar</Button>
                                     <Button variant="danger" size="sm" onClick={() => handleDelete(m.id)}>Eliminar</Button>
                                 </td>
                             </tr>
@@ -114,7 +141,7 @@ const GestionMateriales: React.FC = () => {
 
                 <Modal show={showModal} onHide={() => setShowModal(false)}>
                     <Modal.Header closeButton>
-                        <Modal.Title>Nuevo Material</Modal.Title>
+                        <Modal.Title>{editingId ? 'Editar Material' : 'Nuevo Material'}</Modal.Title>
                     </Modal.Header>
                     <Modal.Body>
                         <Form>
@@ -148,6 +175,15 @@ const GestionMateriales: React.FC = () => {
                                     type="number"
                                     value={newMaterial.stock_maximo}
                                     onChange={e => setNewMaterial({ ...newMaterial, stock_maximo: parseFloat(e.target.value) })}
+                                />
+                            </Form.Group>
+                            <Form.Group className="mb-3">
+                                <Form.Label>Información Adicional (Opcional)</Form.Label>
+                                <Form.Control
+                                    as="textarea"
+                                    rows={2}
+                                    value={newMaterial.informacion_adicional}
+                                    onChange={e => setNewMaterial({ ...newMaterial, informacion_adicional: e.target.value })}
                                 />
                             </Form.Group>
                         </Form>

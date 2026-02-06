@@ -118,6 +118,18 @@ export const getMateriales = async () => {
     return data;
 };
 
+export const updateMaterial = async (id: string, updates: any) => {
+    const { data, error } = await supabase
+        .from('materiales')
+        .update(updates)
+        .eq('id', id)
+        .select()
+        .single();
+
+    if (error) throw error;
+    return data;
+};
+
 export const createMaterial = async (material: any) => {
     const { data, error } = await supabase
         .from('materiales')
