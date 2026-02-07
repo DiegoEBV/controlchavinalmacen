@@ -163,6 +163,15 @@ const GestionMateriales: React.FC = () => {
                                 />
                             </Form.Group>
                             <Form.Group className="mb-3">
+                                <Form.Label>Información Adicional (Opcional)</Form.Label>
+                                <Form.Control
+                                    as="textarea"
+                                    rows={2}
+                                    value={newMaterial.informacion_adicional}
+                                    onChange={e => setNewMaterial({ ...newMaterial, informacion_adicional: e.target.value })}
+                                />
+                            </Form.Group>
+                            <Form.Group className="mb-3">
                                 <Form.Label>Unidad</Form.Label>
                                 <Form.Control
                                     value={newMaterial.unidad}
@@ -177,15 +186,7 @@ const GestionMateriales: React.FC = () => {
                                     onChange={e => setNewMaterial({ ...newMaterial, stock_maximo: parseFloat(e.target.value) })}
                                 />
                             </Form.Group>
-                            <Form.Group className="mb-3">
-                                <Form.Label>Información Adicional (Opcional)</Form.Label>
-                                <Form.Control
-                                    as="textarea"
-                                    rows={2}
-                                    value={newMaterial.informacion_adicional}
-                                    onChange={e => setNewMaterial({ ...newMaterial, informacion_adicional: e.target.value })}
-                                />
-                            </Form.Group>
+
                         </Form>
                     </Modal.Body>
                     <Modal.Footer>

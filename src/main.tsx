@@ -10,12 +10,17 @@ import SalidasAlmacen from './pages/SalidasAlmacen';
 import StockAlmacen from './pages/StockAlmacen';
 import GestionSolicitantes from './pages/GestionSolicitantes';
 import GestionCategorias from './pages/GestionCategorias';
+import GestionUsuarios from './pages/GestionUsuarios';
 import GestionSolicitudes from './pages/GestionSolicitudes';
 import GestionOrdenes from './pages/GestionOrdenes';
 import ReporteMateriales from './pages/ReporteMateriales';
 import EstadisticasMateriales from './pages/EstadisticasMateriales';
 import Layout from './components/Layout';
+import Login from './pages/Login';
+import Unauthorized from './pages/Unauthorized';
+import ProtectedRoute from './components/ProtectedRoute';
 import { Outlet } from 'react-router-dom';
+import { AuthProvider, useAuth } from './context/AuthContext';
 
 const LayoutWrapper = () => {
     return (
@@ -25,25 +30,77 @@ const LayoutWrapper = () => {
     );
 };
 
+const RoleBasedRedirect = () => {
+    const { profile } = useAuth();
+
+    if (!profile) return <Navigate to="/login" />;
+
+    switch (profile.role) {
+        case 'produccion':
+        case 'coordinador':
+        case 'admin':
+            return <Navigate to="/requerimientos" />;
+        case 'logistica':
+            return <Navigate to="/ordenes" />;
+        case 'almacenero':
+            return <Navigate to="/almacen/stock" />; // or entradas
+        default:
+            return <Navigate to="/requerimientos" />; // Fallback
+    }
+};
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
     <React.StrictMode>
-        <BrowserRouter>
-            <Routes>
-                <Route element={<LayoutWrapper />}>
-                    <Route path="/" element={<Navigate to="/requerimientos" />} />
-                    <Route path="/requerimientos" element={<GestionRequerimientos />} />
-                    <Route path="/materiales" element={<GestionMateriales />} />
-                    <Route path="/almacen/entradas" element={<EntradasAlmacen />} />
-                    <Route path="/almacen/salidas" element={<SalidasAlmacen />} />
-                    <Route path="/almacen/stock" element={<StockAlmacen />} />
-                    <Route path="/reportes/materiales" element={<ReporteMateriales />} />
-                    <Route path="/reportes/estadisticas" element={<EstadisticasMateriales />} />
-                    <Route path="/solicitudes" element={<GestionSolicitudes />} />
-                    <Route path="/ordenes" element={<GestionOrdenes />} />
-                    <Route path="/solicitantes" element={<GestionSolicitantes />} />
-                    <Route path="/categorias" element={<GestionCategorias />} />
-                </Route>
-            </Routes>
-        </BrowserRouter>
+        <AuthProvider>
+            <BrowserRouter>
+                <Routes>
+                    <Route path="/login" element={<Login />} />
+                    <Route path="/unauthorized" element={<Unauthorized />} />
+                    <Route element={<LayoutWrapper />}>
+                        <Route element={<ProtectedRoute />}>
+                            <Route path="/" element={<RoleBasedRedirect />} />
+
+                            <Route element={<ProtectedRoute allowedRoles={['produccion', 'coordinador']} />}>
+                                <Route path="/requerimientos" element={<GestionRequerimientos />} />
+                            </Route>
+
+                            <Route element={<ProtectedRoute allowedRoles={['coordinador']} />}>
+                                <Route path="/solicitudes" element={<GestionSolicitudes />} />
+                            </Route>
+
+                            <Route element={<ProtectedRoute allowedRoles={['logistica']} />}>
+                                <Route path="/ordenes" element={<GestionOrdenes />} />
+                            </Route>
+
+                            <Route element={<ProtectedRoute allowedRoles={['coordinador', 'logistica']} />}>
+                                <Route path="/materiales" element={<GestionMateriales />} />
+                            </Route>
+
+                            <Route element={<ProtectedRoute allowedRoles={['almacenero', 'admin']} />}>
+                                <Route path="/almacen/entradas" element={<EntradasAlmacen />} />
+                                <Route path="/almacen/salidas" element={<SalidasAlmacen />} />
+                            </Route>
+
+                            <Route element={<ProtectedRoute allowedRoles={['almacenero', 'produccion', 'coordinador', 'logistica']} />}>
+                                <Route path="/almacen/stock" element={<StockAlmacen />} />
+                            </Route>
+
+                            <Route element={<ProtectedRoute allowedRoles={['produccion', 'coordinador', 'logistica', 'almacenero']} />}>
+                                <Route path="/reportes/materiales" element={<ReporteMateriales />} />
+                                <Route path="/reportes/estadisticas" element={<EstadisticasMateriales />} />
+                            </Route>
+
+                            <Route element={<ProtectedRoute allowedRoles={['admin', 'coordinador', 'logistica']} />}>
+                                <Route path="/solicitantes" element={<GestionSolicitantes />} />
+                                <Route path="/categorias" element={<GestionCategorias />} />
+                            </Route>
+                            <Route element={<ProtectedRoute allowedRoles={['admin']} />}>
+                                <Route path="/usuarios" element={<GestionUsuarios />} />
+                            </Route>
+                        </Route>
+                    </Route>
+                </Routes>
+            </BrowserRouter>
+        </AuthProvider>
     </React.StrictMode>,
 );

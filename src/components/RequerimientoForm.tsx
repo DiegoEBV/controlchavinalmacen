@@ -3,6 +3,7 @@ import { Modal, Button, Form, Table, Row, Col } from 'react-bootstrap';
 import { Requerimiento, DetalleRequerimiento, Obra, Material } from '../types';
 import { getMateriales, getSolicitantes, getCategorias } from '../services/requerimientosService';
 import { getInventario } from '../services/almacenService';
+import { useAuth } from '../context/AuthContext';
 
 interface RequerimientoFormProps {
     show: boolean;
@@ -13,6 +14,7 @@ interface RequerimientoFormProps {
 }
 
 const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose, onSave, initialData, obras }) => {
+    const { profile } = useAuth();
     // Header
     const [obraId, setObraId] = useState('');
     const [bloque, setBloque] = useState('');
@@ -74,7 +76,7 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
                 setObraId('');
                 setBloque('');
                 setEspecialidad('');
-                setSolicitante('');
+                setSolicitante(profile?.nombre || '');
                 setItems([]);
             }
         }
@@ -169,6 +171,9 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
                                 <Form.Label>Solicitante *</Form.Label>
                                 <Form.Select value={solicitante} onChange={e => setSolicitante(e.target.value)}>
                                     <option value="">Seleccione...</option>
+                                    {profile?.nombre && !solicitantesList.some(s => s.nombre === profile.nombre) && (
+                                        <option value={profile.nombre}>{profile.nombre}</option>
+                                    )}
                                     {solicitantesList.map(s => <option key={s.id} value={s.nombre}>{s.nombre}</option>)}
                                 </Form.Select>
                             </Form.Group>
