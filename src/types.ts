@@ -34,6 +34,7 @@ export interface Requerimiento {
 export interface Obra {
     id: string;
     nombre_obra: string;
+    ubicacion?: string;
 }
 
 export interface Material {
@@ -64,6 +65,7 @@ export interface MovimientoAlmacen {
     documento_referencia?: string;
     requerimiento_id?: string;
     destino_o_uso?: string;
+    solicitante?: string;
     created_at: string;
 }
 

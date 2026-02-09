@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../config/supabaseClient'; // Ensure this path is correct based on project structure
 import { Session, User } from '@supabase/supabase-js';
 import { UserProfile, UserRole } from '../types/auth';
+import { Obra } from '../types';
 
 interface AuthContextType {
     session: Session | null;
@@ -12,6 +13,8 @@ interface AuthContextType {
     signOut: () => Promise<void>;
     isAdmin: boolean;
     hasRole: (roles: UserRole[]) => boolean;
+    selectObra: (obra: Obra | null) => void;
+    selectedObra: Obra | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -20,6 +23,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const [session, setSession] = useState<Session | null>(null);
     const [user, setUser] = useState<User | null>(null);
     const [profile, setProfile] = useState<UserProfile | null>(null);
+    const [selectedObra, setSelectedObra] = useState<Obra | null>(() => {
+        const saved = localStorage.getItem('selectedObra');
+        return saved ? JSON.parse(saved) : null;
+    });
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -69,6 +76,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         }
     };
 
+    const selectObra = (obra: Obra | null) => {
+        setSelectedObra(obra);
+        if (obra) {
+            localStorage.setItem('selectedObra', JSON.stringify(obra));
+        } else {
+            localStorage.removeItem('selectedObra');
+        }
+    };
+
     const signIn = async (email: string) => {
         // Simple magic link sign in for now, or password if preferred
         // For this example let's assume password login is handled in the Login component directly
@@ -87,6 +103,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setSession(null);
         setUser(null);
         setProfile(null);
+        selectObra(null);
     };
 
     const isAdmin = profile?.role === 'admin';
@@ -106,7 +123,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         signIn,
         signOut,
         isAdmin,
-        hasRole
+        hasRole,
+        selectObra,
+        selectedObra
     };
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

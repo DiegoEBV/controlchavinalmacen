@@ -38,12 +38,14 @@ export const registrarEntrada = async (
 export const registrarSalida = async (
     materialId: string,
     cantidad: number,
-    destino: string
+    destino: string,
+    solicitante: string
 ) => {
     const { error } = await supabase.rpc('registrar_salida_almacen', {
         p_material_id: materialId,
         p_cantidad: cantidad,
-        p_destino: destino
+        p_destino: destino,
+        p_solicitante: solicitante
     });
 
     if (error) throw error;
