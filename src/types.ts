@@ -34,6 +34,7 @@ export interface Requerimiento {
 export interface Obra {
     id: string;
     nombre_obra: string;
+    ubicacion?: string;
 }
 
 export interface Material {
@@ -48,6 +49,7 @@ export interface Material {
 
 export interface Inventario {
     id: string;
+    obra_id: string;
     material_id: string;
     material?: Material; // Joined
     cantidad_actual: number;
@@ -57,6 +59,7 @@ export interface Inventario {
 
 export interface MovimientoAlmacen {
     id: string;
+    obra_id: string;
     tipo: 'ENTRADA' | 'SALIDA';
     material_id: string;
     cantidad: number;
@@ -64,6 +67,7 @@ export interface MovimientoAlmacen {
     documento_referencia?: string;
     requerimiento_id?: string;
     destino_o_uso?: string;
+    solicitante?: string;
     created_at: string;
 }
 

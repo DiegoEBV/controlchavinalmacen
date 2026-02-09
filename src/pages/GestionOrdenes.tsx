@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { Card, Button, Table, Badge, Modal, Form, Row, Col } from 'react-bootstrap';
 import { getSolicitudesCompra, createOrdenCompra, getOrdenesCompra } from '../services/comprasService';
 import { SolicitudCompra, OrdenCompra } from '../types';
+import { useAuth } from '../context/AuthContext';
 
 const GestionOrdenes: React.FC = () => {
+    const { selectedObra } = useAuth();
     const [solicitudes, setSolicitudes] = useState<SolicitudCompra[]>([]);
     const [ordenes, setOrdenes] = useState<OrdenCompra[]>([]);
 
@@ -18,13 +20,19 @@ const GestionOrdenes: React.FC = () => {
     const [itemsToOrder, setItemsToOrder] = useState<any[]>([]);
 
     useEffect(() => {
-        loadData();
-    }, []);
+        if (selectedObra) {
+            loadData();
+        } else {
+            setSolicitudes([]);
+            setOrdenes([]);
+        }
+    }, [selectedObra]);
 
     const loadData = async () => {
+        if (!selectedObra) return;
         const [scs, ocs] = await Promise.all([
-            getSolicitudesCompra(),
-            getOrdenesCompra()
+            getSolicitudesCompra(selectedObra.id),
+            getOrdenesCompra(selectedObra.id)
         ]);
 
         // Logic: specific SC is available ONLY if it has pending items to buy.
@@ -68,8 +76,9 @@ const GestionOrdenes: React.FC = () => {
             return {
                 detalle_sc_id: d.id,
                 material_desc: d.material?.descripcion,
+                cantidad_sc: d.cantidad, // Add this field
                 cantidad_pendiente: remaining, // Show real remaining balance
-                cantidad_a_comprar: remaining,
+                cantidad_compra: remaining, // Use consistent naming (was cantidad_a_comprar in some places, but let's check usage)
                 selected: remaining > 0 // Only select if there's balance
             };
         }) || [];
@@ -80,9 +89,9 @@ const GestionOrdenes: React.FC = () => {
     const handleSaveOC = async () => {
         if (!selectedSC || !proveedor || !manualOCNumber) return alert("Ingrese proveedor y número de OC");
 
-        const selectedItems = itemsToOrder.filter(i => i.selected && i.cantidad_a_comprar > 0).map(i => ({
+        const selectedItems = itemsToOrder.filter(i => i.selected && i.cantidad_compra > 0).map(i => ({
             detalle_sc_id: i.detalle_sc_id,
-            cantidad: parseFloat(i.cantidad_a_comprar),
+            cantidad: parseFloat(i.cantidad_compra),
             precio_unitario: 0 // Default to 0 as requested
         }));
 
@@ -244,18 +253,19 @@ const GestionOrdenes: React.FC = () => {
                                         />
                                     </td>
                                     <td>{it.material_desc}</td>
-                                    <td>{it.cantidad_pendiente}</td>
+                                    <td>{Number(it.cantidad_sc).toFixed(2)}</td>
                                     <td>
                                         <Form.Control
                                             type="number"
-                                            value={it.cantidad_a_comprar}
-                                            disabled={!it.selected}
+                                            size="sm"
+                                            value={it.cantidad_compra}
                                             onChange={e => {
+                                                const val = parseFloat(e.target.value) || 0;
                                                 const newItems = [...itemsToOrder];
-                                                newItems[idx].cantidad_a_comprar = e.target.value;
+                                                // Limit to 2 decimals
+                                                newItems[idx].cantidad_compra = parseFloat(val.toFixed(2));
                                                 setItemsToOrder(newItems);
                                             }}
-                                            size="sm"
                                         />
                                     </td>
                                 </tr>

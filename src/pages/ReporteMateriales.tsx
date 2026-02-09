@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, Form, Table, Button, Row, Col, Badge, Alert, Tab, Tabs } from 'react-bootstrap';
 import { getRequerimientos, getMateriales } from '../services/requerimientosService';
 import { Requerimiento, Material } from '../types';
+import { useAuth } from '../context/AuthContext';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -49,15 +50,22 @@ const ReporteMateriales: React.FC = () => {
     // History
     const [history, setHistory] = useState<ReportHistoryItem[]>([]);
 
+    const { selectedObra } = useAuth();
+
     useEffect(() => {
-        loadInitialData();
+        if (selectedObra) {
+            loadInitialData();
+        } else {
+            setReqs([]);
+        }
         loadHistory();
-    }, []);
+    }, [selectedObra]);
 
     const loadInitialData = async () => {
+        if (!selectedObra) return;
         try {
             const [rData, mData] = await Promise.all([
-                getRequerimientos(),
+                getRequerimientos(selectedObra.id),
                 getMateriales()
             ]);
 
@@ -229,8 +237,8 @@ const ReporteMateriales: React.FC = () => {
                 r.fecha ? new Date(r.fecha).toISOString().split('T')[0] : '-',
                 r.solicitante,
                 r.material,
-                r.cant_solicitada,
-                r.cant_atendida,
+                Number(r.cant_solicitada).toFixed(2),
+                Number(r.cant_atendida).toFixed(2),
                 r.estado
             ]),
         });
@@ -327,8 +335,8 @@ const ReporteMateriales: React.FC = () => {
                                             <tr key={idx}>
                                                 <td className="fw-bold">{s.material}</td>
                                                 <td>{s.categoria}</td>
-                                                <td className="text-center">{s.total_atendida}</td>
-                                                <td className="text-center">{s.stock_max}</td>
+                                                <td className="text-center">{Number(s.total_atendida).toFixed(2)}</td>
+                                                <td className="text-center">{Number(s.stock_max).toFixed(2)}</td>
                                                 <td>
                                                     {s.total_atendida > s.stock_max ?
                                                         <Badge bg="warning" text="dark">Sobrepasa Stock Máx</Badge> :
@@ -362,8 +370,8 @@ const ReporteMateriales: React.FC = () => {
                                                 <td>{r.solicitante}</td>
                                                 <td>{r.req_numero}</td>
                                                 <td>{r.material}</td>
-                                                <td>{r.cant_solicitada}</td>
-                                                <td className="fw-bold text-primary">{r.cant_atendida}</td>
+                                                <td>{Number(r.cant_solicitada).toFixed(2)}</td>
+                                                <td className="fw-bold text-primary">{Number(r.cant_atendida).toFixed(2)}</td>
                                                 <td><Badge bg="secondary">{r.estado}</Badge></td>
                                             </tr>
                                         ))}
