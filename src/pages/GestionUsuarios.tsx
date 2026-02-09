@@ -4,6 +4,9 @@ import { supabase } from '../config/supabaseClient';
 import { createClient } from '@supabase/supabase-js';
 import { UserProfile, UserRole } from '../types/auth';
 import { useAuth } from '../context/AuthContext';
+import { Obra } from '../types';
+
+
 
 const GestionUsuarios = () => {
     const { user } = useAuth();
@@ -24,10 +27,18 @@ const GestionUsuarios = () => {
     const [editingUserId, setEditingUserId] = useState<string | null>(null);
     const [editName, setEditName] = useState('');
 
+    // Obra Assignment State
+    const [showObraModal, setShowObraModal] = useState(false);
+    const [selectedUserForObras, setSelectedUserForObras] = useState<UserProfile | null>(null);
+    const [allObras, setAllObras] = useState<Obra[]>([]);
+    const [userObras, setUserObras] = useState<string[]>([]); // Array of obra_ids
+    const [savingObras, setSavingObras] = useState(false);
+
     const ROLES: UserRole[] = ['admin', 'produccion', 'coordinador', 'logistica', 'almacenero', 'sin_asignar'];
 
     useEffect(() => {
         fetchProfiles();
+        fetchObras();
     }, []);
 
     const fetchProfiles = async () => {
@@ -44,6 +55,60 @@ const GestionUsuarios = () => {
             setError(error.message);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const fetchObras = async () => {
+        const { data } = await supabase.from('obras').select('*').order('nombre_obra');
+        setAllObras(data || []);
+    };
+
+    const handleOpenObraModal = async (userProfile: UserProfile) => {
+        setSelectedUserForObras(userProfile);
+        setShowObraModal(true);
+        setSavingObras(true); // Show loading state while fetching
+        // Fetch current assignments
+        const { data } = await supabase
+            .from('usuario_obras')
+            .select('obra_id')
+            .eq('user_id', userProfile.id);
+
+        setUserObras(data ? data.map(d => d.obra_id) : []);
+        setSavingObras(false);
+    };
+
+    const handleSaveObras = async () => {
+        if (!selectedUserForObras) return;
+        setSavingObras(true);
+        try {
+            // Delete existing
+            await supabase.from('usuario_obras').delete().eq('user_id', selectedUserForObras.id);
+
+            // Insert new
+            if (userObras.length > 0) {
+                const inserts = userObras.map(obraId => ({
+                    user_id: selectedUserForObras.id,
+                    obra_id: obraId
+                }));
+                const { error } = await supabase.from('usuario_obras').insert(inserts);
+                if (error) throw error;
+            }
+
+            setSuccessMessage(`Obras asignadas a ${selectedUserForObras.nombre} correctamente.`);
+            setShowObraModal(false);
+        } catch (error: any) {
+            setError(error.message);
+        } finally {
+            setSavingObras(false);
+            setTimeout(() => setSuccessMessage(null), 3000);
+        }
+    };
+
+    const toggleObraSelection = (obraId: string) => {
+        if (userObras.includes(obraId)) {
+            setUserObras(userObras.filter(id => id !== obraId));
+        } else {
+            setUserObras([...userObras, obraId]);
         }
     };
 
@@ -196,6 +261,7 @@ const GestionUsuarios = () => {
                             <th>Email</th>
                             <th>Rol Actual</th>
                             <th>Asignar Rol</th>
+                            <th>Obras</th>
                             <th>Fecha Registro</th>
                         </tr>
                     </thead>
@@ -249,6 +315,15 @@ const GestionUsuarios = () => {
                                                 </option>
                                             ))}
                                         </Form.Select>
+                                    </td>
+                                    <td>
+                                        <Button
+                                            variant="outline-primary"
+                                            size="sm"
+                                            onClick={() => handleOpenObraModal(profile)}
+                                        >
+                                            Gestionar Obras
+                                        </Button>
                                     </td>
                                     <td>{new Date(profile.created_at).toLocaleDateString()}</td>
                                 </tr>
@@ -322,6 +397,46 @@ const GestionUsuarios = () => {
                         </Button>
                     </Modal.Footer>
                 </Form>
+            </Modal>
+
+            {/* Obra Assignment Modal */}
+            <Modal show={showObraModal} onHide={() => setShowObraModal(false)}>
+                <Modal.Header closeButton>
+                    <Modal.Title>Asignar Obras a {selectedUserForObras?.nombre}</Modal.Title>
+                </Modal.Header>
+                <Modal.Body style={{ maxHeight: '60vh', overflowY: 'auto' }}>
+                    {savingObras && userObras.length === 0 ? (
+                        <div className="text-center">Cargando asignaciones...</div>
+                    ) : (
+                        <Form>
+                            {allObras.map(obra => (
+                                <Form.Check
+                                    key={obra.id}
+                                    type="checkbox"
+                                    id={`obra-${obra.id}`}
+                                    label={
+                                        <span>
+                                            <strong>{obra.nombre_obra}</strong>
+                                            <br />
+                                            <small className="text-muted">{obra.ubicacion}</small>
+                                        </span>
+                                    }
+                                    checked={userObras.includes(obra.id)}
+                                    onChange={() => toggleObraSelection(obra.id)}
+                                    className="mb-3"
+                                />
+                            ))}
+                        </Form>
+                    )}
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="secondary" onClick={() => setShowObraModal(false)}>
+                        Cancelar
+                    </Button>
+                    <Button variant="primary" onClick={handleSaveObras} disabled={savingObras}>
+                        {savingObras ? 'Guardando...' : 'Guardar Cambios'}
+                    </Button>
+                </Modal.Footer>
             </Modal>
         </Container>
     );

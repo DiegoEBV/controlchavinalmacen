@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { Card, Form, Button, Row, Col, Alert, Table } from 'react-bootstrap';
 import { getInventario, registrarSalida, getMovimientos } from '../services/almacenService';
 import { Inventario, MovimientoAlmacen } from '../types';
+import { useAuth } from '../context/AuthContext';
 
 const SalidasAlmacen: React.FC = () => {
+    const { selectedObra } = useAuth();
     const [inventario, setInventario] = useState<Inventario[]>([]);
 
     // Form Header State
@@ -31,13 +33,19 @@ const SalidasAlmacen: React.FC = () => {
     const [historial, setHistorial] = useState<MovimientoAlmacen[]>([]);
 
     useEffect(() => {
-        loadData();
-    }, []);
+        if (selectedObra) {
+            loadData();
+        } else {
+            setInventario([]);
+            setHistorial([]);
+        }
+    }, [selectedObra]);
 
     const loadData = async () => {
+        if (!selectedObra) return;
         const [stockData, movsData] = await Promise.all([
-            getInventario(),
-            getMovimientos()
+            getInventario(selectedObra.id),
+            getMovimientos(selectedObra.id)
         ]);
 
         // Filter stock > 0
@@ -103,7 +111,8 @@ const SalidasAlmacen: React.FC = () => {
                     item.materialId,
                     item.cantidad,
                     destino,
-                    solicitante
+                    solicitante,
+                    selectedObra!.id
                 )
             ));
 

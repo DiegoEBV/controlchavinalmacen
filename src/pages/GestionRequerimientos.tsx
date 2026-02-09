@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Button, Table, Badge, Accordion, ProgressBar, Row, Col, Form, Card } from 'react-bootstrap';
-import { getRequerimientos, createRequerimiento, getObras } from '../services/requerimientosService';
+import { getRequerimientos, createRequerimiento, getObras, getUserAssignedObras } from '../services/requerimientosService';
 import { getSolicitudesCompra, getOrdenesCompra } from '../services/comprasService';
 import { Requerimiento, Obra, SolicitudCompra, OrdenCompra } from '../types';
 import RequerimientoForm from '../components/RequerimientoForm';
+import { useAuth } from '../context/AuthContext';
 
 const GestionRequerimientos: React.FC = () => {
     const [requerimientos, setRequerimientos] = useState<Requerimiento[]>([]);
@@ -12,22 +13,41 @@ const GestionRequerimientos: React.FC = () => {
     const [ordenes, setOrdenes] = useState<OrdenCompra[]>([]);
     const [showForm, setShowForm] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
+    const { selectedObra, user, isAdmin } = useAuth();
 
     useEffect(() => {
-        loadData();
-    }, []);
+        if (selectedObra) {
+            loadData();
+        } else {
+            setRequerimientos([]);
+            setSolicitudes([]);
+            setOrdenes([]);
+        }
+    }, [selectedObra]);
 
     const loadData = async () => {
-        const [reqs, scs, obs, ocs] = await Promise.all([
-            getRequerimientos(),
-            getSolicitudesCompra(),
-            getObras(),
-            getOrdenesCompra()
-        ]);
+        if (!selectedObra) return;
+
+        // Parallel fetching
+        const pReqs = getRequerimientos(selectedObra.id);
+        const pScs = getSolicitudesCompra(selectedObra.id);
+        const pOcs = getOrdenesCompra(selectedObra.id);
+
+        // Fetch Obras based on role
+        let pObras;
+        if (isAdmin) {
+            pObras = getObras();
+        } else if (user) {
+            pObras = getUserAssignedObras(user.id);
+        } else {
+            pObras = Promise.resolve([]);
+        }
+
+        const [reqs, scs, obs, ocs] = await Promise.all([pReqs, pScs, pObras, pOcs]);
 
         if (reqs.data) setRequerimientos(reqs.data);
         if (scs) setSolicitudes(scs);
-        setObras(obs || []);
+        setObras(obs as Obra[] || []);
         setOrdenes(ocs || []);
     };
 
@@ -133,11 +153,11 @@ const GestionRequerimientos: React.FC = () => {
                                                             <div className="fw-bold">{d.descripcion}</div>
                                                             <small className="text-muted">{d.material_categoria}</small>
                                                         </td>
-                                                        <td>{d.cantidad_solicitada} {d.unidad}</td>
+                                                        <td>{Number(d.cantidad_solicitada).toFixed(2)} {d.unidad}</td>
                                                         <td>
                                                             {relatedSCItem ? (
                                                                 <div>
-                                                                    <div className="fw-bold text-primary">{relatedSCItem.cantidad} {relatedSCItem.unidad}</div>
+                                                                    <div className="fw-bold text-primary">{Number(relatedSCItem.cantidad).toFixed(2)} {relatedSCItem.unidad}</div>
                                                                     <small className="text-muted">{relatedSC?.numero_sc}</small>
                                                                 </div>
                                                             ) : '-'}

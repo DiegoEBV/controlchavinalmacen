@@ -15,14 +15,24 @@ import GestionSolicitudes from './pages/GestionSolicitudes';
 import GestionOrdenes from './pages/GestionOrdenes';
 import ReporteMateriales from './pages/ReporteMateriales';
 import EstadisticasMateriales from './pages/EstadisticasMateriales';
+import GestionObras from './pages/GestionObras';
 import Layout from './components/Layout';
 import Login from './pages/Login';
+import ObraSelector from './pages/ObraSelector';
 import Unauthorized from './pages/Unauthorized';
 import ProtectedRoute from './components/ProtectedRoute';
 import { Outlet } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 
 const LayoutWrapper = () => {
+    const { selectedObra, loading } = useAuth();
+
+    if (loading) return <div className="p-5 text-center">Cargando...</div>;
+
+    if (!selectedObra) {
+        return <Navigate to="/select-obra" replace />;
+    }
+
     return (
         <Layout>
             <Outlet />
@@ -31,9 +41,11 @@ const LayoutWrapper = () => {
 };
 
 const RoleBasedRedirect = () => {
-    const { profile } = useAuth();
+    const { profile, selectedObra } = useAuth();
 
     if (!profile) return <Navigate to="/login" />;
+
+    if (!selectedObra) return <Navigate to="/select-obra" />;
 
     switch (profile.role) {
         case 'produccion':
@@ -56,8 +68,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                 <Routes>
                     <Route path="/login" element={<Login />} />
                     <Route path="/unauthorized" element={<Unauthorized />} />
-                    <Route element={<LayoutWrapper />}>
-                        <Route element={<ProtectedRoute />}>
+                    <Route element={<ProtectedRoute />}>
+                        <Route path="/select-obra" element={<ObraSelector />} />
+                        <Route element={<LayoutWrapper />}>
                             <Route path="/" element={<RoleBasedRedirect />} />
 
                             <Route element={<ProtectedRoute allowedRoles={['produccion', 'coordinador']} />}>
@@ -96,6 +109,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                             </Route>
                             <Route element={<ProtectedRoute allowedRoles={['admin']} />}>
                                 <Route path="/usuarios" element={<GestionUsuarios />} />
+                                <Route path="/obras" element={<GestionObras />} />
                             </Route>
                         </Route>
                     </Route>

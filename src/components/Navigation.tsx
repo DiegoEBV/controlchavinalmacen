@@ -52,8 +52,8 @@ const Navigation: React.FC = () => {
                     <Navbar.Toggle aria-controls="sidebar-nav" className="border-0 text-white" />
                 </div>
 
-                <Navbar.Collapse id="sidebar-nav" className="w-100 px-3 px-lg-0 sidebar-scroll">
-                    <Nav className="flex-column w-100 px-2 px-lg-4 pb-4">
+                <Navbar.Collapse id="sidebar-nav" className="w-100 px-3 px-lg-0 sidebar-scroll d-lg-flex flex-lg-column">
+                    <Nav className="flex-column w-100 px-2 px-lg-4 pb-4 flex-grow-1">
                         <div className="nav-section-title">Principal</div>
 
                         {canViewRequerimientos && (
@@ -131,9 +131,14 @@ const Navigation: React.FC = () => {
                                 )}
 
                                 {canViewUsuarios && (
-                                    <Nav.Link as={Link} to="/usuarios" className={`nav-link ${isActive('/usuarios') ? 'active' : ''}`} onClick={closeNav}>
-                                        <span className="me-2">👤</span> Usuarios
-                                    </Nav.Link>
+                                    <>
+                                        <Nav.Link as={Link} to="/usuarios" className={`nav-link ${isActive('/usuarios') ? 'active' : ''}`} onClick={closeNav}>
+                                            <span className="me-2">👤</span> Usuarios
+                                        </Nav.Link>
+                                        <Nav.Link as={Link} to="/obras" className={`nav-link ${isActive('/obras') ? 'active' : ''}`} onClick={closeNav}>
+                                            <span className="me-2">🏗️</span> Obras
+                                        </Nav.Link>
+                                    </>
                                 )}
                             </>
                         )}

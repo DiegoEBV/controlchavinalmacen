@@ -3,15 +3,21 @@ import { SolicitudCompra, OrdenCompra } from '../types';
 
 // --- Solicitudes de Compra (SC) ---
 
-export const getSolicitudesCompra = async () => {
-    const { data, error } = await supabase
+export const getSolicitudesCompra = async (obraId?: string) => {
+    let query = supabase
         .from('solicitudes_compra')
         .select(`
             *,
-            requerimiento:requerimientos(*),
+            requerimiento:requerimientos!inner(id, obra_id, item_correlativo, solicitante),
             detalles:detalles_sc(*, material:materiales(*))
         `)
         .order('created_at', { ascending: false });
+
+    if (obraId) {
+        query = query.eq('requerimiento.obra_id', obraId);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
         console.error('Error getting SC:', error);
@@ -54,15 +60,24 @@ export const createSolicitudCompra = async (
 
 // --- Ordenes de Compra (OC) ---
 
-export const getOrdenesCompra = async () => {
-    const { data, error } = await supabase
+export const getOrdenesCompra = async (obraId?: string) => {
+    let query = supabase
         .from('ordenes_compra')
         .select(`
             *,
-            sc:solicitudes_compra(*),
+            sc:solicitudes_compra!inner(
+                *,
+                requerimiento:requerimientos!inner(id, obra_id)
+            ),
             detalles:detalles_oc(*, detalle_sc:detalles_sc(*, material:materiales(*)))
         `)
         .order('created_at', { ascending: false });
+
+    if (obraId) {
+        query = query.eq('sc.requerimiento.obra_id', obraId);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
         console.error('Error getting OC:', error);

@@ -104,10 +104,14 @@ h6 {
 }
 
 .sidebar-scroll {
-  flex: 1;
+  flex: 1 1 auto; /* Allow shrinking/growing */
   overflow-y: auto;
+  overflow-x: hidden; /* Prevent horizontal scroll */
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+  display: flex;
+  flex-direction: column;
+  min-height: 0; /* Important for nested flex scroll */
 }
 
 .sidebar-scroll::-webkit-scrollbar {

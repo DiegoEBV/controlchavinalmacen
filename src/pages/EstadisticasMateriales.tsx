@@ -9,6 +9,7 @@ import jsPDF from 'jspdf';
 import { getRequerimientos, getMateriales } from '../services/requerimientosService';
 import { getInventario } from '../services/almacenService';
 import { Requerimiento, Material, Inventario } from '../types';
+import { useAuth } from '../context/AuthContext';
 
 const EstadisticasMateriales: React.FC = () => {
     const [loading, setLoading] = useState(true);
@@ -18,6 +19,8 @@ const EstadisticasMateriales: React.FC = () => {
     const [stockVsConsumed, setStockVsConsumed] = useState<any[]>([]);
     const [predictions, setPredictions] = useState<any[]>([]);
     const [consumptionRatio, setConsumptionRatio] = useState<number>(0);
+
+    const { selectedObra } = useAuth();
 
     // Filters
     const [startDate, setStartDate] = useState<string>('');
@@ -45,8 +48,14 @@ const EstadisticasMateriales: React.FC = () => {
     const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'];
 
     useEffect(() => {
-        loadData();
-    }, []);
+        if (selectedObra) {
+            loadData();
+        } else {
+            setAllReqs([]);
+            setAllInventario([]);
+            setLoading(false);
+        }
+    }, [selectedObra]);
 
     useEffect(() => {
         if (allReqs.length > 0 && allMaterials.length > 0) {
@@ -58,11 +67,12 @@ const EstadisticasMateriales: React.FC = () => {
     }, [startDate, endDate, selectedCategory, allReqs, allMaterials, allInventario]);
 
     const loadData = async () => {
+        if (!selectedObra) return;
         try {
             const [reqResponse, materialsData, inventarioData] = await Promise.all([
-                getRequerimientos(),
+                getRequerimientos(selectedObra.id),
                 getMateriales(),
-                getInventario()
+                getInventario(selectedObra.id)
             ]);
 
             const reqs: Requerimiento[] = reqResponse.data || [];

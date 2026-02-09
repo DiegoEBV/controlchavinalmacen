@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { Table, Card, Form } from 'react-bootstrap';
 import { getInventario } from '../services/almacenService';
 import { Inventario } from '../types';
+import { useAuth } from '../context/AuthContext';
 
 const StockAlmacen: React.FC = () => {
+    const { selectedObra } = useAuth();
     const [inventario, setInventario] = useState<Inventario[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
 
@@ -11,8 +13,17 @@ const StockAlmacen: React.FC = () => {
         loadStock();
     }, []);
 
+    useEffect(() => {
+        if (selectedObra) {
+            loadStock();
+        } else {
+            setInventario([]);
+        }
+    }, [selectedObra]);
+
     const loadStock = async () => {
-        const data = await getInventario();
+        if (!selectedObra) return;
+        const data = await getInventario(selectedObra.id);
         setInventario(data || []);
     };
 
@@ -62,7 +73,7 @@ const StockAlmacen: React.FC = () => {
                                 <td>{item.material?.unidad}</td>
                                 <td>
                                     <strong className={item.cantidad_actual === 0 ? 'text-danger' : 'text-success'}>
-                                        {item.cantidad_actual}
+                                        {Number(item.cantidad_actual).toFixed(2)}
                                     </strong>
                                 </td>
                                 <td>{item.ultimo_ingreso || '-'}</td>

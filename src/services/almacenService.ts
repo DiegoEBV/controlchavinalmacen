@@ -1,14 +1,20 @@
 import { supabase } from '../config/supabaseClient';
 import { Inventario } from '../types';
 
-export const getInventario = async () => {
-    const { data, error } = await supabase
+export const getInventario = async (obraId?: string) => {
+    let query = supabase
         .from('inventario_obra')
         .select(`
             *,
             material:materiales(*)
         `)
         .order('id', { ascending: true });
+
+    if (obraId) {
+        query = query.eq('obra_id', obraId);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
         console.error('Error fetching inventario:', error);
@@ -22,14 +28,16 @@ export const registrarEntrada = async (
     cantidad: number,
     reqId: string,
     detReqId: string,
-    docRef: string
+    docRef: string,
+    obraId: string
 ) => {
     const { error } = await supabase.rpc('registrar_entrada_almacen', {
         p_material_id: materialId,
         p_cantidad: cantidad,
         p_req_id: reqId,
         p_det_req_id: detReqId,
-        p_doc_ref: docRef
+        p_doc_ref: docRef,
+        p_obra_id: obraId
     });
 
     if (error) throw error;
@@ -39,20 +47,22 @@ export const registrarSalida = async (
     materialId: string,
     cantidad: number,
     destino: string,
-    solicitante: string
+    solicitante: string,
+    obraId: string
 ) => {
     const { error } = await supabase.rpc('registrar_salida_almacen', {
         p_material_id: materialId,
         p_cantidad: cantidad,
         p_destino: destino,
-        p_solicitante: solicitante
+        p_solicitante: solicitante,
+        p_obra_id: obraId
     });
 
     if (error) throw error;
 };
 
-export const getMovimientos = async () => {
-    const { data, error } = await supabase
+export const getMovimientos = async (obraId?: string) => {
+    let query = supabase
         .from('movimientos_almacen')
         .select(`
             *,
@@ -61,6 +71,14 @@ export const getMovimientos = async () => {
         `)
         .order('created_at', { ascending: false })
         .limit(100);
+
+    if (obraId) {
+        // Movimientos don't have direct obra_id in current schema, need to verify migration
+        // In the migration we added obra_id to movimientos_almacen
+        query = query.eq('obra_id', obraId);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
         console.error('Error fetching movimientos:', error);

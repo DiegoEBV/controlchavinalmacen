@@ -4,8 +4,10 @@ import { getRequerimientos, getMateriales } from '../services/requerimientosServ
 import { registrarEntrada, getMovimientos } from '../services/almacenService';
 import { getSolicitudesCompra } from '../services/comprasService';
 import { Requerimiento, Material, MovimientoAlmacen, SolicitudCompra, DetalleSC } from '../types';
+import { useAuth } from '../context/AuthContext';
 
 const EntradasAlmacen: React.FC = () => {
+    const { selectedObra } = useAuth();
     // Data Sources
     const [solicitudes, setSolicitudes] = useState<SolicitudCompra[]>([]);
     const [materialesList, setMaterialesList] = useState<Material[]>([]);
@@ -24,16 +26,23 @@ const EntradasAlmacen: React.FC = () => {
     const [docReferencia, setDocReferencia] = useState('');
 
     useEffect(() => {
-        loadData();
-    }, []);
+        if (selectedObra) {
+            loadData();
+        } else {
+            setAllReqs([]);
+            setSolicitudes([]);
+            setHistorial([]);
+        }
+    }, [selectedObra]);
 
     const loadData = async (refreshSCId?: string) => {
+        if (!selectedObra) return;
         // We need Reqs to map back IDs, and SCs for the UI
         const [reqsData, matsData, movesData, scsData] = await Promise.all([
-            getRequerimientos(),
+            getRequerimientos(selectedObra.id),
             getMateriales(),
-            getMovimientos(),
-            getSolicitudesCompra()
+            getMovimientos(selectedObra.id),
+            getSolicitudesCompra(selectedObra.id)
         ]);
 
         if (reqsData.data) setAllReqs(reqsData.data);
@@ -107,7 +116,8 @@ const EntradasAlmacen: React.FC = () => {
                 cantidadIngreso,
                 selectedSC.requerimiento_id,
                 targetDetReq.id,
-                docReferencia
+                docReferencia,
+                selectedObra!.id
             );
 
             setSuccessMsg("Entrada registrada correctamente (Vía SC)");

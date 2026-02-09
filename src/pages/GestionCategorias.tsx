@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Row, Col, Table, Button, Form, Modal, Card } from 'react-bootstrap';
 import { getCategorias, createCategoria, deleteCategoria } from '../services/requerimientosService';
+import * as XLSX from 'xlsx';
 
 const GestionCategorias: React.FC = () => {
     const [categorias, setCategorias] = useState<any[]>([]);
@@ -51,11 +52,73 @@ const GestionCategorias: React.FC = () => {
         (item.descripcion && item.descripcion.toLowerCase().includes(searchTerm.toLowerCase()))
     );
 
+    const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = async (evt) => {
+            try {
+                const bstr = evt.target?.result;
+                const wb = XLSX.read(bstr, { type: 'binary' });
+                const wsname = wb.SheetNames[0];
+                const ws = wb.Sheets[wsname];
+                const data = XLSX.utils.sheet_to_json(ws);
+
+                let count = 0;
+                // Refresh local data first to ensure we have latest for duplicate check
+                const currentCats = await getCategorias();
+                const existingNames = new Set(currentCats?.map((c: any) => c.nombre.toUpperCase()) || []);
+
+                for (const row of data as any[]) {
+                    // Expecting columns: "nombre", "descripcion" (optional)
+                    // If headers are different, we might need mapping, but let's assume simple format.
+                    // If user provides "NOMBRE", "DESCRIPCION", sheet_to_json handles keys as they are.
+                    // We should normalize keys if possible.
+
+                    // Simple normalization helper
+                    const normalizedRow: any = {};
+                    Object.keys(row).forEach(key => {
+                        normalizedRow[key.toLowerCase()] = row[key];
+                    });
+
+                    const nombre = normalizedRow.nombre || normalizedRow.categoria; // support both
+                    const descripcion = normalizedRow.descripcion || '';
+
+                    if (nombre) {
+                        const nombreUpper = nombre.toString().toUpperCase();
+                        if (!existingNames.has(nombreUpper)) {
+                            await createCategoria({
+                                nombre: nombreUpper,
+                                descripcion: descripcion
+                            });
+                            existingNames.add(nombreUpper);
+                            count++;
+                        }
+                    }
+                }
+                alert(`Importación completada. Se agregaron ${count} categorías nuevas.`);
+                loadData();
+            } catch (error) {
+                console.error("Error importing:", error);
+                alert("Error al procesar el archivo.");
+            }
+        };
+        reader.readAsBinaryString(file);
+        e.target.value = ''; // reset
+    };
+
     return (
         <div className="fade-in">
             <div className="page-header d-flex flex-column flex-md-row justify-content-between align-items-center mb-4 gap-3">
                 <h2 className="mb-0 text-center text-md-start">Gestión de Categorías</h2>
-                <Button onClick={() => setShowModal(true)} className="btn-primary w-100 w-md-auto">+ Nueva Categoría</Button>
+                <div className="d-flex gap-2">
+                    <label className="btn btn-success text-white">
+                        Importar Excel
+                        <input type="file" hidden accept=".xlsx, .xls" onChange={handleImport} />
+                    </label>
+                    <Button onClick={() => setShowModal(true)} className="btn-primary">+ Nueva Categoría</Button>
+                </div>
             </div>
 
             <Card className="custom-card">

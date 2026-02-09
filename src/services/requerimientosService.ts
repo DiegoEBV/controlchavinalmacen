@@ -1,15 +1,21 @@
 import { supabase } from '../config/supabaseClient';
 import { Requerimiento, DetalleRequerimiento } from '../types';
 
-export const getRequerimientos = async () => {
+export const getRequerimientos = async (obraId?: string) => {
     try {
-        const { data, error } = await supabase
+        let query = supabase
             .from('requerimientos')
             .select(`
                 *,
                 detalles:detalles_requerimiento(*)
             `)
             .order('created_at', { ascending: false });
+
+        if (obraId) {
+            query = query.eq('obra_id', obraId);
+        }
+
+        const { data, error } = await query;
 
         if (error) throw error;
         return { data: data as Requerimiento[], error: null };
@@ -99,7 +105,38 @@ export const updateDetalleLogistica = async (
 };
 
 export const getObras = async () => {
-    const { data } = await supabase.from('obras').select('*');
+    const { data } = await supabase.from('obras').select('*').order('nombre_obra', { ascending: true });
+    return data || [];
+};
+
+export const getUserAssignedObras = async (userId: string) => {
+    // 1. Get IDs from junction table
+    const { data: relations, error: relError } = await supabase
+        .from('usuario_obras')
+        .select('obra_id')
+        .eq('user_id', userId);
+
+    if (relError) {
+        console.error('Error fetching user obras:', relError);
+        return [];
+    }
+
+    if (!relations || relations.length === 0) return [];
+
+    const obraIds = relations.map(r => r.obra_id);
+
+    // 2. Fetch Obra details
+    const { data, error } = await supabase
+        .from('obras')
+        .select('*')
+        .in('id', obraIds)
+        .order('nombre_obra', { ascending: true });
+
+    if (error) {
+        console.error('Error fetching obras details:', error);
+        return [];
+    }
+
     return data || [];
 };
 

@@ -14,7 +14,7 @@ interface RequerimientoFormProps {
 }
 
 const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose, onSave, initialData, obras }) => {
-    const { profile } = useAuth();
+    const { profile, selectedObra } = useAuth();
     // Header
     const [obraId, setObraId] = useState('');
     const [bloque, setBloque] = useState('');
@@ -73,7 +73,7 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
                 setSolicitante(initialData.solicitante);
                 setItems(initialData.detalles || []);
             } else {
-                setObraId('');
+                setObraId(selectedObra?.id || '');
                 setBloque('');
                 setEspecialidad('');
                 setSolicitante(profile?.nombre || '');
