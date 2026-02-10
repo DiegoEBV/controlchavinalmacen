@@ -185,7 +185,7 @@ const SalidasAlmacen: React.FC = () => {
                                     <option value="">Seleccione...</option>
                                     {inventario.map(i => (
                                         <option key={i.id} value={i.id}>
-                                            {i.material?.descripcion} ({i.material?.unidad}) - Stock: {i.cantidad_actual}
+                                            [{i.material?.frente?.nombre_frente || 'S/F'}] {i.material?.descripcion} ({i.material?.unidad}) - Stock: {i.cantidad_actual}
                                         </option>
                                     ))}
                                 </Form.Select>
@@ -280,7 +280,10 @@ const SalidasAlmacen: React.FC = () => {
                             <tr key={h.id}>
                                 <td>{h.fecha ? new Date(h.fecha).toLocaleDateString() : '-'}</td>
                                 <td className="fw-bold text-primary">{h.solicitante || '-'}</td>
-                                <td>{(h as any).material?.descripcion}</td>
+                                <td>
+                                    <div>{(h as any).material?.descripcion}</div>
+                                    <small className="text-muted">{(h as any).material?.frente?.nombre_frente || (h as any).material?.categoria}</small>
+                                </td>
                                 <td className="fw-bold text-danger">-{h.cantidad} {(h as any).material?.unidad}</td>
                                 <td>{h.destino_o_uso}</td>
                             </tr>

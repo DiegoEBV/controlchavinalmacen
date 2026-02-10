@@ -3,6 +3,7 @@ import { Modal, Button, Form, Table, Row, Col } from 'react-bootstrap';
 import { Requerimiento, DetalleRequerimiento, Obra, Material } from '../types';
 import { getMateriales, getSolicitantes, getCategorias } from '../services/requerimientosService';
 import { getInventario } from '../services/almacenService';
+import { supabase } from '../config/supabaseClient';
 import { useAuth } from '../context/AuthContext';
 
 interface RequerimientoFormProps {
@@ -17,12 +18,14 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
     const { profile, selectedObra } = useAuth();
     // Header
     const [obraId, setObraId] = useState('');
+    const [frenteId, setFrenteId] = useState('');
     const [bloque, setBloque] = useState('');
     const [especialidad, setEspecialidad] = useState('');
     const [solicitante, setSolicitante] = useState('');
 
     // Data Sources
     const [materialesList, setMaterialesList] = useState<Material[]>([]);
+    const [frentesList, setFrentesList] = useState<any[]>([]); // Frentes of selected obra
     const [solicitantesList, setSolicitantesList] = useState<any[]>([]);
     const [categoriasList, setCategoriasList] = useState<any[]>([]);
     const [stockMap, setStockMap] = useState<Record<string, number>>({});
@@ -42,6 +45,15 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
     useEffect(() => {
         loadCatalogs();
     }, []);
+
+    useEffect(() => {
+        if (obraId) {
+            loadFrentes(obraId);
+        } else {
+            setFrentesList([]);
+            setFrenteId('');
+        }
+    }, [obraId]);
 
     const loadCatalogs = async () => {
         const [mats, sols, cats, inv] = await Promise.all([
@@ -64,23 +76,30 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
         }
     };
 
+    const loadFrentes = async (oid: string) => {
+        const { data } = await supabase.from('frentes').select('*').eq('obra_id', oid).order('nombre_frente');
+        if (data) setFrentesList(data);
+    };
+
     useEffect(() => {
         if (show) {
             if (initialData) {
                 setObraId(initialData.obra_id || '');
+                setFrenteId(initialData.frente_id || '');
                 setBloque(initialData.bloque);
                 setEspecialidad(initialData.especialidad);
                 setSolicitante(initialData.solicitante);
                 setItems(initialData.detalles || []);
             } else {
                 setObraId(selectedObra?.id || '');
+                setFrenteId('');
                 setBloque('');
                 setEspecialidad('');
                 setSolicitante(profile?.nombre || '');
                 setItems([]);
             }
         }
-    }, [show, initialData]);
+    }, [show, initialData, selectedObra]);
 
     const handleAddItem = () => {
         if (!newItem.descripcion || !newItem.cantidad_solicitada || newItem.cantidad_solicitada <= 0) {
@@ -104,10 +123,12 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
 
     const handleSubmit = async () => {
         if (!solicitante) return alert("Ingrese Solicitante");
+        if (!frenteId) return alert("Seleccione Frente");
         if (items.length === 0) return alert("Agregue al menos un ítem");
 
         const headerData = {
             obra_id: obraId || null,
+            frente_id: frenteId,
             bloque,
             especialidad,
             solicitante,
@@ -118,12 +139,16 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
         handleClose();
     };
 
-    // Filter materials based on selected category
-    const filteredMaterials = materialesList.filter(m => m.categoria === newItem.material_categoria);
+    // Filter materials based on selected category AND selected frente
+    const filteredMaterials = materialesList.filter(m =>
+        m.categoria === newItem.material_categoria &&
+        (m.frente_id === frenteId || !m.frente_id) // Optional: include materials without frente? Or strict? 
+        // Strict per user request: "me muestre recien los materiales de ese frente"
+    ).filter(m => m.frente_id === frenteId);
 
     // Handle material selection to auto-fill unit
     const handleMaterialSelect = (desc: string) => {
-        const selectedMat = materialesList.find(m => m.descripcion === desc && m.categoria === newItem.material_categoria);
+        const selectedMat = materialesList.find(m => m.descripcion === desc && m.categoria === newItem.material_categoria && m.frente_id === frenteId);
         setNewItem(prev => ({
             ...prev,
             descripcion: desc,
@@ -151,11 +176,24 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
                         </Col>
                         <Col md={3}>
                             <Form.Group>
+                                <Form.Label>Frente *</Form.Label>
+                                <Form.Select
+                                    value={frenteId}
+                                    onChange={e => setFrenteId(e.target.value)}
+                                    disabled={!obraId}
+                                >
+                                    <option value="">Seleccione...</option>
+                                    {frentesList.map(f => <option key={f.id} value={f.id}>{f.nombre_frente}</option>)}
+                                </Form.Select>
+                            </Form.Group>
+                        </Col>
+                        <Col md={2}>
+                            <Form.Group>
                                 <Form.Label>Bloque</Form.Label>
                                 <Form.Control value={bloque} onChange={e => setBloque(e.target.value)} placeholder="Ej. Torre A" />
                             </Form.Group>
                         </Col>
-                        <Col md={3}>
+                        <Col md={2}>
                             <Form.Group>
                                 <Form.Label>Especialidad</Form.Label>
                                 <Form.Select value={especialidad} onChange={e => setEspecialidad(e.target.value)}>
@@ -169,7 +207,7 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
                                 </Form.Select>
                             </Form.Group>
                         </Col>
-                        <Col md={3}>
+                        <Col md={2}>
                             <Form.Group>
                                 <Form.Label>Solicitante *</Form.Label>
                                 <Form.Select value={solicitante} onChange={e => setSolicitante(e.target.value)}>
@@ -209,8 +247,9 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
                                 <Form.Select
                                     value={newItem.descripcion}
                                     onChange={e => handleMaterialSelect(e.target.value)}
+                                    disabled={!frenteId}
                                 >
-                                    <option value="">Seleccione Material...</option>
+                                    <option value="">{frenteId ? 'Seleccione Material...' : 'Seleccione Frente Primero'}</option>
                                     {filteredMaterials.map(m => (
                                         <option key={m.id} value={m.descripcion}>
                                             {m.descripcion} {m.informacion_adicional ? `- ${m.informacion_adicional}` : ''}

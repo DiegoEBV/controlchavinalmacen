@@ -58,6 +58,7 @@ const StockAlmacen: React.FC = () => {
                 <Table hover responsive className="table-borderless-custom mb-0">
                     <thead>
                         <tr>
+                            <th>Frente</th>
                             <th>Categoría</th>
                             <th>Material</th>
                             <th>Unidad</th>
@@ -68,6 +69,7 @@ const StockAlmacen: React.FC = () => {
                     <tbody>
                         {filteredStock.map(item => (
                             <tr key={item.id}>
+                                <td>{item.material?.frente?.nombre_frente || '-'}</td>
                                 <td>{item.material?.categoria}</td>
                                 <td>{item.material?.descripcion}</td>
                                 <td>{item.material?.unidad}</td>
@@ -79,7 +81,7 @@ const StockAlmacen: React.FC = () => {
                                 <td>{item.ultimo_ingreso || '-'}</td>
                             </tr>
                         ))}
-                        {filteredStock.length === 0 && <tr><td colSpan={5} className="text-center">No hay stock registrado</td></tr>}
+                        {filteredStock.length === 0 && <tr><td colSpan={6} className="text-center">No hay stock registrado</td></tr>}
                     </tbody>
                 </Table>
             </Card>
