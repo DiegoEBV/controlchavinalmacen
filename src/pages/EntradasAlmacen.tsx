@@ -175,7 +175,10 @@ const EntradasAlmacen: React.FC = () => {
 
             {selectedSC && (
                 <Card className="custom-card">
-                    <h5 className="mb-4 text-primary fw-bold">Items de {selectedSC.numero_sc}</h5>
+                    <div className="d-flex justify-content-between align-items-center mb-4">
+                        <h5 className="mb-0 text-primary fw-bold">Items de {selectedSC.numero_sc}</h5>
+                        {selectedSC.requerimiento?.frente && <span className="badge bg-secondary">Frente: {selectedSC.requerimiento.frente.nombre_frente}</span>}
+                    </div>
                     <div className="table-responsive">
                         <Table hover className="table-borderless-custom mb-0">
                             <thead>

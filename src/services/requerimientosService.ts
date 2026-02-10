@@ -7,7 +7,8 @@ export const getRequerimientos = async (obraId?: string) => {
             .from('requerimientos')
             .select(`
                 *,
-                detalles:detalles_requerimiento(*)
+                detalles:detalles_requerimiento(*),
+                frente:frentes(*)
             `)
             .order('created_at', { ascending: false });
 

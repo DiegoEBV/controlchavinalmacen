@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Row, Col, Table, Button, Form, Modal, Card } from 'react-bootstrap';
-import { getMateriales, createMaterial, deleteMaterial, updateMaterial, getCategorias, createCategoria } from '../services/requerimientosService';
+import { createMaterial, deleteMaterial, updateMaterial, getCategorias, createCategoria } from '../services/requerimientosService';
+import { supabase } from '../config/supabaseClient';
 import { Material } from '../types';
 import * as XLSX from 'xlsx';
 
@@ -8,27 +9,73 @@ import * as XLSX from 'xlsx';
 const GestionMateriales: React.FC = () => {
     const [materiales, setMateriales] = useState<Material[]>([]);
     const [categoriasList, setCategoriasList] = useState<any[]>([]);
-    const [showModal, setShowModal] = useState(false);
+    const [obras, setObras] = useState<any[]>([]);
+    const [frentes, setFrentes] = useState<any[]>([]); // For filter
+
+    // Filtros
+    const [selectedObraId, setSelectedObraId] = useState('');
+    const [selectedFrenteId, setSelectedFrenteId] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
+
+    const [showModal, setShowModal] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
+
+    // Modal dependent data
+    const [modalFrentes, setModalFrentes] = useState<any[]>([]);
+    const [modalObraId, setModalObraId] = useState('');
 
     const [newMaterial, setNewMaterial] = useState<Partial<Material>>({
         categoria: '',
         descripcion: '',
         unidad: 'und',
         stock_maximo: 0,
-        informacion_adicional: ''
+        informacion_adicional: '',
+        frente_id: ''
     });
 
-
-
     useEffect(() => {
-        loadData();
+        loadInitialData();
     }, []);
 
-    const loadData = async () => {
-        await loadMateriales();
+    useEffect(() => {
+        if (selectedObraId) {
+            loadFrentes(selectedObraId).then(setFrentes);
+        } else {
+            setFrentes([]);
+            setSelectedFrenteId('');
+        }
+    }, [selectedObraId]);
+
+    useEffect(() => {
+        if (selectedFrenteId) {
+            loadMateriales(selectedFrenteId);
+        } else {
+            setMateriales([]);
+        }
+    }, [selectedFrenteId]);
+
+    // Modal logic
+    useEffect(() => {
+        if (modalObraId) {
+            loadFrentes(modalObraId).then(setModalFrentes);
+        } else {
+            setModalFrentes([]);
+        }
+    }, [modalObraId]);
+
+    const loadInitialData = async () => {
+        await loadObras();
         await loadCategorias();
+    };
+
+    const loadObras = async () => {
+        const { data } = await supabase.from('obras').select('*').order('nombre_obra');
+        if (data) setObras(data);
+    };
+
+    const loadFrentes = async (obraId: string) => {
+        const { data } = await supabase.from('frentes').select('*').eq('obra_id', obraId).order('nombre_frente');
+        return data || [];
     };
 
     const loadCategorias = async () => {
@@ -36,25 +83,42 @@ const GestionMateriales: React.FC = () => {
         if (cats) setCategoriasList(cats);
     };
 
-    const loadMateriales = async () => {
-        const data = await getMateriales();
-        setMateriales(data || []);
+    const loadMateriales = async (frenteId: string) => {
+        // We need to filter by Frente ID API side or Client side?
+        // Service `getMateriales` fetches all. Let's update or filter here.
+        // Assuming getMateriales currently returns all.
+        // Ideally we should update service to accept filters, but for now let's query directly or filter.
+        // Let's us direct query for efficiency if service is too broad, or keep using service if it's simple.
+        // 'getMateriales' probably uses 'supabase.from(materiales).select(...)'
+        // Let's try to search with filter using supabase directly here for "Frente" specific
+        const { data, error } = await supabase
+            .from('materiales')
+            .select('*, frentes(nombre_frente)')
+            .eq('frente_id', frenteId)
+            .order('descripcion');
+
+        if (data) setMateriales(data);
     };
 
     const handleSave = async () => {
-        if (!newMaterial.categoria || !newMaterial.descripcion) return alert("Complete los campos obligatorios");
+        if (!newMaterial.categoria || !newMaterial.descripcion || !newMaterial.frente_id) return alert("Complete los campos obligatorios (incluyendo Frente)");
 
         try {
+            const materialToSave = { ...newMaterial };
+            // Ensure numeric
+            materialToSave.stock_maximo = Number(materialToSave.stock_maximo);
+
             if (editingId) {
-                await updateMaterial(editingId, newMaterial);
+                await updateMaterial(editingId, materialToSave);
             } else {
-                await createMaterial(newMaterial);
+                await createMaterial(materialToSave);
             }
             setShowModal(false);
-            setShowModal(false);
-            setNewMaterial({ categoria: '', descripcion: '', unidad: 'und', stock_maximo: 0, informacion_adicional: '' });
+            setNewMaterial({ categoria: '', descripcion: '', unidad: 'und', stock_maximo: 0, informacion_adicional: '', frente_id: '' });
             setEditingId(null);
-            loadMateriales();
+            setModalObraId('');
+            // Reload current view
+            if (selectedFrenteId) loadMateriales(selectedFrenteId);
         } catch (error) {
             console.error(error);
             alert("Error al guardar");
@@ -63,12 +127,21 @@ const GestionMateriales: React.FC = () => {
 
     const handleEdit = (material: Material) => {
         setEditingId(material.id);
+        // We need to know which Obra this Frente belongs to.
+        // Material has `frente_id`. We can find the frente in `frentes` list IF we are in the same view context.
+        // But `frentes` state only has frentes of `selectedObraId`.
+        // If we are editing, we are likely in the view of that Obra/Frente.
+        // So `modalObraId` should be `selectedObraId`.
+        setModalObraId(selectedObraId);
+        // Wait, if we use the same modal for create/edit.
+
         setNewMaterial({
             categoria: material.categoria,
             descripcion: material.descripcion,
             unidad: material.unidad,
             stock_maximo: material.stock_maximo,
-            informacion_adicional: material.informacion_adicional || ''
+            informacion_adicional: material.informacion_adicional || '',
+            frente_id: material.frente_id
         });
         setShowModal(true);
     };
@@ -76,7 +149,7 @@ const GestionMateriales: React.FC = () => {
     const handleDelete = async (id: string) => {
         if (confirm("¿Eliminar este material?")) {
             await deleteMaterial(id);
-            loadMateriales();
+            if (selectedFrenteId) loadMateriales(selectedFrenteId);
         }
     };
 
@@ -86,6 +159,8 @@ const GestionMateriales: React.FC = () => {
     );
 
     const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (!selectedObraId) return alert("Seleccione una Obra primero.");
+
         const file = e.target.files?.[0];
         if (!file) return;
 
@@ -100,18 +175,21 @@ const GestionMateriales: React.FC = () => {
 
                 let count = 0;
                 let errorCount = 0;
+                let skippedCount = 0;
 
-                // Load existing categories and materials for validation
                 const existingCats = await getCategorias() || [];
                 const catMap = new Map(existingCats.map((c: any) => [c.nombre.toUpperCase(), c]));
 
-                // We should also check for existing materials to avoid exact duplicates?
-                // The DB doesn't have unique constraint on name, but let's avoid adding same material twice if we can.
-                const existingMats = await getMateriales() || [];
-                const matSet = new Set(existingMats.map(m => m.descripcion.toUpperCase()));
+                // Fetch existing materials for this OBRA (to avoid duplicates across frentes if needed, or just by frente)
+                // Actually constraint is per Frente usually. 
+                // Let's optimize: fetch all materials for the Obra to check duplicates locally? 
+                // Or just rely on database constraints? Uniqueness is likely (Frente, Nombre).
+                // Let's just process.
+
+                // Pre-fetch frentes lookup map
+                const frenteMap = new Map(frentes.map(f => [f.nombre_frente.toUpperCase(), f.id]));
 
                 for (const row of data as any[]) {
-                    // Normalization: lowercase and replace spaces with underscores for easier access
                     const norm: any = {};
                     Object.keys(row).forEach(k => {
                         const cleanKey = k.toLowerCase().trim().replace(/\s+/g, '_');
@@ -121,63 +199,60 @@ const GestionMateriales: React.FC = () => {
                     const descripcion = norm.descripcion || norm.material;
                     const categoriaName = norm.categoria;
                     const unidad = norm.unidad || 'und';
-                    // Try to match variations of stock header
                     let stockMax = parseFloat(norm.stock_maximo || norm.stock_max || norm.stock || '0') || 0;
-                    stockMax = parseFloat(stockMax.toFixed(2)); // Enforce 2 decimals on import
+                    stockMax = parseFloat(stockMax.toFixed(2));
                     const info = norm.informacion || norm.comentario || norm.info_adicional || '';
+
+                    // Frente resolution
+                    const frenteName = norm.frente || norm.unidad_de_trabajo;
+                    let targetFrenteId = selectedFrenteId;
+
+                    if (frenteName) {
+                        const foundId = frenteMap.get(frenteName.toString().toUpperCase());
+                        if (foundId) targetFrenteId = foundId;
+                    }
+
+                    if (!targetFrenteId) {
+                        skippedCount++;
+                        continue; // No frente identified
+                    }
 
                     if (descripcion && categoriaName) {
                         const descUpper = descripcion.toString().toUpperCase();
                         const catUpper = categoriaName.toString().toUpperCase();
 
-                        if (matSet.has(descUpper)) {
-                            // duplicate material
-                            continue;
-                        }
+                        // Check duplicates? (Checking local 'materiales' state is insufficient if we are importing for different frentes)
+                        // Ideally we should check against DB or just try insert and catch error.
+                        // For speed/simplicity let's try insert.
 
-                        // Check category
                         if (!catMap.has(catUpper)) {
-                            // Create category on the fly? Or fail?
-                            // Let's create it for convenience.
                             try {
                                 const newCat = await createCategoria({ nombre: catUpper, descripcion: 'Importada' });
-                                if (newCat) {
-                                    catMap.set(catUpper, newCat[0]); // supabase returns array
-                                } else {
-                                    // fallback if return is weird, just assume it exists now query would find it next time but we need it now
-                                    // re-query? expensive inside loop.
-                                    // let's blindly trust it created or just re-add to map manually
-                                    catMap.set(catUpper, { nombre: catUpper });
-                                }
-                            } catch (err) {
-                                console.error("Could not create category", catUpper);
-                            }
+                                if (newCat) catMap.set(catUpper, newCat[0]);
+                                else catMap.set(catUpper, { nombre: catUpper });
+                            } catch (err) { }
                         }
 
-                        // Create Material
                         try {
                             await createMaterial({
                                 descripcion: descUpper,
-                                categoria: catUpper, // Storing name not ID based on current schema? 
-                                // Wait, Schema check: Material table uses "categoria" string or FK?
-                                // types.ts says: categoria: string;
-                                // In previous analysis, it seemed to be just a string in `materiales` table.
-                                // Let's verify `createMaterial` service.
+                                categoria: catUpper,
                                 unidad: unidad,
                                 stock_maximo: stockMax,
-                                informacion_adicional: info
+                                informacion_adicional: info,
+                                frente_id: targetFrenteId
                             });
-                            matSet.add(descUpper);
                             count++;
                         } catch (err) {
-                            console.error("Error creating material", descUpper, err);
                             errorCount++;
                         }
                     }
                 }
 
-                alert(`Importación completada.\nAgregados: ${count}\nErrores: ${errorCount}`);
-                loadData();
+                alert(`Proceso completado.\nAgregados: ${count}\nErrores: ${errorCount}\nOmitidos (sin Frente): ${skippedCount}`);
+
+                // Refresh list if a frente is selected
+                if (selectedFrenteId) loadMateriales(selectedFrenteId);
 
             } catch (error) {
                 console.error("Error importing:", error);
@@ -192,39 +267,70 @@ const GestionMateriales: React.FC = () => {
         <div className="fade-in">
             <div className="page-header d-flex flex-column flex-md-row justify-content-between align-items-center mb-4 gap-3">
                 <h2 className="mb-0 text-center text-md-start">Gestión de Materiales</h2>
-                <div className="d-flex gap-2 w-100 w-md-auto">
-                    <label className="btn btn-success text-white">
-                        Importar Excel
-                        <input type="file" hidden accept=".xlsx, .xls" onChange={handleImport} />
-                    </label>
-                    <Button onClick={() => {
-                        setEditingId(null);
-                        setNewMaterial({ categoria: '', descripcion: '', unidad: 'und', stock_maximo: 0, informacion_adicional: '' });
-                        setShowModal(true);
-                    }} className="btn-primary flex-grow-1">+ Nuevo Material</Button>
-                </div>
+
             </div>
 
-            <Card className="custom-card">
-                <Row className="g-2">
-                    <Col xs={12} md={6}>
-                        <Form.Control
-                            placeholder="Buscar material..."
-                            value={searchTerm}
-                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
-                        />
-                    </Col>
-                </Row>
+            <Card className="custom-card mb-3">
+                <Card.Body>
+                    <Row className="g-3">
+                        <Col md={4}>
+                            <Form.Label>Obra</Form.Label>
+                            <Form.Select value={selectedObraId} onChange={e => setSelectedObraId(e.target.value)}>
+                                <option value="">-- Seleccione Obra --</option>
+                                {obras.map(o => <option key={o.id} value={o.id}>{o.nombre_obra}</option>)}
+                            </Form.Select>
+                        </Col>
+                        <Col md={4}>
+                            <Form.Label>Frente (Unidad de Trabajo)</Form.Label>
+                            <Form.Select
+                                value={selectedFrenteId}
+                                onChange={e => setSelectedFrenteId(e.target.value)}
+                                disabled={!selectedObraId}
+                            >
+                                <option value="">-- Seleccione Frente --</option>
+                                {frentes.map(f => <option key={f.id} value={f.id}>{f.nombre_frente}</option>)}
+                            </Form.Select>
+                        </Col>
+                        <Col md={4} className="d-flex align-items-end">
+                            <div className="d-flex gap-2 w-100">
+                                <label className={`btn btn-success text-white ${!selectedObraId ? 'disabled' : ''}`}>
+                                    Importar Excel
+                                    <input type="file" hidden accept=".xlsx, .xls" onChange={handleImport} disabled={!selectedObraId} />
+                                </label>
+                                <Button onClick={() => {
+                                    setEditingId(null);
+                                    setModalObraId(selectedObraId); // Default to current filter
+                                    setNewMaterial({
+                                        categoria: '',
+                                        descripcion: '',
+                                        unidad: 'und',
+                                        stock_maximo: 0,
+                                        informacion_adicional: '',
+                                        frente_id: selectedFrenteId || '' // Default to current filter
+                                    });
+                                    setShowModal(true);
+                                }} className="btn-primary flex-grow-1" disabled={!selectedObraId}>+ Nuevo Material</Button>
+                            </div>
+                        </Col>
+                    </Row>
+                </Card.Body>
             </Card>
 
             <Card className="custom-card p-0">
+                <div className="p-3">
+                    <Form.Control
+                        placeholder="Buscar material..."
+                        value={searchTerm}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
+                    />
+                </div>
                 <Table responsive hover className="table-borderless-custom mb-0">
                     <thead className="bg-light">
                         <tr>
                             <th>Categoría</th>
                             <th>Descripción</th>
                             <th>Unidad</th>
-                            <th>Stock Max (Metrado)</th>
+                            <th>Stock Max</th>
                             <th>Info Adicional</th>
                             <th>Acciones</th>
                         </tr>
@@ -244,7 +350,7 @@ const GestionMateriales: React.FC = () => {
                             </tr>
                         ))}
                         {filteredMaterials.length === 0 && (
-                            <tr><td colSpan={5} className="text-center">No hay materiales registrados</td></tr>
+                            <tr><td colSpan={6} className="text-center">{selectedFrenteId ? 'No hay materiales en este frente.' : 'Seleccione una Obra y Frente para ver materiales.'}</td></tr>
                         )}
                     </tbody>
                 </Table>
@@ -255,6 +361,34 @@ const GestionMateriales: React.FC = () => {
                     </Modal.Header>
                     <Modal.Body>
                         <Form>
+                            {!editingId && (
+                                <Form.Group className="mb-3">
+                                    <Form.Label>Obra</Form.Label>
+                                    <Form.Select
+                                        value={modalObraId}
+                                        onChange={e => {
+                                            setModalObraId(e.target.value);
+                                            setNewMaterial({ ...newMaterial, frente_id: '' }); // Reset frente
+                                        }}
+                                    >
+                                        <option value="">-- Seleccione --</option>
+                                        {obras.map(o => <option key={o.id} value={o.id}>{o.nombre_obra}</option>)}
+                                    </Form.Select>
+                                </Form.Group>
+                            )}
+
+                            <Form.Group className="mb-3">
+                                <Form.Label>Frente (Unidad de Trabajo)</Form.Label>
+                                <Form.Select
+                                    value={newMaterial.frente_id}
+                                    onChange={e => setNewMaterial({ ...newMaterial, frente_id: e.target.value })}
+                                    disabled={!modalObraId}
+                                >
+                                    <option value="">-- Seleccione Frente --</option>
+                                    {modalFrentes.map(f => <option key={f.id} value={f.id}>{f.nombre_frente}</option>)}
+                                </Form.Select>
+                            </Form.Group>
+
                             <Form.Group className="mb-3">
                                 <Form.Label>Categoría</Form.Label>
                                 <Form.Select

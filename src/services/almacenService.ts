@@ -6,7 +6,7 @@ export const getInventario = async (obraId?: string) => {
         .from('inventario_obra')
         .select(`
             *,
-            material:materiales(*)
+            material:materiales(*, frente:frentes(nombre_frente))
         `)
         .order('id', { ascending: true });
 

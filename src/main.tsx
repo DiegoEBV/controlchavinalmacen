@@ -16,6 +16,7 @@ import GestionOrdenes from './pages/GestionOrdenes';
 import ReporteMateriales from './pages/ReporteMateriales';
 import EstadisticasMateriales from './pages/EstadisticasMateriales';
 import GestionObras from './pages/GestionObras';
+import GestionFrentes from './pages/GestionFrentes';
 import Layout from './components/Layout';
 import Login from './pages/Login';
 import ObraSelector from './pages/ObraSelector';
@@ -112,6 +113,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                                 <Route element={<ProtectedRoute allowedRoles={['admin']} />}>
                                     <Route path="/usuarios" element={<GestionUsuarios />} />
                                     <Route path="/obras" element={<GestionObras />} />
+                                    <Route path="/frentes" element={<GestionFrentes />} />
                                 </Route>
                             </Route>
                         </Route>
