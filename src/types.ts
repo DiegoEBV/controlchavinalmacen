@@ -1,3 +1,10 @@
+export interface Frente {
+    id: string;
+    obra_id: string;
+    nombre_frente: string;
+    created_at?: string;
+}
+
 export interface DetalleRequerimiento {
     id: string;
     requerimiento_id: string;
@@ -19,7 +26,9 @@ export interface DetalleRequerimiento {
 
 export interface Requerimiento {
     id: string;
-    obra_id?: string; // Optional if we just hardcode one for now, but good to have
+    obra_id?: string;
+    frente_id?: string; // Nuevo campo
+    frente?: Frente;   // Join
     item_correlativo: number;
     bloque: string;
     especialidad: string;
@@ -39,6 +48,8 @@ export interface Obra {
 
 export interface Material {
     id: string;
+    frente_id?: string; // Nuevo campo
+    frente?: Frente;    // Join
     categoria: string;
     descripcion: string;
     unidad: string;
