@@ -19,6 +19,7 @@ interface ReportHistoryItem {
         categoria: string;
         materialId: string;
         solicitante: string;
+        especialidad: string;
         estado: string;
         fechaInicio: string;
         fechaFin: string;
@@ -32,12 +33,14 @@ const ReporteMateriales: React.FC = () => {
     const [materials, setMaterials] = useState<Material[]>([]);
     const [solicitantes, setSolicitantes] = useState<string[]>([]);
     const [categorias, setCategorias] = useState<string[]>([]);
+    const [especialidades, setEspecialidades] = useState<string[]>([]);
 
     // Filters
     const [fechaInicio, setFechaInicio] = useState('');
     const [fechaFin, setFechaFin] = useState('');
     const [categoria, setCategoria] = useState('');
     const [materialId, setMaterialId] = useState('');
+    const [especialidad, setEspecialidad] = useState('');
 
     const [solicitante, setSolicitante] = useState('');
     const [estado, setEstado] = useState('');
@@ -74,6 +77,10 @@ const ReporteMateriales: React.FC = () => {
                 // Extract unique solicitantes
                 const uniqueSols = Array.from(new Set(rData.data.map((r: Requerimiento) => r.solicitante).filter(Boolean)));
                 setSolicitantes(uniqueSols as string[]);
+
+                // Extract unique especialidades
+                const uniqueEsps = Array.from(new Set(rData.data.map((r: Requerimiento) => r.especialidad).filter(Boolean)));
+                setEspecialidades(uniqueEsps as string[]);
             }
 
             if (mData) {
@@ -107,7 +114,7 @@ const ReporteMateriales: React.FC = () => {
         const newItem: ReportHistoryItem = {
             id: crypto.randomUUID(),
             generatedAt: new Date().toISOString(),
-            filters: { categoria, materialId, solicitante, estado, fechaInicio, fechaFin },
+            filters: { categoria, materialId, solicitante, estado, fechaInicio, fechaFin, especialidad },
             resultCount: count
         };
         const newHistory = [newItem, ...history];
@@ -125,6 +132,8 @@ const ReporteMateriales: React.FC = () => {
             if (fechaFin && new Date(r.fecha_solicitud) > new Date(fechaFin)) return;
             // Solicitante Filter
             if (solicitante && r.solicitante !== solicitante) return;
+            // Especialidad Filter
+            if (especialidad && r.especialidad !== especialidad) return;
 
             r.detalles?.forEach(d => {
                 // Estado Filter
@@ -147,6 +156,7 @@ const ReporteMateriales: React.FC = () => {
                     fecha: r.fecha_solicitud,
                     solicitante: r.solicitante,
                     req_numero: r.item_correlativo,
+                    especialidad: r.especialidad,
                     material: d.descripcion,
                     categoria: d.material_categoria,
                     unidad: d.unidad,
@@ -190,6 +200,7 @@ const ReporteMateriales: React.FC = () => {
         setMaterialId('');
         setSolicitante('');
         setEstado('');
+        setEspecialidad('');
         setReportData([]);
         setSummaryData([]);
         setGenerated(false);
@@ -232,10 +243,11 @@ const ReporteMateriales: React.FC = () => {
 
         autoTable(doc, {
             startY: finalY + 15,
-            head: [['Fecha', 'Solicitante', 'Material', 'Solicitada', 'Atendida', 'Estado']],
+            head: [['Fecha', 'Solicitante', 'Especialidad', 'Material', 'Solicitada', 'Atendida', 'Estado']],
             body: reportData.map(r => [
                 r.fecha ? new Date(r.fecha).toISOString().split('T')[0] : '-',
                 r.solicitante,
+                r.especialidad || '-',
                 r.material,
                 Number(r.cant_solicitada).toFixed(2),
                 Number(r.cant_atendida).toFixed(2),
@@ -279,6 +291,13 @@ const ReporteMateriales: React.FC = () => {
                             </Form.Select>
                         </Col>
                         <Col xs={12} sm={6} md={3}>
+                            <Form.Label>Especialidad</Form.Label>
+                            <Form.Select value={especialidad} onChange={e => setEspecialidad(e.target.value)}>
+                                <option value="">Todas</option>
+                                {especialidades.map(e => <option key={e} value={e}>{e}</option>)}
+                            </Form.Select>
+                        </Col>
+                        <Col xs={12} sm={6} md={3}>
                             <Form.Label>Material</Form.Label>
                             <Form.Select value={materialId} onChange={e => setMaterialId(e.target.value)}>
                                 <option value="">Todos</option>
@@ -306,7 +325,7 @@ const ReporteMateriales: React.FC = () => {
                                 <option value="Cancelado">Cancelado</option>
                             </Form.Select>
                         </Col>
-                        <Col xs={12} md={6} className="d-flex align-items-end mt-3 mt-md-0">
+                        <Col xs={12} md={3} className="d-flex align-items-end mt-3 mt-md-0">
                             <Button variant="primary" className="w-100 me-2" onClick={handleGenerate}>Generar Reporte</Button>
                             <Button variant="secondary" onClick={handleClear}>Limpiar</Button>
                         </Col>
@@ -356,6 +375,7 @@ const ReporteMateriales: React.FC = () => {
                                         <tr>
                                             <th>Fecha</th>
                                             <th>Solicitante</th>
+                                            <th>Especialidad</th>
                                             <th>Req #</th>
                                             <th>Material</th>
                                             <th>Cant. Solicitada</th>
@@ -368,6 +388,7 @@ const ReporteMateriales: React.FC = () => {
                                             <tr key={idx}>
                                                 <td>{r.fecha ? new Date(r.fecha).toISOString().split('T')[0] : '-'}</td>
                                                 <td>{r.solicitante}</td>
+                                                <td>{r.especialidad || '-'}</td>
                                                 <td>{r.req_numero}</td>
                                                 <td>{r.material}</td>
                                                 <td>{Number(r.cant_solicitada).toFixed(2)}</td>
@@ -375,7 +396,7 @@ const ReporteMateriales: React.FC = () => {
                                                 <td><Badge bg="secondary">{r.estado}</Badge></td>
                                             </tr>
                                         ))}
-                                        {reportData.length === 0 && <tr><td colSpan={7} className="text-center">No se encontraron datos.</td></tr>}
+                                        {reportData.length === 0 && <tr><td colSpan={8} className="text-center">No se encontraron datos.</td></tr>}
                                     </tbody>
                                 </Table>
                             </Card>
@@ -389,7 +410,7 @@ const ReporteMateriales: React.FC = () => {
                     <Card className="custom-card">
                         <Table responsive hover>
                             <thead>
-                                <tr>
+                                <tr className="text-center">
                                     <th>Generado</th>
                                     <th>Filtros Usados</th>
                                     <th>Resultados</th>
@@ -403,6 +424,7 @@ const ReporteMateriales: React.FC = () => {
                                         <td>
                                             <small>
                                                 {h.filters.categoria ? `Cat: ${h.filters.categoria}, ` : ''}
+                                                {h.filters.especialidad ? `Esp: ${h.filters.especialidad}, ` : ''}
                                                 {h.filters.solicitante ? `Sol: ${h.filters.solicitante}, ` : ''}
                                                 {h.filters.estado ? `Est: ${h.filters.estado}, ` : ''}
                                                 {h.filters.fechaInicio ? `Desde: ${h.filters.fechaInicio} ` : ''}

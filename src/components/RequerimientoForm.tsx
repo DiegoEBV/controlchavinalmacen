@@ -161,8 +161,11 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
                                 <Form.Select value={especialidad} onChange={e => setEspecialidad(e.target.value)}>
                                     <option value="">Seleccione...</option>
                                     <option value="Arquitectura">Arquitectura</option>
-                                    <option value="Estructuras">Estructuras</option>
-                                    <option value="Instalaciones">Instalaciones</option>
+                                    <option value="Estructura">Estructura</option>
+                                    <option value="IISS">IISS</option>
+                                    <option value="IIEE">IIEE</option>
+                                    <option value="Comunicaciones">Comunicaciones</option>
+                                    <option value="Mecanicas">Mecanicas</option>
                                 </Form.Select>
                             </Form.Group>
                         </Col>
