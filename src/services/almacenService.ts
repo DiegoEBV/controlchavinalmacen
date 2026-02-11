@@ -23,6 +23,23 @@ export const getInventario = async (obraId?: string) => {
     return data as Inventario[];
 };
 
+export const getInventarioById = async (id: string) => {
+    const { data, error } = await supabase
+        .from('inventario_obra')
+        .select(`
+            *,
+            material:materiales(*, frente:frentes(nombre_frente))
+        `)
+        .eq('id', id)
+        .single();
+
+    if (error) {
+        console.error('Error fetching inventario by id:', error);
+        return null;
+    }
+    return data as Inventario;
+};
+
 export const registrarEntrada = async (
     materialId: string,
     cantidad: number,
@@ -83,6 +100,24 @@ export const getMovimientos = async (obraId?: string) => {
     if (error) {
         console.error('Error fetching movimientos:', error);
         return [];
+    }
+    return data;
+};
+
+export const getMovimientoById = async (id: string) => {
+    const { data, error } = await supabase
+        .from('movimientos_almacen')
+        .select(`
+             *,
+             material:materiales(descripcion, categoria, unidad),
+             requerimiento:requerimientos(item_correlativo)
+         `)
+        .eq('id', id)
+        .single();
+
+    if (error) {
+        console.error('Error fetching movimiento by id:', error);
+        return null;
     }
     return data;
 };

@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Form, Table, Button, Row, Col, Alert } from 'react-bootstrap';
+import { supabase } from '../config/supabaseClient';
 import { getRequerimientos, getMateriales } from '../services/requerimientosService';
-import { registrarEntrada, getMovimientos } from '../services/almacenService';
-import { getSolicitudesCompra } from '../services/comprasService';
+import { registrarEntrada, getMovimientos, getMovimientoById } from '../services/almacenService';
+import { getSolicitudesCompra, getSolicitudCompraById } from '../services/comprasService';
 import { Requerimiento, Material, MovimientoAlmacen, SolicitudCompra, DetalleSC } from '../types';
 import { useAuth } from '../context/AuthContext';
 
@@ -24,6 +25,51 @@ const EntradasAlmacen: React.FC = () => {
     const [successMsg, setSuccessMsg] = useState('');
     const [cantidadIngreso, setCantidadIngreso] = useState(0);
     const [docReferencia, setDocReferencia] = useState('');
+
+
+    // --- Realtime Subscription ---
+    useEffect(() => {
+        const channel = supabase
+            .channel('entradas-updates')
+            .on(
+                'postgres_changes',
+                { event: 'INSERT', schema: 'public', table: 'movimientos_almacen' },
+                async (payload) => {
+                    // Only care about ENTRADA
+                    if (payload.new.tipo !== 'ENTRADA') return;
+                    const newMov = await getMovimientoById(payload.new.id);
+                    if (newMov) {
+                        setHistorial(prev => {
+                            if (prev.find(m => m.id === newMov.id)) return prev;
+                            return [newMov, ...prev];
+                        });
+                        // Also refresh stats/calculations if needed, but history is main one
+                    }
+                }
+            )
+            .on(
+                'postgres_changes',
+                { event: 'UPDATE', schema: 'public', table: 'solicitudes_compra' },
+                async (payload) => {
+                    // Check if status changed or details updated
+                    const updatedSC = await getSolicitudCompraById(payload.new.id);
+                    if (updatedSC) {
+                        setSolicitudes(prev => {
+                            return prev.map(s => s.id === updatedSC.id ? updatedSC : s);
+                        });
+                        // If the currently selected SC was updated, update it too
+                        if (selectedSC?.id === updatedSC.id) {
+                            setSelectedSC(updatedSC);
+                        }
+                    }
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [selectedSC]); // Depend on selectedSC to update it correctly
 
     useEffect(() => {
         if (selectedObra) {

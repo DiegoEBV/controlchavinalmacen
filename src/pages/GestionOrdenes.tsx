@@ -1,12 +1,14 @@
-import React, { useState, useEffect } from 'react';
+/* /src/pages/GestionOrdenes.tsx */
+import React, { useState, useEffect, useMemo } from 'react';
 import { Card, Button, Table, Badge, Modal, Form, Row, Col } from 'react-bootstrap';
-import { getSolicitudesCompra, createOrdenCompra, getOrdenesCompra } from '../services/comprasService';
+import { supabase } from '../config/supabaseClient';
+import { getSolicitudesCompra, createOrdenCompra, getOrdenesCompra, getOrdenCompraById, getSolicitudCompraById } from '../services/comprasService';
 import { SolicitudCompra, OrdenCompra } from '../types';
 import { useAuth } from '../context/AuthContext';
 
 const GestionOrdenes: React.FC = () => {
     const { selectedObra } = useAuth();
-    const [solicitudes, setSolicitudes] = useState<SolicitudCompra[]>([]);
+    const [allSolicitudes, setAllSolicitudes] = useState<SolicitudCompra[]>([]);
     const [ordenes, setOrdenes] = useState<OrdenCompra[]>([]);
 
     // Modal State
@@ -23,10 +25,55 @@ const GestionOrdenes: React.FC = () => {
         if (selectedObra) {
             loadData();
         } else {
-            setSolicitudes([]);
+            setAllSolicitudes([]);
             setOrdenes([]);
         }
     }, [selectedObra]);
+
+    // --- Realtime Subscription ---
+    useEffect(() => {
+        const channel = supabase
+            .channel('ordenes-updates')
+            .on(
+                'postgres_changes',
+                { event: 'INSERT', schema: 'public', table: 'ordenes_compra' },
+                async (payload) => {
+                    const newOC = await getOrdenCompraById(payload.new.id);
+                    if (newOC) {
+                        setOrdenes(prev => {
+                            if (prev.find(o => o.id === newOC.id)) return prev;
+                            return [newOC, ...prev];
+                        });
+                    }
+                }
+            )
+            .on(
+                'postgres_changes',
+                { event: 'UPDATE', schema: 'public', table: 'solicitudes_compra' },
+                async (payload) => {
+                    const updatedSC = await getSolicitudCompraById(payload.new.id);
+                    if (updatedSC) {
+                        setAllSolicitudes(prev => prev.map(s => s.id === updatedSC.id ? updatedSC : s));
+                    }
+                }
+            )
+            .on(
+                'postgres_changes',
+                { event: 'INSERT', schema: 'public', table: 'solicitudes_compra' },
+                async (payload) => {
+                    const newSC = await getSolicitudCompraById(payload.new.id);
+                    if (newSC) {
+                        setAllSolicitudes(prev => [newSC, ...prev]);
+                    }
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, []);
+
 
     const loadData = async () => {
         if (!selectedObra) return;
@@ -35,14 +82,19 @@ const GestionOrdenes: React.FC = () => {
             getOrdenesCompra(selectedObra.id)
         ]);
 
-        // Logic: specific SC is available ONLY if it has pending items to buy.
-        const availableScs = scs.filter(sc => {
+        if (scs) setAllSolicitudes(scs);
+        if (ocs) setOrdenes(ocs);
+    };
+
+    // Derived State: Available SCs
+    const availableSolicitudes = useMemo(() => {
+        return allSolicitudes.filter(sc => {
             if (!sc.detalles) return false;
 
             // Check if every item in this SC is fully purchased
             const isFullyPurchased = sc.detalles.every(d => {
                 // Find all OC details that reference this specific SC detail
-                const totalPurchased = ocs.reduce((sum, oc) => {
+                const totalPurchased = ordenes.reduce((sum, oc) => {
                     const match = oc.detalles?.find(od => od.detalle_sc_id === d.id);
                     return sum + (match ? match.cantidad : 0);
                 }, 0);
@@ -52,10 +104,7 @@ const GestionOrdenes: React.FC = () => {
 
             return !isFullyPurchased;
         });
-
-        setSolicitudes(availableScs);
-        setOrdenes(ocs);
-    };
+    }, [allSolicitudes, ordenes]);
 
     const handleOpenCreate = (sc: SolicitudCompra) => {
         setSelectedSC(sc);
@@ -78,7 +127,7 @@ const GestionOrdenes: React.FC = () => {
                 material_desc: d.material?.descripcion,
                 cantidad_sc: d.cantidad, // Add this field
                 cantidad_pendiente: remaining, // Show real remaining balance
-                cantidad_compra: remaining, // Use consistent naming (was cantidad_a_comprar in some places, but let's check usage)
+                cantidad_compra: remaining, // Use consistent naming
                 selected: remaining > 0 // Only select if there's balance
             };
         }) || [];
@@ -113,7 +162,13 @@ const GestionOrdenes: React.FC = () => {
             setProveedor('');
             setManualOCNumber('');
             setFechaAtencion('');
-            loadData();
+            // No need to call loadData() if Realtime is working, but harmless to keep or remove. 
+            // Better to remove to trust Realtime? Or keep as fallback.
+            // loadData(); 
+            // We'll rely on Realtime + Local Optimistic update if needed, but Realtime is fast enough usually.
+            // Actually, for immediate feedback on our OWN action, maybe reload or optimistic update.
+            // Realtime will catch it too.
+            loadData(); // Keep for safety
         } catch (e: any) {
             console.error(e);
             alert("Error creando OC: " + e.message);
@@ -140,7 +195,7 @@ const GestionOrdenes: React.FC = () => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {solicitudes.map(sc => (
+                                {availableSolicitudes.map(sc => (
                                     <tr key={sc.id}>
                                         <td>{sc.numero_sc}</td>
                                         <td>{sc.fecha_sc}</td>
@@ -170,10 +225,6 @@ const GestionOrdenes: React.FC = () => {
                         </thead>
                         <tbody>
                             {ordenes.map(oc => {
-                                // Find SC number easily? We joined details, but SC header might need join or mapping
-                                // We stored sc_id in OC header, so we can display it if we fetch join.
-                                // Currently fetching *, let's assume we didn't join SC Header but we have ID.
-                                // Logic improvement: modify service to join sc_header if needed.
                                 return (
                                     <tr key={oc.id}>
                                         <td className="fw-bold text-success">{oc.numero_oc}</td>

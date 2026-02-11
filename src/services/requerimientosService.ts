@@ -26,6 +26,26 @@ export const getRequerimientos = async (obraId?: string) => {
     }
 };
 
+export const getRequerimientoById = async (id: string) => {
+    try {
+        const { data, error } = await supabase
+            .from('requerimientos')
+            .select(`
+                 *,
+                 detalles:detalles_requerimiento(*),
+                 frente:frentes(*)
+             `)
+            .eq('id', id)
+            .single();
+
+        if (error) throw error;
+        return { data: data as Requerimiento, error: null };
+    } catch (error: any) {
+        console.error('Error fetching requerimiento by id:', error);
+        return { data: null, error: error.message };
+    }
+};
+
 export const createRequerimiento = async (
     requerimiento: Omit<Requerimiento, 'id' | 'created_at' | 'item_correlativo' | 'detalles'>,
     detalles: Omit<DetalleRequerimiento, 'id' | 'requerimiento_id' | 'created_at' | 'cantidad_atendida' | 'estado'>[]

@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Button, Table, Badge, Accordion, ProgressBar, Row, Col, Form, Card } from 'react-bootstrap';
-import { getRequerimientos, createRequerimiento, getObras, getUserAssignedObras } from '../services/requerimientosService';
-import { getSolicitudesCompra, getOrdenesCompra } from '../services/comprasService';
+import { supabase } from '../config/supabaseClient';
+import { getRequerimientos, createRequerimiento, getObras, getUserAssignedObras, getRequerimientoById } from '../services/requerimientosService';
+import { getSolicitudesCompra, getOrdenesCompra, getSolicitudCompraById, getOrdenCompraById } from '../services/comprasService';
 import { Requerimiento, Obra, SolicitudCompra, OrdenCompra } from '../types';
 import RequerimientoForm from '../components/RequerimientoForm';
 import { useAuth } from '../context/AuthContext';
@@ -14,6 +15,64 @@ const GestionRequerimientos: React.FC = () => {
     const [showForm, setShowForm] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const { selectedObra, user, isAdmin } = useAuth();
+
+    // --- Realtime Subscription ---
+    useEffect(() => {
+        const channel = supabase
+            .channel('requerimientos-updates')
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'requerimientos' },
+                async (payload) => {
+                    const { eventType, new: newRecord } = payload;
+                    if (eventType === 'INSERT' || eventType === 'UPDATE') {
+                        const { data: newReq } = await getRequerimientoById(newRecord.id);
+                        if (newReq) {
+                            setRequerimientos(prev => {
+                                const exists = prev.find(r => r.id === newReq.id);
+                                if (exists) return prev.map(r => r.id === newReq.id ? newReq : r);
+                                return [newReq, ...prev];
+                            });
+                        }
+                    }
+                }
+            )
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'solicitudes_compra' },
+                async (payload) => {
+                    const { eventType, new: newRecord } = payload;
+                    if (eventType === 'INSERT' || eventType === 'UPDATE') {
+                        const newSC = await getSolicitudCompraById(newRecord.id);
+                        if (newSC) {
+                            setSolicitudes(prev => {
+                                const exists = prev.find(s => s.id === newSC.id);
+                                if (exists) return prev.map(s => s.id === newSC.id ? newSC : s);
+                                return [newSC, ...prev];
+                            });
+                        }
+                    }
+                }
+            )
+            .on(
+                'postgres_changes',
+                { event: 'INSERT', schema: 'public', table: 'ordenes_compra' },
+                async (payload) => {
+                    const newOC = await getOrdenCompraById(payload.new.id);
+                    if (newOC) {
+                        setOrdenes(prev => {
+                            if (prev.find(o => o.id === newOC.id)) return prev;
+                            return [newOC, ...prev];
+                        });
+                    }
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, []); // Empty dependency array
 
     useEffect(() => {
         if (selectedObra) {
