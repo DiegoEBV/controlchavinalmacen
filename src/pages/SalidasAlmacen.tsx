@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Form, Button, Row, Col, Alert, Table } from 'react-bootstrap';
 import { supabase } from '../config/supabaseClient';
-import { getInventario, registrarSalida, getMovimientos, getMovimientoById, getInventarioById } from '../services/almacenService';
+import { getInventario, registrarSalida, getMovimientos, getMovimientoById } from '../services/almacenService';
 import { Inventario, MovimientoAlmacen } from '../types';
 import { useAuth } from '../context/AuthContext';
+import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription';
+import { mergeUpdates } from '../utils/stateUpdates';
 
 const SalidasAlmacen: React.FC = () => {
     const { selectedObra } = useAuth();
@@ -33,47 +35,53 @@ const SalidasAlmacen: React.FC = () => {
     // History State
     const [historial, setHistorial] = useState<MovimientoAlmacen[]>([]);
 
-    // --- Realtime Subscription ---
-    useEffect(() => {
-        const channel = supabase
-            .channel('salidas-updates')
-            .on(
-                'postgres_changes',
-                { event: 'UPDATE', schema: 'public', table: 'inventario_obra' },
-                async (payload) => {
-                    // Update Stock in Dropdown
-                    const updatedInv = await getInventarioById(payload.new.id);
-                    if (updatedInv) {
-                        setInventario(prev => prev.map(i => i.id === updatedInv.id ? updatedInv : i));
+    // --- Optimized Realtime Subscriptions ---
 
-                        // Update selected item if it's the one modified
-                        if (selectedItem?.id === updatedInv.id) {
-                            setSelectedItem(updatedInv);
-                        }
-                    }
-                }
-            )
-            .on(
-                'postgres_changes',
-                { event: 'INSERT', schema: 'public', table: 'movimientos_almacen' },
-                async (payload) => {
-                    // Only care about SALIDA
-                    if (payload.new.tipo !== 'SALIDA') return;
-                    const newMov = await getMovimientoById(payload.new.id);
-                    if (newMov) {
-                        setHistorial(prev => {
-                            if (prev.find(m => m.id === newMov.id)) return prev;
-                            return [newMov, ...prev];
-                        });
-                    }
-                }
-            )
-            .subscribe();
+    // 1. Inventario (Stock Updates)
+    useRealtimeSubscription(async ({ upserts }) => {
+        if (upserts.size > 0) {
+            const { data: updatedStock } = await supabase
+                .from('inventario_obra')
+                .select('*, material:materiales(*)')
+                .in('id', Array.from(upserts));
 
-        return () => {
-            supabase.removeChannel(channel);
-        };
-    }, [selectedItem]); // Depend on selectedItem to update it correctly
+            if (updatedStock) {
+                // Update generic list
+                setInventario(prev => mergeUpdates(prev, updatedStock as Inventario[], new Set()));
+
+                // Update selected item if modified
+                const currentSelectedId = selectedItem?.id;
+                if (currentSelectedId) {
+                    const match = updatedStock.find(i => i.id === currentSelectedId);
+                    if (match) setSelectedItem(match as Inventario);
+                }
+            }
+        }
+    }, { table: 'inventario_obra', event: 'UPDATE', throttleMs: 1000 });
+
+    // 2. Movimientos (Salidas)
+    useRealtimeSubscription(async ({ upserts }) => {
+        if (upserts.size > 0) {
+            const { data: newMoves } = await supabase
+                .from('movimientos_almacen')
+                .select('*')
+                .in('id', Array.from(upserts))
+                .eq('tipo', 'SALIDA');
+
+            if (newMoves && newMoves.length > 0) {
+                // Fetch details for display (material joins) if needed, 
+                // but for now we might rely on the basic data or handle it better.
+                // The history table needs material info. 
+                // A quick fix is to fetch individual items or trust we can map from existing inventory/material list.
+                // For robustness, let's fetch full moves with material
+                const fullMoves = await Promise.all(newMoves.map(m => getMovimientoById(m.id)));
+                const validMoves = fullMoves.filter(m => m !== null) as MovimientoAlmacen[];
+
+                setHistorial(prev => mergeUpdates(prev, validMoves, new Set()));
+            }
+        }
+    }, { table: 'movimientos_almacen', event: 'INSERT', throttleMs: 2000 });
+
 
     useEffect(() => {
         if (selectedObra) {
