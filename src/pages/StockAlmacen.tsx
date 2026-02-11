@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Table, Card, Form } from 'react-bootstrap';
-import { getInventario } from '../services/almacenService';
+import { supabase } from '../config/supabaseClient';
+import { getInventario, getInventarioById } from '../services/almacenService';
 import { Inventario } from '../types';
 import { useAuth } from '../context/AuthContext';
 
@@ -12,6 +13,38 @@ const StockAlmacen: React.FC = () => {
     useEffect(() => {
         loadStock();
     }, []);
+
+    // --- Realtime Subscription ---
+    useEffect(() => {
+        const channel = supabase
+            .channel('stock-updates')
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'inventario_obra' },
+                async (payload) => {
+                    const { eventType, new: newRecord } = payload;
+
+                    if (eventType === 'INSERT' || eventType === 'UPDATE') {
+                        const updatedItem = await getInventarioById(newRecord.id);
+                        if (updatedItem) {
+                            setInventario(prev => {
+                                const exists = prev.find(i => i.id === updatedItem.id);
+                                if (exists) {
+                                    return prev.map(i => i.id === updatedItem.id ? updatedItem : i);
+                                } else {
+                                    return [...prev, updatedItem];
+                                }
+                            });
+                        }
+                    }
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, []); // Empty dependency array
 
     useEffect(() => {
         if (selectedObra) {
