@@ -13,7 +13,7 @@ const GestionFrentes: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-    // Modal Create
+    // Modal de Creación
     const [showModal, setShowModal] = useState(false);
     const [newFrenteName, setNewFrenteName] = useState('');
     const [creating, setCreating] = useState(false);
@@ -182,7 +182,7 @@ const GestionFrentes: React.FC = () => {
                 </Table>
             </Card>
 
-            {/* Modal Create */}
+            {/* Modal de Creación */}
             <Modal show={showModal} onHide={() => setShowModal(false)}>
                 <Modal.Header closeButton>
                     <Modal.Title>Crear Nuevo Frente</Modal.Title>

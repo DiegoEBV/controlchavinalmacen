@@ -21,19 +21,19 @@ const GestionRequerimientos: React.FC = () => {
 
     const { selectedObra, user, isAdmin } = useAuth();
 
-    // --- Optimized Realtime Subscriptions ---
+    // --- Suscripciones en Tiempo Real Optimizadas ---
 
     // 1. Requerimientos
     useRealtimeSubscription(async ({ upserts, deletes }) => {
         if (upserts.size > 0) {
-            // Fetch full details
+            // Obtener detalles completos
             const responses = await Promise.all(Array.from(upserts).map(id => getRequerimientoById(id)));
             const validItems = responses
                 .filter(res => res.data !== null)
                 .map(res => res.data as Requerimiento);
 
             setRequerimientos(prev => mergeUpdates(prev, validItems, deletes, 'id', (a, b) => {
-                // Sort by item_correlativo descending (newest first)
+                // Ordenar por item_correlativo descendente (el más nuevo primero)
                 if (a.item_correlativo > b.item_correlativo) return -1;
                 if (a.item_correlativo < b.item_correlativo) return 1;
                 return 0;
@@ -46,7 +46,7 @@ const GestionRequerimientos: React.FC = () => {
     // 2. Solicitudes
     useRealtimeSubscription(async ({ upserts, deletes }) => {
         if (upserts.size > 0) {
-            // Fetch updated SCs
+            // Obtener SCs actualizadas
             const responses = await Promise.all(Array.from(upserts).map(id => getSolicitudCompraById(id)));
             const validItems = responses.filter(res => res !== null) as SolicitudCompra[];
             setSolicitudes(prev => mergeUpdates(prev, validItems, deletes));
@@ -55,7 +55,7 @@ const GestionRequerimientos: React.FC = () => {
         }
     }, { table: 'solicitudes_compra', throttleMs: 2000 });
 
-    // 3. Ordenes
+    // 3. Órdenes
     useRealtimeSubscription(async ({ upserts, deletes }) => {
         if (upserts.size > 0) {
             const responses = await Promise.all(Array.from(upserts).map(id => getOrdenCompraById(id)));
@@ -80,15 +80,15 @@ const GestionRequerimientos: React.FC = () => {
     const loadData = async () => {
         if (!selectedObra) return;
 
-        // Reset pagination
+        // Reiniciar paginación
         setVisibleCount(ITEMS_PER_PAGE);
 
-        // Parallel fetching
+        // Obtención paralela
         const pReqs = getRequerimientos(selectedObra.id);
         const pScs = getSolicitudesCompra(selectedObra.id);
         const pOcs = getOrdenesCompra(selectedObra.id);
 
-        // Fetch Obras based on role
+        // Obtener Obras basadas en rol
         let pObras;
         if (isAdmin) {
             pObras = getObras();
@@ -108,9 +108,9 @@ const GestionRequerimientos: React.FC = () => {
 
     const handleCreate = async (header: any, items: any[]) => {
         await createRequerimiento(header, items);
-        // No need to call loadData() - Realtime will catch it! 
-        // But for UX responsiveness we might want to opt-in, 
-        // keeping it for now to ensure immediate feedback if realtime lags
+        // No es necesario llamar a loadData() - ¡El tiempo real lo capturará! 
+        // Pero para la respuesta de UX podríamos querer optar por ello, 
+        // manteniéndolo por ahora para asegurar retroalimentación inmediata si el tiempo real se retrasa
         loadData();
     };
 
@@ -130,7 +130,7 @@ const GestionRequerimientos: React.FC = () => {
         return 'secondary';
     };
 
-    // Memoize filtering to avoid re-calculation on every render
+    // Memorizar filtrado para evitar re-cálculo en cada renderizado
     const filteredReqs = useMemo(() => {
         return requerimientos.filter(req =>
             req.solicitante.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -139,7 +139,7 @@ const GestionRequerimientos: React.FC = () => {
         );
     }, [requerimientos, searchTerm]);
 
-    // Apply pagination to the filtered list
+    // Aplicar paginación a la lista filtrada
     const visibleReqs = filteredReqs.slice(0, visibleCount);
 
     const handleLoadMore = () => {
@@ -207,7 +207,7 @@ const GestionRequerimientos: React.FC = () => {
                                         </thead>
                                         <tbody>
                                             {req.detalles?.map(d => {
-                                                // Find related SC item
+                                                // Encontrar ítem SC relacionado
                                                 const relatedSC = solicitudes.find(s => s.requerimiento_id === req.id);
                                                 const relatedSCItem = relatedSC?.detalles?.find(sd =>
                                                     sd.material?.descripcion === d.descripcion &&
@@ -235,7 +235,7 @@ const GestionRequerimientos: React.FC = () => {
                                                         <td>
                                                             <small>
                                                                 {(() => {
-                                                                    // Dynamic lookup of OC based on the SC Item
+                                                                    // Búsqueda dinámica de OC basada en el Ítem SC
                                                                     const relatedOC = ordenes.find(oc =>
                                                                         oc.estado !== 'Anulada' &&
                                                                         oc.detalles?.some(od => relatedSCItem && od.detalle_sc_id === relatedSCItem.id)
@@ -256,7 +256,7 @@ const GestionRequerimientos: React.FC = () => {
                                                                         );
                                                                     }
 
-                                                                    // Fallback to static fields
+                                                                    // Respaldo a campos estáticos
                                                                     return (
                                                                         <>
                                                                             {d.orden_compra ? <div><strong>OC:</strong> {d.orden_compra}</div> : '-'}
@@ -279,7 +279,7 @@ const GestionRequerimientos: React.FC = () => {
                     {filteredReqs.length === 0 && <p className="text-center text-muted mt-5">No se encontraron requerimientos.</p>}
                 </Accordion>
 
-                {/* Load More Button */}
+                {/* Botón Cargar Más */}
                 {visibleCount < filteredReqs.length && (
                     <div className="text-center p-3">
                         <Button variant="outline-primary" onClick={handleLoadMore}>

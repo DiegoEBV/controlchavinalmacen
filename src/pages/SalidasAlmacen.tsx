@@ -11,15 +11,15 @@ const SalidasAlmacen: React.FC = () => {
     const { selectedObra } = useAuth();
     const [inventario, setInventario] = useState<Inventario[]>([]);
 
-    // Form Header State
+    // Estado del Encabezado del Formulario
     const [solicitante, setSolicitante] = useState('');
     const [destino, setDestino] = useState('');
 
-    // Item Adding State
+    // Estado de Adición de Ítems
     const [selectedItem, setSelectedItem] = useState<Inventario | null>(null);
     const [cantidadSalida, setCantidadSalida] = useState(0);
 
-    // List of Items to Withdraw
+    // Lista de Ítems a Retirar
     interface SalidaItem {
         materialId: string;
         nombre: string;
@@ -32,12 +32,12 @@ const SalidasAlmacen: React.FC = () => {
     const [loading, setLoading] = useState(false);
     const [successMsg, setSuccessMsg] = useState('');
 
-    // History State
+    // Estado del Historial
     const [historial, setHistorial] = useState<MovimientoAlmacen[]>([]);
 
-    // --- Optimized Realtime Subscriptions ---
+    // --- Suscripciones en Tiempo Real Optimizadas ---
 
-    // 1. Inventario (Stock Updates)
+    // 1. Inventario (Actualizaciones de Stock)
     useRealtimeSubscription(async ({ upserts }) => {
         if (upserts.size > 0) {
             const { data: updatedStock } = await supabase
@@ -46,10 +46,10 @@ const SalidasAlmacen: React.FC = () => {
                 .in('id', Array.from(upserts));
 
             if (updatedStock) {
-                // Update generic list
+                // Actualizar lista genérica
                 setInventario(prev => mergeUpdates(prev, updatedStock as Inventario[], new Set()));
 
-                // Update selected item if modified
+                // Actualizar ítem seleccionado si fue modificado
                 const currentSelectedId = selectedItem?.id;
                 if (currentSelectedId) {
                     const match = updatedStock.find(i => i.id === currentSelectedId);
@@ -69,11 +69,11 @@ const SalidasAlmacen: React.FC = () => {
                 .eq('tipo', 'SALIDA');
 
             if (newMoves && newMoves.length > 0) {
-                // Fetch details for display (material joins) if needed, 
-                // but for now we might rely on the basic data or handle it better.
-                // The history table needs material info. 
-                // A quick fix is to fetch individual items or trust we can map from existing inventory/material list.
-                // For robustness, let's fetch full moves with material
+                // Obtener detalles para visualización (uniones de material) si es necesario, 
+                // pero por ahora podríamos confiar en los datos básicos o manejarlo mejor.
+                // La tabla de historial necesita información del material. 
+                // Una solución rápida es obtener ítems individuales o confiar en que podemos mapear desde la lista de inventario/material existente.
+                // Para robustez, obtengamos movimientos completos con material
                 const fullMoves = await Promise.all(newMoves.map(m => getMovimientoById(m.id)));
                 const validMoves = fullMoves.filter(m => m !== null) as MovimientoAlmacen[];
 
@@ -99,10 +99,10 @@ const SalidasAlmacen: React.FC = () => {
             getMovimientos(selectedObra.id)
         ]);
 
-        // Filter stock > 0
+        // Filtrar stock > 0
         setInventario(stockData?.filter(i => i.cantidad_actual > 0) || []);
 
-        // Filter valid movements (SALIDA)
+        // Filtrar movimientos válidos (SALIDA)
         if (movsData) {
             const salidas = movsData.filter((m: any) => m.tipo === 'SALIDA');
             setHistorial(salidas);
@@ -114,20 +114,20 @@ const SalidasAlmacen: React.FC = () => {
         if (cantidadSalida <= 0) return alert("Cantidad debe ser mayor a 0");
         if (cantidadSalida > selectedItem.cantidad_actual) return alert("No hay suficiente stock");
 
-        // Check if already added
+        // Verificar si ya fue agregado
         const existing = itemsToAdd.find(i => i.materialId === selectedItem.material_id);
         if (existing) {
             if (existing.cantidad + cantidadSalida > selectedItem.cantidad_actual) {
                 return alert("La suma de cantidades supera el stock disponible");
             }
-            // Update existing
+            // Actualizar existente
             setItemsToAdd(itemsToAdd.map(i =>
                 i.materialId === selectedItem.material_id
                     ? { ...i, cantidad: i.cantidad + cantidadSalida }
                     : i
             ));
         } else {
-            // Add new
+            // Agregar nuevo
             setItemsToAdd([...itemsToAdd, {
                 materialId: selectedItem.material_id,
                 nombre: selectedItem.material?.descripcion || 'Desconocido',
@@ -137,7 +137,7 @@ const SalidasAlmacen: React.FC = () => {
             }]);
         }
 
-        // Reset item input
+        // Reiniciar entrada de ítem
         setCantidadSalida(0);
         setSelectedItem(null);
     };
@@ -153,10 +153,10 @@ const SalidasAlmacen: React.FC = () => {
 
         setLoading(true);
         try {
-            // Process all items
-            // Using for...of loop to handle async operations sequentially or Promise.all
-            // Sequential is safer for stock checks if concurrent, but parallel is faster.
-            // Given frontend checks, we'll do parallel for speed unless DB locks are an issue.
+            // Procesar todos los ítems
+            // Usando bucle for...of para manejar operaciones asíncronas secuencialmente o Promise.all
+            // Secuencial es más seguro para verificaciones de stock si es concurrente, pero paralelo es más rápido.
+            // Dados las verificaciones del frontend, haremos paralelo por velocidad a menos que los bloqueos de BD sean un problema.
             await Promise.all(itemsToAdd.map(item =>
                 registrarSalida(
                     item.materialId,
@@ -169,14 +169,14 @@ const SalidasAlmacen: React.FC = () => {
 
             setSuccessMsg("Salida registrada correctamente");
 
-            // Output Report Summary (Optional, maybe just clear form)
+            // Resumen del Reporte (Opcional, quizás solo limpiar formulario)
             setItemsToAdd([]);
             setSolicitante('');
             setDestino('');
             setCantidadSalida(0);
             setSelectedItem(null);
 
-            loadData(); // Reload stock and history
+            loadData(); // Recargar stock e historial
         } catch (error: any) {
             console.error(error);
             alert("Error al registrar salida: " + (error.message || "Error desconocido"));
@@ -267,7 +267,7 @@ const SalidasAlmacen: React.FC = () => {
                 </Card.Body>
             </Card>
 
-            {/* List of Items to be Registered */}
+            {/* Lista de Ítems para Registrar */}
             {
                 itemsToAdd.length > 0 && (
                     <Card className="custom-card mb-4 border-primary">

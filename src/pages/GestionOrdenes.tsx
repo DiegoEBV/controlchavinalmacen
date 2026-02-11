@@ -13,11 +13,11 @@ const GestionOrdenes: React.FC = () => {
     const [allSolicitudes, setAllSolicitudes] = useState<SolicitudCompra[]>([]);
     const [ordenes, setOrdenes] = useState<OrdenCompra[]>([]);
 
-    // Modal State
+    // Estado del Modal
     const [showModal, setShowModal] = useState(false);
     const [selectedSC, setSelectedSC] = useState<SolicitudCompra | null>(null);
 
-    // Form Inputs
+    // Entradas del Formulario
     const [proveedor, setProveedor] = useState('');
     const [manualOCNumber, setManualOCNumber] = useState('');
     const [fechaAtencion, setFechaAtencion] = useState('');
@@ -32,9 +32,9 @@ const GestionOrdenes: React.FC = () => {
         }
     }, [selectedObra]);
 
-    // --- Optimized Realtime Subscriptions ---
+    // --- Suscripciones en Tiempo Real Optimizadas ---
 
-    // 1. Ordenes Compra (Updates or Inserts)
+    // 1. Órdenes Compra (Actualizaciones o Inserciones)
     useRealtimeSubscription(async ({ upserts, deletes }) => {
         if (upserts.size > 0) {
             const responses = await Promise.all(Array.from(upserts).map(id => getOrdenCompraById(id)));
@@ -45,7 +45,7 @@ const GestionOrdenes: React.FC = () => {
         }
     }, { table: 'ordenes_compra', throttleMs: 2000 });
 
-    // 2. Solicitudes Compra (New SCs or Updates to existing ones)
+    // 2. Solicitudes Compra (Nuevas SCs o Actualizaciones a existentes)
     useRealtimeSubscription(async ({ upserts, deletes }) => {
         if (upserts.size > 0) {
             const responses = await Promise.all(Array.from(upserts).map(id => getSolicitudCompraById(id)));
@@ -67,14 +67,14 @@ const GestionOrdenes: React.FC = () => {
         if (ocs) setOrdenes(ocs);
     };
 
-    // Derived State: Available SCs
+    // Estado Derivado: SCs Disponibles
     const availableSolicitudes = useMemo(() => {
         return allSolicitudes.filter(sc => {
             if (!sc.detalles) return false;
 
-            // Check if every item in this SC is fully purchased
+            // Verificar si cada ítem en esta SC está totalmente comprado
             const isFullyPurchased = sc.detalles.every(d => {
-                // Find all OC details that reference this specific SC detail
+                // Encontrar todos los detalles de OC que referencian este detalle de SC específico
                 const totalPurchased = ordenes.reduce((sum, oc) => {
                     const match = oc.detalles?.find(od => od.detalle_sc_id === d.id);
                     return sum + (match ? match.cantidad : 0);
@@ -89,13 +89,16 @@ const GestionOrdenes: React.FC = () => {
 
     const handleOpenCreate = (sc: SolicitudCompra) => {
         setSelectedSC(sc);
-        setManualOCNumber(''); // Reset
-        setProveedor(''); // Reset
-        setFechaAtencion(''); // Reset
-        // Pre-fill with items from SC
-        // Logic: Allow selecting partial items.
+        // Reiniciar
+        setManualOCNumber('');
+        // Reiniciar
+        setProveedor('');
+        // Reiniciar
+        setFechaAtencion('');
+        // Pre-llenar con ítems de la SC
+        // Lógica: Permitir seleccionar ítems parciales.
         const initialItems = sc.detalles?.map(d => {
-            // Calculate what has already been purchased in previous OCs
+            // Calcular lo que ya se ha comprado en OCs anteriores
             const totalPurchased = ordenes.reduce((sum, oc) => {
                 const match = oc.detalles?.find(od => od.detalle_sc_id === d.id);
                 return sum + (match ? match.cantidad : 0);
@@ -106,10 +109,10 @@ const GestionOrdenes: React.FC = () => {
             return {
                 detalle_sc_id: d.id,
                 material_desc: d.material?.descripcion,
-                cantidad_sc: d.cantidad, // Add this field
-                cantidad_pendiente: remaining, // Show real remaining balance
-                cantidad_compra: remaining, // Use consistent naming
-                selected: remaining > 0 // Only select if there's balance
+                cantidad_sc: d.cantidad, // Agregar este campo
+                cantidad_pendiente: remaining, // Mostrar saldo restante real
+                cantidad_compra: remaining, // Usar nomenclatura consistente
+                selected: remaining > 0 // Solo seleccionar si hay saldo
             };
         }) || [];
         setItemsToOrder(initialItems);
@@ -122,7 +125,7 @@ const GestionOrdenes: React.FC = () => {
         const selectedItems = itemsToOrder.filter(i => i.selected && i.cantidad_compra > 0).map(i => ({
             detalle_sc_id: i.detalle_sc_id,
             cantidad: parseFloat(i.cantidad_compra),
-            precio_unitario: 0 // Default to 0 as requested
+            precio_unitario: 0 // Por defecto a 0 como se solicitó
         }));
 
         if (selectedItems.length === 0) return alert("Seleccione al menos un item");
@@ -143,13 +146,13 @@ const GestionOrdenes: React.FC = () => {
             setProveedor('');
             setManualOCNumber('');
             setFechaAtencion('');
-            // No need to call loadData() if Realtime is working, but harmless to keep or remove. 
-            // Better to remove to trust Realtime? Or keep as fallback.
+            // No es necesario llamar a loadData() si el tiempo real está funcionando, pero es inofensivo mantenerlo o eliminarlo.
+            // ¿Mejor eliminar para confiar en el tiempo real? O mantener como respaldo.
             // loadData(); 
-            // We'll rely on Realtime + Local Optimistic update if needed, but Realtime is fast enough usually.
-            // Actually, for immediate feedback on our OWN action, maybe reload or optimistic update.
-            // Realtime will catch it too.
-            loadData(); // Keep for safety
+            // Confiaremos en el tiempo real + actualización optimista local si es necesario, pero el tiempo real suele ser lo suficientemente rápido.
+            // Realmente, para retroalimentación inmediata de nuestra PROPIA acción, tal vez recargar o actualización optimista.
+            // El tiempo real también lo capturará.
+            loadData(); // Mantener por seguridad
         } catch (e: any) {
             console.error(e);
             alert("Error creando OC: " + e.message);
@@ -294,7 +297,7 @@ const GestionOrdenes: React.FC = () => {
                                             onChange={e => {
                                                 const val = parseFloat(e.target.value) || 0;
                                                 const newItems = [...itemsToOrder];
-                                                // Limit to 2 decimals
+                                                // Limitar a 2 decimales
                                                 newItems[idx].cantidad_compra = parseFloat(val.toFixed(2));
                                                 setItemsToOrder(newItems);
                                             }}

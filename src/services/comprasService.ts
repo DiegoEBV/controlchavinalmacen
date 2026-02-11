@@ -48,7 +48,7 @@ export const createSolicitudCompra = async (
     scData: Omit<SolicitudCompra, 'id' | 'created_at' | 'detalles' | 'requerimiento'>,
     items: any[]
 ) => {
-    // 1. Create Header
+    // 1. Crear Cabecera
     const { data: sc, error: scError } = await supabase
         .from('solicitudes_compra')
         .insert([scData])
@@ -57,10 +57,10 @@ export const createSolicitudCompra = async (
 
     if (scError) throw scError;
 
-    // 2. Create Details
+    // 2. Crear Detalles
     const detalles = items.map(item => ({
         sc_id: sc.id,
-        material_id: item.material_id, // Must ensure mapped correctly from UI
+        material_id: item.material_id, // Debe asegurarse de mapear correctamente desde la UI
         cantidad: item.cantidad,
         unidad: item.unidad,
         estado: 'Pendiente',
@@ -71,7 +71,7 @@ export const createSolicitudCompra = async (
         .from('detalles_sc')
         .insert(detalles);
 
-    if (detError) throw detError; // Consider rollback logic here in prod
+    if (detError) throw detError; // Considerar lógica de reversión aquí en producción
 
     return sc;
 };
@@ -108,7 +108,7 @@ export const createOrdenCompra = async (
     ocData: Omit<OrdenCompra, 'id' | 'created_at' | 'detalles'>,
     items: any[]
 ) => {
-    // 1. Create Header
+    // 1. Crear Cabecera
     const { data: oc, error: ocError } = await supabase
         .from('ordenes_compra')
         .insert([ocData])
@@ -117,7 +117,7 @@ export const createOrdenCompra = async (
 
     if (ocError) throw ocError;
 
-    // 2. Create Details
+    // 2. Crear Detalles
     const detalles = items.map(item => ({
         oc_id: oc.id,
         detalle_sc_id: item.detalle_sc_id,
@@ -131,8 +131,8 @@ export const createOrdenCompra = async (
 
     if (detError) throw detError;
 
-    // 3. Update SC Item Status (Optional: Mark as 'En Orden' if fully ordered)
-    // This logic can be complex depending on partial orders. For now, simple insert.
+    // 3. Actualizar estado del ítem de SC (Opcional: Marcar como 'En Orden' si se ordenó completamente)
+    // Esta lógica puede ser compleja dependiendo de órdenes parciales. Por ahora, inserción simple.
 
     return oc;
 };

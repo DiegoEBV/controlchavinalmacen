@@ -16,24 +16,24 @@ interface RequerimientoFormProps {
 
 const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose, onSave, initialData, obras }) => {
     const { profile, selectedObra } = useAuth();
-    // Header
+    // Cabecera
     const [obraId, setObraId] = useState('');
     const [frenteId, setFrenteId] = useState('');
     const [bloque, setBloque] = useState('');
     const [especialidad, setEspecialidad] = useState('');
     const [solicitante, setSolicitante] = useState('');
 
-    // Data Sources
+    // Fuentes de Datos
     const [materialesList, setMaterialesList] = useState<Material[]>([]);
-    const [frentesList, setFrentesList] = useState<any[]>([]); // Frentes of selected obra
+    const [frentesList, setFrentesList] = useState<any[]>([]); // Frentes de la obra seleccionada
     const [solicitantesList, setSolicitantesList] = useState<any[]>([]);
     const [categoriasList, setCategoriasList] = useState<any[]>([]);
     const [stockMap, setStockMap] = useState<Record<string, number>>({});
 
-    // Items
+    // Ítems
     const [items, setItems] = useState<Partial<DetalleRequerimiento>[]>([]);
 
-    // New Item
+    // Nuevo Ítem
     const [newItem, setNewItem] = useState<Partial<DetalleRequerimiento>>({
         tipo: 'Material',
         material_categoria: '',
@@ -139,14 +139,14 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
         handleClose();
     };
 
-    // Filter materials based on selected category AND selected frente
+    // Filtrar materiales basados en categoría seleccionada Y frente seleccionado
     const filteredMaterials = materialesList.filter(m =>
         m.categoria === newItem.material_categoria &&
-        (m.frente_id === frenteId || !m.frente_id) // Optional: include materials without frente? Or strict? 
-        // Strict per user request: "me muestre recien los materiales de ese frente"
+        (m.frente_id === frenteId || !m.frente_id) // Opcional: ¿incluir materiales sin frente? ¿O estricto? 
+        // Estricto por solicitud de usuario: "me muestre recien los materiales de ese frente"
     ).filter(m => m.frente_id === frenteId);
 
-    // Handle material selection to auto-fill unit
+    // Manejar selección de material para auto-rellenar unidad
     const handleMaterialSelect = (desc: string) => {
         const selectedMat = materialesList.find(m => m.descripcion === desc && m.categoria === newItem.material_categoria && m.frente_id === frenteId);
         setNewItem(prev => ({
@@ -228,6 +228,7 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
                             <Form.Select value={newItem.tipo} onChange={e => setNewItem({ ...newItem, tipo: e.target.value as any })}>
                                 <option value="Material">Material</option>
                                 <option value="Servicio">Servicio</option>
+                                <option value="Equipo">Equipo</option>
                             </Form.Select>
                         </Col>
                         <Col md={2}>
@@ -242,7 +243,7 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
                         </Col>
                         <Col md={4}>
                             <Form.Label>Descripción *</Form.Label>
-                            {/* If category is selected, show dropdown of materials. Else show text input (or empty select) */}
+                            {/* Si se selecciona categoría, mostrar dropdown de materiales. Si no, mostrar input de texto (o select vacío) */}
                             {newItem.material_categoria && newItem.tipo === 'Material' ? (
                                 <Form.Select
                                     value={newItem.descripcion}
@@ -260,7 +261,7 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
                                 <Form.Control
                                     value={newItem.descripcion}
                                     onChange={e => setNewItem({ ...newItem, descripcion: e.target.value })}
-                                    placeholder={newItem.tipo === 'Servicio' ? "Descripción del servicio" : "Seleccione categoría primero"}
+                                    placeholder={newItem.tipo === 'Servicio' || newItem.tipo === 'Equipo' ? `Descripción del ${newItem.tipo.toLowerCase()}` : "Seleccione categoría primero"}
                                 />
                             )}
                         </Col>
@@ -269,7 +270,7 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
                             <Form.Control
                                 value={newItem.unidad}
                                 onChange={e => setNewItem({ ...newItem, unidad: e.target.value })}
-                                readOnly={newItem.tipo === 'Material' && !!newItem.material_categoria} // Read-only if auto-filled from material
+                                readOnly={newItem.tipo === 'Material' && !!newItem.material_categoria} // Solo lectura si se auto-rellena del material
                             />
                         </Col>
                         <Col md={2}>

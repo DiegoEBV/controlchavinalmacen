@@ -18,7 +18,7 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
 
         console.log("Setting up notification subscription for user:", user.id);
 
-        // 1. Fetch ALL existing unread
+        // 1. Obtener TODAS las notificaciones no leídas existentes
         const fetchUnread = async () => {
             const { data } = await supabase
                 .from('notifications')
@@ -33,7 +33,7 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
         };
         fetchUnread();
 
-        // 2. Subscribe to new
+        // 2. Suscribirse a nuevas notificaciones
         const channel = supabase
             .channel('public:notifications')
             .on(
@@ -65,7 +65,7 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
 
         const idsToDismiss = notifications.map(n => n.id);
 
-        setNotifications([]); // Clear UI immediately
+        setNotifications([]); // Limpiar UI inmediatamente
 
         const { error } = await supabase
             .from('notifications')

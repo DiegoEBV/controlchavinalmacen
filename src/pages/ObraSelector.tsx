@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Container, Card, Row, Col, Button, Spinner } from 'react-bootstrap';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -19,12 +19,12 @@ const ObraSelector = () => {
 
     const fetchObras = async () => {
         try {
-            // Check if admin
+            // Verificar si es administrador
             const { data: profile } = await supabase.from('profiles').select('role').eq('id', user?.id).single();
 
             let query = supabase.from('obras').select('*');
 
-            // If not admin, filter by assignment
+            // Si no es admin, filtrar por asignación
             if (profile?.role !== 'admin') {
                 const { data: assignments } = await supabase
                     .from('usuario_obras')
@@ -36,7 +36,7 @@ const ObraSelector = () => {
                 if (obraIds.length > 0) {
                     query = query.in('id', obraIds);
                 } else {
-                    // No assignments
+                    // Sin asignaciones
                     setObras([]);
                     setLoading(false);
                     return;
@@ -48,7 +48,7 @@ const ObraSelector = () => {
             if (error) throw error;
             setObras(data || []);
 
-            // Auto-select if only one
+            // Auto-seleccionar si solo hay uno
             if (data && data.length === 1) {
                 handleSelect(data[0]);
             }
@@ -62,7 +62,7 @@ const ObraSelector = () => {
 
     const handleSelect = (obra: Obra) => {
         selectObra(obra);
-        navigate('/'); // Will redirect to dashboard via RoleBasedRedirect
+        navigate('/'); // Redirigirá al panel a través de RoleBasedRedirect
     };
 
     if (loading) {

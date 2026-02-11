@@ -57,7 +57,7 @@ const RoleBasedRedirect = () => {
         case 'logistica':
             return <Navigate to="/ordenes" />;
         case 'almacenero':
-            return <Navigate to="/almacen/stock" />; // or entradas
+            return <Navigate to="/almacen/stock" />; // o entradas
         default:
             return <Navigate to="/requerimientos" />; // Fallback
     }
