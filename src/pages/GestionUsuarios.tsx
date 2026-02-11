@@ -15,7 +15,7 @@ const GestionUsuarios = () => {
     const [error, setError] = useState<string | null>(null);
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-    // Modal State
+    // Estado del Modal
     const [showModal, setShowModal] = useState(false);
     const [newUserEmail, setNewUserEmail] = useState('');
     const [newUserPassword, setNewUserPassword] = useState('');
@@ -23,11 +23,11 @@ const GestionUsuarios = () => {
     const [newUserRole, setNewUserRole] = useState<UserRole>('sin_asignar');
     const [creatingUser, setCreatingUser] = useState(false);
 
-    // Editing State
+    // Estado de Edición
     const [editingUserId, setEditingUserId] = useState<string | null>(null);
     const [editName, setEditName] = useState('');
 
-    // Obra Assignment State
+    // Estado de Asignación de Obra
     const [showObraModal, setShowObraModal] = useState(false);
     const [selectedUserForObras, setSelectedUserForObras] = useState<UserProfile | null>(null);
     const [allObras, setAllObras] = useState<Obra[]>([]);
@@ -66,8 +66,8 @@ const GestionUsuarios = () => {
     const handleOpenObraModal = async (userProfile: UserProfile) => {
         setSelectedUserForObras(userProfile);
         setShowObraModal(true);
-        setSavingObras(true); // Show loading state while fetching
-        // Fetch current assignments
+        setSavingObras(true); // Mostrar estado de carga mientras se obtiene
+        // Obtener asignaciones actuales
         const { data } = await supabase
             .from('usuario_obras')
             .select('obra_id')
@@ -81,10 +81,10 @@ const GestionUsuarios = () => {
         if (!selectedUserForObras) return;
         setSavingObras(true);
         try {
-            // Delete existing
+            // Eliminar existentes
             await supabase.from('usuario_obras').delete().eq('user_id', selectedUserForObras.id);
 
-            // Insert new
+            // Insertar nuevas
             if (userObras.length > 0) {
                 const inserts = userObras.map(obraId => ({
                     user_id: selectedUserForObras.id,
@@ -164,20 +164,20 @@ const GestionUsuarios = () => {
         setError(null);
 
         try {
-            // Create a temporary client to avoid logging out the admin
+            // Crear un cliente temporal para evitar cerrar sesión del administrador
             const tempClient = createClient(
                 import.meta.env.VITE_SUPABASE_URL,
                 import.meta.env.VITE_SUPABASE_ANON_KEY,
                 {
                     auth: {
-                        persistSession: false, // Don't save session to local storage
+                        persistSession: false, // No guardar sesión en almacenamiento local
                         autoRefreshToken: false,
                         detectSessionInUrl: false
                     }
                 }
             );
 
-            // 1. Sign up the user
+            // 1. Registrar al usuario
             const { data: authData, error: authError } = await tempClient.auth.signUp({
                 email: newUserEmail,
                 password: newUserPassword,
@@ -191,11 +191,11 @@ const GestionUsuarios = () => {
             if (authError) throw authError;
 
             if (authData.user) {
-                // 2. Update the role immediately using the ADMIN's client (main supabase instance)
-                // The trigger creates the profile with 'sin_asignar', we update it here.
-                // We might need a small delay or retry if the trigger is slow, but usually it's instant.
+                // 2. Actualizar el rol inmediatamente usando el cliente ADMIN (instancia principal de supabase)
+                // El trigger crea el perfil con 'sin_asignar', lo actualizamos aquí.
+                // Podríamos necesitar un pequeño retraso o reintento si el trigger es lento, pero usualmente es instantáneo.
 
-                // Wait a moment for trigger to fire (optional but safer)
+                // Esperar un momento para que el trigger se dispare (opcional pero más seguro)
                 await new Promise(resolve => setTimeout(resolve, 1000));
 
                 const { error: updateError } = await supabase
@@ -205,13 +205,13 @@ const GestionUsuarios = () => {
 
                 if (updateError) {
                     console.warn('Error updating role for new user:', updateError);
-                    // We don't throw here, allowing the user creation to count as success, but warn about role
+                    // No lanzamos error aquí, permitiendo que la creación del usuario cuente como éxito, pero advertimos sobre el rol
                     setSuccessMessage('Usuario creado, pero hubo un error actualizando el rol. Verifica la lista.');
                 } else {
                     setSuccessMessage(`Usuario ${newUserName} creado correctamente.`);
                 }
 
-                // Reset form and refresh list
+                // Reiniciar formulario y refrescar lista
                 setShowModal(false);
                 setNewUserEmail('');
                 setNewUserPassword('');
@@ -224,7 +224,7 @@ const GestionUsuarios = () => {
             setError(error.message || 'Error al crear usuario');
         } finally {
             setCreatingUser(false);
-            // Clear success message after delay
+            // Limpiar mensaje de éxito después de un retraso
             setTimeout(() => setSuccessMessage(null), 5000);
         }
     };

@@ -11,37 +11,37 @@ import { mergeUpdates } from '../utils/stateUpdates';
 
 const EntradasAlmacen: React.FC = () => {
     const { selectedObra } = useAuth();
-    // Data Sources
+    // Fuentes de Datos
     const [solicitudes, setSolicitudes] = useState<SolicitudCompra[]>([]);
     const [ordenes, setOrdenes] = useState<OrdenCompra[]>([]);
     const [materialesList, setMaterialesList] = useState<Material[]>([]);
-    // Keep raw reqs to find IDs
+    // Mantener reqs sin procesar para encontrar IDs
     const [allReqs, setAllReqs] = useState<Requerimiento[]>([]);
     const [historial, setHistorial] = useState<MovimientoAlmacen[]>([]);
 
-    // Selection State
+    // Estado de Selección
     const [selectedSC, setSelectedSC] = useState<SolicitudCompra | null>(null);
     const [selectedDetailSC, setSelectedDetailSC] = useState<DetalleSC | null>(null);
 
-    // Form State
+    // Estado del Formulario
     const [loading, setLoading] = useState(false);
     const [successMsg, setSuccessMsg] = useState('');
     const [cantidadIngreso, setCantidadIngreso] = useState(0);
     const [docReferencia, setDocReferencia] = useState('');
 
-    // --- Optimized Realtime Subscriptions ---
+    // --- Suscripciones en Tiempo Real Optimizadas ---
 
-    // 1. Movimientos (Entradas) - INSERT only, usually
+    // 1. Movimientos (Entradas) - INSERT solamente, usualmente
     useRealtimeSubscription(async ({ upserts }) => {
         if (upserts.size > 0) {
-            // Need to filter ONLY Entradas if fetching by ID, 
-            // but fetching by ID returns the row regardless of type.
-            // We'll filter in memory after fetch or assume backend logic.
+            // Necesario filtrar SOLO Entradas si se obtiene por ID, 
+            // pero obtener por ID devuelve la fila sin importar el tipo.
+            // Filtraremos en memoria después de obtener o asumiremos lógica del backend.
             const { data: newMoves } = await supabase
                 .from('movimientos_almacen')
                 .select('*')
                 .in('id', Array.from(upserts))
-                .eq('tipo', 'ENTRADA'); // Server-side filter attempt
+                .eq('tipo', 'ENTRADA'); // Intento de filtro del lado del servidor
 
             if (newMoves && newMoves.length > 0) {
                 setHistorial(prev => mergeUpdates(prev, newMoves, new Set()));
@@ -49,7 +49,7 @@ const EntradasAlmacen: React.FC = () => {
         }
     }, { table: 'movimientos_almacen', event: 'INSERT', throttleMs: 2000 });
 
-    // 2. Solicitudes Compra - UPDATE only (status changes, details)
+    // 2. Solicitudes Compra - UPDATE solamente (cambios de estado, detalles)
     useRealtimeSubscription(async ({ upserts }) => {
         if (upserts.size > 0) {
             const { data: updatedSCs } = await supabase
@@ -64,7 +64,7 @@ const EntradasAlmacen: React.FC = () => {
             if (updatedSCs) {
                 setSolicitudes(prev => mergeUpdates(prev, updatedSCs as SolicitudCompra[], new Set()));
 
-                // Update Selected SC if it was modified
+                // Actualizar SC Seleccionada si fue modificada
                 const currentSelectedId = selectedSC?.id;
                 if (currentSelectedId) {
                     const updatedSelected = updatedSCs.find(s => s.id === currentSelectedId);
@@ -77,10 +77,10 @@ const EntradasAlmacen: React.FC = () => {
     }, { table: 'solicitudes_compra', event: 'UPDATE', throttleMs: 2000 });
 
 
-    // 3. Ordenes Compra - To filter SCs
-    useRealtimeSubscription(async ({ upserts, deletes }) => {
+    // 3. Órdenes Compra - Para filtrar SCs
+    useRealtimeSubscription(async ({ upserts }) => {
         if (upserts.size > 0) {
-            // Just scalar update to trigger re-render of filter
+            // Solo actualización escalar para activar re-renderizado del filtro
             const { data: newOCs } = await supabase
                 .from('ordenes_compra')
                 .select('*')
@@ -105,7 +105,7 @@ const EntradasAlmacen: React.FC = () => {
 
     const loadData = async (refreshSCId?: string) => {
         if (!selectedObra) return;
-        // We need Reqs to map back IDs, and SCs for the UI
+        // Necesitamos Reqs para mapear IDs, y SCs para la UI
         const [reqsData, matsData, movesData, scsData, ocsData] = await Promise.all([
             getRequerimientos(selectedObra.id),
             getMateriales(),
@@ -122,7 +122,7 @@ const EntradasAlmacen: React.FC = () => {
         if (ocsData) setOrdenes(ocsData);
 
         if (scsData) {
-            // Filter only approved/pending SCs if desired? 
+            // ¿Filtrar solo SCs aprobadas/pendientes si se desea? 
             setSolicitudes(scsData);
 
             if (refreshSCId) {
@@ -144,19 +144,19 @@ const EntradasAlmacen: React.FC = () => {
         if (!selectedSC || !selectedDetailSC) return;
         if (!selectedSC.requerimiento_id) return alert("Error: SC sin requerimiento vinculado");
 
-        // 1. Validation
+        // 1. Validación
         if (cantidadIngreso <= 0) return alert("Cantidad debe ser mayor a 0");
         if (!docReferencia) return alert("Ingrese Documento de Referencia");
 
-        // 2. Find the Original Requirement Detail ID (Critical for legacy backend)
-        // detailed logic: find req -> find item with same material/desc
+        // 2. Encontrar el ID del Detalle de Requerimiento Original (Crítico para backend legado)
+        // lógica detallada: encontrar req -> encontrar ítem con mismo material/desc
         const parentReq = allReqs.find(r => r.id === selectedSC.requerimiento_id);
         if (!parentReq || !parentReq.detalles) return alert("Error: No se encontraron detalles del Requerimiento padre.");
 
-        // Attempt to match by Material ID if available, or fallback to Description
-        // Check 1: Validate against SC Approved Quantity strictly
-        // We need to re-calculate 'consumed' here to be safe, or rely on UI passing it?
-        // Safest is re-calculate.
+        // Intentar coincidir por ID de Material si está disponible, o recurrir a Descripción
+        // Verificación 1: Validar estrictamente contra Cantidad Aprobada SC
+        // ¿Necesitamos re-calcular 'consumido' aquí para estar seguros, o confiar en que la UI lo pase?
+        // Lo más seguro es re-calcular.
         const consumed = historial
             .filter(h =>
                 String(h.requerimiento_id) === String(selectedSC.requerimiento_id) &&
@@ -203,15 +203,15 @@ const EntradasAlmacen: React.FC = () => {
         setLoading(false);
     };
 
-    // Filter out fully completed SCs AND those without OC
+    // Filtrar SCs completamente completadas Y aquellas sin OC
     const activeSolicitudes = solicitudes.filter(sc => {
         if (!sc.detalles) return false;
 
-        // 1. Must have an associated Orden Compra (active/issued)
+        // 1. Debe tener una Orden de Compra asociada (activa/emitida)
         const hasOC = ordenes.some(o => o.sc_id === sc.id && o.estado !== 'Anulada');
         if (!hasOC) return false;
 
-        // 2. Check if ANY item still has pending quantity
+        // 2. Verificar si ALGÚN ítem todavía tiene cantidad pendiente
         return sc.detalles.some(d => {
             const consumed = historial
                 .filter(h =>
@@ -268,17 +268,17 @@ const EntradasAlmacen: React.FC = () => {
                             </thead>
                             <tbody>
                                 {selectedSC.detalles?.map(d => {
-                                    // Heuristic: Check if enough entries have been made AFTER this SC was created
+                                    // Heurística: Verificar si se han realizado suficientes entradas DESPUÉS de que se creó esta SC
                                     const consumed = historial
                                         .filter(h =>
-                                            // Check strict equality carefully, type casting might be needed if IDs are numbers vs strings
+                                            // Verificar igualdad estricta cuidadosamente, el casting de tipos podría ser necesario si los IDs son números vs cadenas
                                             String(h.requerimiento_id) === String(selectedSC.requerimiento_id) &&
                                             h.material_id === d.material_id &&
                                             new Date(h.created_at || h.fecha) >= new Date(selectedSC.created_at)
                                         )
                                         .reduce((sum, h) => sum + h.cantidad, 0);
 
-                                    // Round to 2 decimals to avoid float issues
+                                    // Redondear a 2 decimales para evitar problemas de flotantes
                                     const pending = Math.max(0, d.cantidad - consumed);
 
                                     if (pending <= 0) return null;
@@ -299,7 +299,7 @@ const EntradasAlmacen: React.FC = () => {
                                                     variant={isSelected ? 'secondary' : 'primary'}
                                                     onClick={() => {
                                                         setSelectedDetailSC(d);
-                                                        setCantidadIngreso(pending); // Suggest remaining amount
+                                                        setCantidadIngreso(pending); // Sugerir cantidad restante
                                                         setSuccessMsg('');
                                                     }}
                                                 >
@@ -354,7 +354,7 @@ const EntradasAlmacen: React.FC = () => {
                 </Card>
             )}
 
-            {/* History Table */}
+            {/* Tabla de Historial */}
             <div className="mt-5">
                 <h4 className="text-secondary mb-3">Historial de Entradas Recientes</h4>
                 <Card className="custom-card">
@@ -371,9 +371,9 @@ const EntradasAlmacen: React.FC = () => {
                         </thead>
                         <tbody>
                             {historial.map(h => {
-                                // Find material details in loaded list
+                                // Encontrar detalles del material en lista cargada
                                 const mat = materialesList.find(m => m.id === h.material_id);
-                                // Cast to any to access the joined 'requerimiento' property not yet in strict types
+                                // Castear a any para acceder a la propiedad 'requerimiento' unida, aún no en tipos estrictos
                                 const reqNum = (h as any).requerimiento ? (h as any).requerimiento.item_correlativo : '-';
 
                                 return (

@@ -66,23 +66,23 @@ const GestionCategorias: React.FC = () => {
                 const data = XLSX.utils.sheet_to_json(ws);
 
                 let count = 0;
-                // Refresh local data first to ensure we have latest for duplicate check
+                // Actualizar datos locales primero para asegurar verificación de duplicados
                 const currentCats = await getCategorias();
                 const existingNames = new Set(currentCats?.map((c: any) => c.nombre.toUpperCase()) || []);
 
                 for (const row of data as any[]) {
-                    // Expecting columns: "nombre", "descripcion" (optional)
-                    // If headers are different, we might need mapping, but let's assume simple format.
-                    // If user provides "NOMBRE", "DESCRIPCION", sheet_to_json handles keys as they are.
-                    // We should normalize keys if possible.
+                    // Esperando columnas: "nombre", "descripcion" (opcional)
+                    // Si los encabezados son diferentes, podríamos necesitar mapeo, pero asumamos formato simple.
+                    // Si el usuario proporciona "NOMBRE", "DESCRIPCION", sheet_to_json maneja las claves tal cual.
+                    // Deberíamos normalizar claves si es posible.
 
-                    // Simple normalization helper
+                    // Ayudante de normalización simple
                     const normalizedRow: any = {};
                     Object.keys(row).forEach(key => {
                         normalizedRow[key.toLowerCase()] = row[key];
                     });
 
-                    const nombre = normalizedRow.nombre || normalizedRow.categoria; // support both
+                    const nombre = normalizedRow.nombre || normalizedRow.categoria; // soportar ambos
                     const descripcion = normalizedRow.descripcion || '';
 
                     if (nombre) {

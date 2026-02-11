@@ -15,18 +15,18 @@ const GestionSolicitudes: React.FC = () => {
     const [historial, setHistorial] = useState<MovimientoAlmacen[]>([]);
     const [ordenes, setOrdenes] = useState<OrdenCompra[]>([]);
 
-    // Modal State for Creating SC
+    // Estado del Modal para Crear SC
     const [showModal, setShowModal] = useState(false);
     const [selectedReq, setSelectedReq] = useState<Requerimiento | null>(null);
-    const [items, setItems] = useState<any[]>([]); // Items to include in SC
+    const [items, setItems] = useState<any[]>([]); // Ítems para incluir en SC
 
     useEffect(() => {
         loadData();
     }, []);
 
-    // --- Optimized Realtime Subscriptions ---
+    // --- Suscripciones en Tiempo Real Optimizadas ---
 
-    // 1. Requerimientos (New Pending)
+    // 1. Requerimientos (Nuevos Pendientes)
     useRealtimeSubscription(async ({ upserts, deletes }) => {
         if (upserts.size > 0) {
             const responses = await Promise.all(Array.from(upserts).map(id => getRequerimientoById(id)));
@@ -40,14 +40,14 @@ const GestionSolicitudes: React.FC = () => {
         }
     }, { table: 'requerimientos', throttleMs: 2000 });
 
-    // 2. Solicitudes (Changes)
+    // 2. Solicitudes (Cambios)
     useRealtimeSubscription(async ({ upserts, deletes }) => {
         if (upserts.size > 0) {
             const responses = await Promise.all(Array.from(upserts).map(id => getSolicitudCompraById(id)));
             const validItems = responses.filter(i => i !== null) as SolicitudCompra[];
             setSolicitudes(prev => mergeUpdates(prev, validItems, deletes));
 
-            // Proactive removal from pending requirements list
+            // Eliminación proactiva de la lista de requerimientos pendientes
             const reqIds = validItems.map(s => s.requerimiento_id);
             setRequerimientos(prev => prev.filter(r => !reqIds.includes(r.id)));
 
@@ -69,7 +69,7 @@ const GestionSolicitudes: React.FC = () => {
         const processedReqIds = new Set(scs?.map(s => s.requerimiento_id));
 
         if (reqs.data) {
-            // Filter out Reqs that already have an SC
+            // Filtrar Requerimientos que ya tienen una SC
             const pending = reqs.data.filter(r => !processedReqIds.has(r.id));
             setRequerimientos(pending);
         }
@@ -82,17 +82,17 @@ const GestionSolicitudes: React.FC = () => {
     const handleOpenCreate = (req: Requerimiento) => {
         setSelectedReq(req);
 
-        // Auto-match items to materials
+        // Auto-emparejar ítems con materiales
         const initialItems = req.detalles?.map(d => {
             if (d.tipo !== 'Material') return null;
 
-            // Try to find material ID
+            // Intentar encontrar ID de material
             const mat = materiales.find(m =>
                 m.descripcion === d.descripcion &&
                 m.categoria === d.material_categoria
             );
 
-            if (!mat) return null; // Skip if not found in catalog
+            if (!mat) return null; // Omitir si no se encuentra en catálogo
 
             return {
                 material_id: mat.id,
@@ -127,7 +127,7 @@ const GestionSolicitudes: React.FC = () => {
         }
     };
 
-    // Filter VIEW of Pending Reqs again to be safe (if realtime SC came in but we missed the event)
+    // Filtrar VISTA de Requerimientos Pendientes de nuevo para estar seguros (si llegó SC en tiempo real pero perdimos el evento)
     const processedReqIds = new Set(solicitudes.map(s => s.requerimiento_id));
     const pendingRequerimientos = requerimientos.filter(r => !processedReqIds.has(r.id));
 
@@ -173,7 +173,7 @@ const GestionSolicitudes: React.FC = () => {
                     <h4 className="text-secondary mt-4">Solicitudes Generadas</h4>
                     <Accordion defaultActiveKey="0" flush className="custom-card p-0 overflow-hidden mt-3">
                         {solicitudes.map((sc, idx) => {
-                            // Pre-calculate status for the Header
+                            // Pre-calcular estado para el Encabezado
                             let allFullyAttended = true;
                             if (!sc.detalles || sc.detalles.length === 0) allFullyAttended = false;
 
@@ -227,7 +227,7 @@ const GestionSolicitudes: React.FC = () => {
                                             </thead>
                                             <tbody>
                                                 {activeDetails?.map(d => {
-                                                    // Find linked OCs for this specific item
+                                                    // Encontrar OCs vinculadas para este ítem específico
                                                     const linkedOCs = ordenes.filter(o => o.detalles?.some(od => od.detalle_sc_id === d.id));
 
                                                     return (

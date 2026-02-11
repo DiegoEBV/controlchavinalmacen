@@ -1,11 +1,11 @@
 /**
- * Helper to update a list of items based on realtime changes.
+ * Ayudante para actualizar una lista de ítems basado en cambios en tiempo real.
  * 
- * @param currentList The current state array
- * @param newItems Array of items fetched from DB (Upserts)
- * @param deletedIds Set of IDs that were deleted
- * @param idField The field to use as ID (default: 'id')
- * @returns A new array with updates applied
+ * @param currentList El array de estado actual
+ * @param newItems Array de ítems obtenidos de la BD (Upserts)
+ * @param deletedIds Conjunto de IDs que fueron eliminados
+ * @param idField El campo a usar como ID (por defecto: 'id')
+ * @returns Un nuevo array con las actualizaciones aplicadas
  */
 export const mergeUpdates = <T>(
     currentList: T[],
@@ -14,11 +14,11 @@ export const mergeUpdates = <T>(
     idField: keyof T = 'id' as keyof T,
     sortFn?: (a: T, b: T) => number
 ): T[] => {
-    // 1. Convert current list to Map for O(1) access and deduplication
-    // Map preserves insertion order of the first set() for a key
+    // 1. Convertir lista actual a Mapa para acceso O(1) y deduplicación
+    // Map preserva el orden de inserción del primer set() para una clave
     const map = new Map<string, T>();
 
-    // Initialize with current items (excluding deleted ones)
+    // Inicializar con ítems actuales (excluyendo los eliminados)
     currentList.forEach(item => {
         const id = String(item[idField]);
         if (!deletedIds.has(id)) {
@@ -26,7 +26,7 @@ export const mergeUpdates = <T>(
         }
     });
 
-    // 2. Merge upserts (updates existing or adds new)
+    // 2. Fusionar upserts (actualiza existentes o agrega nuevos)
     newItems.forEach(item => {
         const id = String(item[idField]);
         map.set(id, item);
@@ -34,12 +34,12 @@ export const mergeUpdates = <T>(
 
     const updatedList = Array.from(map.values());
 
-    // 3. Sort if provided
+    // 3. Ordenar si se proporciona
     if (sortFn) {
         return updatedList.sort(sortFn);
     }
 
-    // If no sort provided and new items were added, they are at the end.
-    // Ideally, consumers should provide a sortFn if order matters.
+    // Si no se proporciona orden y se agregaron nuevos ítems, están al final.
+    // Idealmente, los consumidores deberían proporcionar una sortFn si el orden importa.
     return updatedList;
 };

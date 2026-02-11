@@ -8,7 +8,7 @@ export interface Frente {
 export interface DetalleRequerimiento {
     id: string;
     requerimiento_id: string;
-    tipo: 'Material' | 'Servicio';
+    tipo: 'Material' | 'Servicio' | 'Equipo';
     material_categoria: string;
     descripcion: string;
     unidad: string;
@@ -28,7 +28,7 @@ export interface Requerimiento {
     id: string;
     obra_id?: string;
     frente_id?: string; // Nuevo campo
-    frente?: Frente;   // Join
+    frente?: Frente;   // Unión
     item_correlativo: number;
     bloque: string;
     especialidad: string;
@@ -36,7 +36,7 @@ export interface Requerimiento {
     fecha_solicitud: string;
     created_at: string;
 
-    // Virtual field for UI
+    // Campo virtual para UI
     detalles?: DetalleRequerimiento[];
 }
 
@@ -49,7 +49,7 @@ export interface Obra {
 export interface Material {
     id: string;
     frente_id?: string; // Nuevo campo
-    frente?: Frente;    // Join
+    frente?: Frente;    // Unión
     categoria: string;
     descripcion: string;
     unidad: string;
@@ -62,7 +62,7 @@ export interface Inventario {
     id: string;
     obra_id: string;
     material_id: string;
-    material?: Material; // Joined
+    material?: Material; // Unido
     cantidad_actual: number;
     ultimo_ingreso?: string;
     updated_at: string;
@@ -121,7 +121,7 @@ export interface DetalleOC {
     id: string;
     oc_id: string;
     detalle_sc_id: string;
-    detalle_sc?: DetalleSC; // Joined
+    detalle_sc?: DetalleSC; // Unido
     cantidad: number;
     precio_unitario?: number;
     created_at: string;

@@ -8,7 +8,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { saveAs } from 'file-saver';
 
-// Local Storage Key
+// Clave de Almacenamiento Local
 const HISTORY_KEY = 'reporte_materiales_history';
 const RETENTION_DAYS = 15;
 
@@ -28,14 +28,14 @@ interface ReportHistoryItem {
 }
 
 const ReporteMateriales: React.FC = () => {
-    // Data
+    // Datos
     const [reqs, setReqs] = useState<Requerimiento[]>([]);
     const [materials, setMaterials] = useState<Material[]>([]);
     const [solicitantes, setSolicitantes] = useState<string[]>([]);
     const [categorias, setCategorias] = useState<string[]>([]);
     const [especialidades, setEspecialidades] = useState<string[]>([]);
 
-    // Filters
+    // Filtros
     const [fechaInicio, setFechaInicio] = useState('');
     const [fechaFin, setFechaFin] = useState('');
     const [categoria, setCategoria] = useState('');
@@ -45,12 +45,12 @@ const ReporteMateriales: React.FC = () => {
     const [solicitante, setSolicitante] = useState('');
     const [estado, setEstado] = useState('');
 
-    // Results
+    // Resultados
     const [reportData, setReportData] = useState<any[]>([]);
     const [summaryData, setSummaryData] = useState<any[]>([]);
     const [generated, setGenerated] = useState(false);
 
-    // History
+    // Historial
     const [history, setHistory] = useState<ReportHistoryItem[]>([]);
 
     const { selectedObra } = useAuth();
@@ -74,11 +74,11 @@ const ReporteMateriales: React.FC = () => {
 
             if (rData.data) {
                 setReqs(rData.data);
-                // Extract unique solicitantes
+                // Extraer solicitantes únicos
                 const uniqueSols = Array.from(new Set(rData.data.map((r: Requerimiento) => r.solicitante).filter(Boolean)));
                 setSolicitantes(uniqueSols as string[]);
 
-                // Extract unique especialidades
+                // Extraer especialidades únicas
                 const uniqueEsps = Array.from(new Set(rData.data.map((r: Requerimiento) => r.especialidad).filter(Boolean)));
                 setEspecialidades(uniqueEsps as string[]);
             }
@@ -97,7 +97,7 @@ const ReporteMateriales: React.FC = () => {
         const stored = localStorage.getItem(HISTORY_KEY);
         if (stored) {
             let parsed: ReportHistoryItem[] = JSON.parse(stored);
-            // Prune older than 15 days
+            // Podar más antiguos de 15 días
             const limitDate = new Date();
             limitDate.setDate(limitDate.getDate() - RETENTION_DAYS);
 
@@ -123,30 +123,30 @@ const ReporteMateriales: React.FC = () => {
     };
 
     const handleGenerate = () => {
-        // Flatten Requerimientos -> Detalles
+        // Aplanar Requerimientos -> Detalles
         let flattened: any[] = [];
 
         reqs.forEach(r => {
-            // Date Filter
+            // Filtro de Fecha
             if (fechaInicio && new Date(r.fecha_solicitud) < new Date(fechaInicio)) return;
             if (fechaFin && new Date(r.fecha_solicitud) > new Date(fechaFin)) return;
-            // Solicitante Filter
+            // Filtro de Solicitante
             if (solicitante && r.solicitante !== solicitante) return;
-            // Especialidad Filter
+            // Filtro de Especialidad
             if (especialidad && r.especialidad !== especialidad) return;
 
             r.detalles?.forEach(d => {
-                // Estado Filter
+                // Filtro de Estado
                 if (estado && d.estado !== estado) return;
-                // Link Material info
+                // Vincular info Material
                 const matInfo = materials.find(m => m.descripcion === d.descripcion && m.categoria === d.material_categoria);
 
-                // Material/Category Filter
+                // Filtro Material/Categoría
                 if (categoria && d.material_categoria !== categoria) return;
-                // If materialId is selected, we need to match it. d doesn't always have material_id directly if it's old structure, 
-                // but usually we rely on description+cat or if we have material_id in detalle (check interfaces).
-                // Interface 'DetalleRequerimiento' doesn't strictly have material_id, relies on text mostly? 
-                // Let's assume strict match on Description + Category if ID missing, or check if we can match ID from 'matInfo'.
+                // Si materialId está seleccionado, necesitamos coincidirlo. d no siempre tiene material_id directamente si es estructura vieja, 
+                // pero usualmente confiamos en descripción+cat o si tenemos material_id en detalle (verificar interfaces).
+                // Interfaz 'DetalleRequerimiento' no tiene estrictamente material_id, ¿confía mayormente en texto? 
+                // Asumamos coincidencia estricta en Descripción + Categoría si falta ID, o verificar si podemos coincidir ID desde 'matInfo'.
 
                 if (materialId) {
                     if (matInfo?.id !== materialId) return;
@@ -168,7 +168,7 @@ const ReporteMateriales: React.FC = () => {
             });
         });
 
-        // Summary Grouping
+        // Agrupación de Resumen
         const summaryMap = new Map<string, any>();
         flattened.forEach(item => {
             const key = item.material + '|' + item.categoria;
@@ -209,11 +209,11 @@ const ReporteMateriales: React.FC = () => {
     const exportExcel = () => {
         const wb = XLSX.utils.book_new();
 
-        // Sheet 1: Detalle
+        // Hoja 1: Detalle
         const wsDetalle = XLSX.utils.json_to_sheet(reportData);
         XLSX.utils.book_append_sheet(wb, wsDetalle, "Detalle");
 
-        // Sheet 2: Resumen
+        // Hoja 2: Resumen
         const wsResumen = XLSX.utils.json_to_sheet(summaryData);
         XLSX.utils.book_append_sheet(wb, wsResumen, "Resumen");
 
@@ -229,7 +229,7 @@ const ReporteMateriales: React.FC = () => {
         doc.setFontSize(10);
         doc.text(`Generado: ${new Date().toLocaleString()}`, 14, 22);
 
-        // Summary Table
+        // Tabla de Resumen
         doc.text("Resumen de Atención vs Stock Máximo", 14, 30);
         autoTable(doc, {
             startY: 35,
@@ -237,7 +237,7 @@ const ReporteMateriales: React.FC = () => {
             body: summaryData.map(s => [s.material, s.categoria, s.total_atendida, s.stock_max]),
         });
 
-        // Detail Table
+        // Tabla de Detalle
         const finalY = (doc as any).lastAutoTable.finalY || 40;
         doc.text("Detalle de Solicitudes", 14, finalY + 10);
 
