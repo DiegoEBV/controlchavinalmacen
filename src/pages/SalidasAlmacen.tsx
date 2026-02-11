@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Form, Button, Row, Col, Alert, Table } from 'react-bootstrap';
-import { getInventario, registrarSalida, getMovimientos } from '../services/almacenService';
+import { supabase } from '../config/supabaseClient';
+import { getInventario, registrarSalida, getMovimientos, getMovimientoById, getInventarioById } from '../services/almacenService';
 import { Inventario, MovimientoAlmacen } from '../types';
 import { useAuth } from '../context/AuthContext';
 
@@ -31,6 +32,48 @@ const SalidasAlmacen: React.FC = () => {
 
     // History State
     const [historial, setHistorial] = useState<MovimientoAlmacen[]>([]);
+
+    // --- Realtime Subscription ---
+    useEffect(() => {
+        const channel = supabase
+            .channel('salidas-updates')
+            .on(
+                'postgres_changes',
+                { event: 'UPDATE', schema: 'public', table: 'inventario_obra' },
+                async (payload) => {
+                    // Update Stock in Dropdown
+                    const updatedInv = await getInventarioById(payload.new.id);
+                    if (updatedInv) {
+                        setInventario(prev => prev.map(i => i.id === updatedInv.id ? updatedInv : i));
+
+                        // Update selected item if it's the one modified
+                        if (selectedItem?.id === updatedInv.id) {
+                            setSelectedItem(updatedInv);
+                        }
+                    }
+                }
+            )
+            .on(
+                'postgres_changes',
+                { event: 'INSERT', schema: 'public', table: 'movimientos_almacen' },
+                async (payload) => {
+                    // Only care about SALIDA
+                    if (payload.new.tipo !== 'SALIDA') return;
+                    const newMov = await getMovimientoById(payload.new.id);
+                    if (newMov) {
+                        setHistorial(prev => {
+                            if (prev.find(m => m.id === newMov.id)) return prev;
+                            return [newMov, ...prev];
+                        });
+                    }
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [selectedItem]); // Depend on selectedItem to update it correctly
 
     useEffect(() => {
         if (selectedObra) {

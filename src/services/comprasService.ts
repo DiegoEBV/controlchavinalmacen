@@ -26,6 +26,24 @@ export const getSolicitudesCompra = async (obraId?: string) => {
     return data as SolicitudCompra[];
 };
 
+export const getSolicitudCompraById = async (id: string) => {
+    const { data, error } = await supabase
+        .from('solicitudes_compra')
+        .select(`
+             *,
+             requerimiento:requerimientos!inner(id, obra_id, item_correlativo, solicitante, frente:frentes(*)),
+             detalles:detalles_sc(*, material:materiales(*))
+         `)
+        .eq('id', id)
+        .single();
+
+    if (error) {
+        console.error('Error getting SC by id:', error);
+        return null;
+    }
+    return data as SolicitudCompra;
+};
+
 export const createSolicitudCompra = async (
     scData: Omit<SolicitudCompra, 'id' | 'created_at' | 'detalles' | 'requerimiento'>,
     items: any[]
@@ -117,4 +135,25 @@ export const createOrdenCompra = async (
     // This logic can be complex depending on partial orders. For now, simple insert.
 
     return oc;
+};
+
+export const getOrdenCompraById = async (id: string) => {
+    const { data, error } = await supabase
+        .from('ordenes_compra')
+        .select(`
+            *,
+            sc:solicitudes_compra!inner(
+                *,
+                requerimiento:requerimientos!inner(id, obra_id)
+            ),
+            detalles:detalles_oc(*, detalle_sc:detalles_sc(*, material:materiales(*)))
+        `)
+        .eq('id', id)
+        .single();
+
+    if (error) {
+        console.error('Error getting OC by id:', error);
+        return null;
+    }
+    return data as OrdenCompra;
 };

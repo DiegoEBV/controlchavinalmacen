@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Button, Table, Badge, Modal, Form, Row, Col, Accordion } from 'react-bootstrap';
-import { getRequerimientos, getMateriales } from '../services/requerimientosService';
-import { getOrdenesCompra, getSolicitudesCompra, createSolicitudCompra } from '../services/comprasService';
+import { supabase } from '../config/supabaseClient';
+import { getRequerimientos, getMateriales, getRequerimientoById } from '../services/requerimientosService';
+import { getOrdenesCompra, getSolicitudesCompra, createSolicitudCompra, getSolicitudCompraById } from '../services/comprasService';
 import { getMovimientos } from '../services/almacenService';
 import { Requerimiento, SolicitudCompra, Material, MovimientoAlmacen, OrdenCompra } from '../types';
 
@@ -90,6 +91,60 @@ const GestionSolicitudes: React.FC = () => {
             alert("Error creando SC: " + e.message);
         }
     };
+
+    // --- Realtime Subscription ---
+    useEffect(() => {
+        const channel = supabase
+            .channel('gestion-solicitudes-updates')
+            .on(
+                'postgres_changes',
+                { event: 'INSERT', schema: 'public', table: 'requerimientos' },
+                async (payload) => {
+                    console.log('New Requerimiento:', payload.new);
+                    // Targeted Fetch: Get the full Req with joins
+                    const { data: newReq } = await getRequerimientoById(payload.new.id);
+                    if (newReq) {
+                        setRequerimientos(prev => {
+                            // Avoid duplicates
+                            if (prev.find(r => r.id === newReq.id)) return prev;
+                            return [newReq, ...prev];
+                        });
+                    }
+                }
+            )
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'solicitudes_compra' },
+                async (payload) => {
+                    console.log('SC Change:', payload);
+                    const { eventType, new: newRecord, old: oldRecord } = payload;
+
+                    if (eventType === 'INSERT') {
+                        const newSC = await getSolicitudCompraById(newRecord.id);
+                        if (newSC) {
+                            setSolicitudes(prev => [newSC, ...prev]);
+                            // Remove from pending reqs if it was there
+                            setRequerimientos(prev => prev.filter(r => r.id !== newSC.requerimiento_id));
+                        }
+                    } else if (eventType === 'UPDATE') {
+                        // Optimistic / Targeted Update
+                        // Check if crucial fields changed (state) or just small details
+                        // For SCs, usually state changes. We can just fetch the single updated SC to be safe about joins
+                        const updatedSC = await getSolicitudCompraById(newRecord.id);
+                        if (updatedSC) {
+                            setSolicitudes(prev => prev.map(s => s.id === updatedSC.id ? updatedSC : s));
+                        }
+                    } else if (eventType === 'DELETE') {
+                        setSolicitudes(prev => prev.filter(s => s.id !== oldRecord.id));
+                    }
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, []); // Empty dependency array
 
     return (
         <div className="fade-in">
