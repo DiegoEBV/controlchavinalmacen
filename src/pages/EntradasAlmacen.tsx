@@ -3,8 +3,8 @@ import { Card, Form, Table, Button, Row, Col, Alert } from 'react-bootstrap';
 import { supabase } from '../config/supabaseClient';
 import { getRequerimientos, getMateriales } from '../services/requerimientosService';
 import { registrarEntrada, getMovimientos } from '../services/almacenService';
-import { getSolicitudesCompra } from '../services/comprasService';
-import { Requerimiento, Material, MovimientoAlmacen, SolicitudCompra, DetalleSC } from '../types';
+import { getSolicitudesCompra, getOrdenesCompra } from '../services/comprasService';
+import { Requerimiento, Material, MovimientoAlmacen, SolicitudCompra, DetalleSC, OrdenCompra } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription';
 import { mergeUpdates } from '../utils/stateUpdates';
@@ -13,6 +13,7 @@ const EntradasAlmacen: React.FC = () => {
     const { selectedObra } = useAuth();
     // Data Sources
     const [solicitudes, setSolicitudes] = useState<SolicitudCompra[]>([]);
+    const [ordenes, setOrdenes] = useState<OrdenCompra[]>([]);
     const [materialesList, setMaterialesList] = useState<Material[]>([]);
     // Keep raw reqs to find IDs
     const [allReqs, setAllReqs] = useState<Requerimiento[]>([]);
@@ -76,12 +77,28 @@ const EntradasAlmacen: React.FC = () => {
     }, { table: 'solicitudes_compra', event: 'UPDATE', throttleMs: 2000 });
 
 
+    // 3. Ordenes Compra - To filter SCs
+    useRealtimeSubscription(async ({ upserts, deletes }) => {
+        if (upserts.size > 0) {
+            // Just scalar update to trigger re-render of filter
+            const { data: newOCs } = await supabase
+                .from('ordenes_compra')
+                .select('*')
+                .in('id', Array.from(upserts));
+
+            if (newOCs) {
+                setOrdenes(prev => mergeUpdates(prev, newOCs as OrdenCompra[], new Set()));
+            }
+        }
+    }, { table: 'ordenes_compra', event: '*', throttleMs: 2000 });
+
     useEffect(() => {
         if (selectedObra) {
             loadData();
         } else {
             setAllReqs([]);
             setSolicitudes([]);
+            setOrdenes([]);
             setHistorial([]);
         }
     }, [selectedObra]);
@@ -89,11 +106,12 @@ const EntradasAlmacen: React.FC = () => {
     const loadData = async (refreshSCId?: string) => {
         if (!selectedObra) return;
         // We need Reqs to map back IDs, and SCs for the UI
-        const [reqsData, matsData, movesData, scsData] = await Promise.all([
+        const [reqsData, matsData, movesData, scsData, ocsData] = await Promise.all([
             getRequerimientos(selectedObra.id),
             getMateriales(),
             getMovimientos(selectedObra.id),
-            getSolicitudesCompra(selectedObra.id)
+            getSolicitudesCompra(selectedObra.id),
+            getOrdenesCompra(selectedObra.id)
         ]);
 
         if (reqsData.data) setAllReqs(reqsData.data);
@@ -101,6 +119,8 @@ const EntradasAlmacen: React.FC = () => {
         if (movesData) {
             setHistorial(movesData.filter((m: MovimientoAlmacen) => m.tipo === 'ENTRADA'));
         }
+        if (ocsData) setOrdenes(ocsData);
+
         if (scsData) {
             // Filter only approved/pending SCs if desired? 
             setSolicitudes(scsData);
@@ -183,10 +203,15 @@ const EntradasAlmacen: React.FC = () => {
         setLoading(false);
     };
 
-    // Filter out fully completed SCs
+    // Filter out fully completed SCs AND those without OC
     const activeSolicitudes = solicitudes.filter(sc => {
         if (!sc.detalles) return false;
-        // Check if ANY item still has pending quantity
+
+        // 1. Must have an associated Orden Compra (active/issued)
+        const hasOC = ordenes.some(o => o.sc_id === sc.id && o.estado !== 'Anulada');
+        if (!hasOC) return false;
+
+        // 2. Check if ANY item still has pending quantity
         return sc.detalles.some(d => {
             const consumed = historial
                 .filter(h =>
