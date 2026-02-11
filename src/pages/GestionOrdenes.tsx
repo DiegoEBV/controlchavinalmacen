@@ -1,10 +1,12 @@
 /* /src/pages/GestionOrdenes.tsx */
 import React, { useState, useEffect, useMemo } from 'react';
 import { Card, Button, Table, Badge, Modal, Form, Row, Col } from 'react-bootstrap';
-import { supabase } from '../config/supabaseClient';
+
 import { getSolicitudesCompra, createOrdenCompra, getOrdenesCompra, getOrdenCompraById, getSolicitudCompraById } from '../services/comprasService';
 import { SolicitudCompra, OrdenCompra } from '../types';
 import { useAuth } from '../context/AuthContext';
+import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription';
+import { mergeUpdates } from '../utils/stateUpdates';
 
 const GestionOrdenes: React.FC = () => {
     const { selectedObra } = useAuth();
@@ -30,50 +32,29 @@ const GestionOrdenes: React.FC = () => {
         }
     }, [selectedObra]);
 
-    // --- Realtime Subscription ---
-    useEffect(() => {
-        const channel = supabase
-            .channel('ordenes-updates')
-            .on(
-                'postgres_changes',
-                { event: 'INSERT', schema: 'public', table: 'ordenes_compra' },
-                async (payload) => {
-                    const newOC = await getOrdenCompraById(payload.new.id);
-                    if (newOC) {
-                        setOrdenes(prev => {
-                            if (prev.find(o => o.id === newOC.id)) return prev;
-                            return [newOC, ...prev];
-                        });
-                    }
-                }
-            )
-            .on(
-                'postgres_changes',
-                { event: 'UPDATE', schema: 'public', table: 'solicitudes_compra' },
-                async (payload) => {
-                    const updatedSC = await getSolicitudCompraById(payload.new.id);
-                    if (updatedSC) {
-                        setAllSolicitudes(prev => prev.map(s => s.id === updatedSC.id ? updatedSC : s));
-                    }
-                }
-            )
-            .on(
-                'postgres_changes',
-                { event: 'INSERT', schema: 'public', table: 'solicitudes_compra' },
-                async (payload) => {
-                    const newSC = await getSolicitudCompraById(payload.new.id);
-                    if (newSC) {
-                        setAllSolicitudes(prev => [newSC, ...prev]);
-                    }
-                }
-            )
-            .subscribe();
+    // --- Optimized Realtime Subscriptions ---
 
-        return () => {
-            supabase.removeChannel(channel);
-        };
-    }, []);
+    // 1. Ordenes Compra (Updates or Inserts)
+    useRealtimeSubscription(async ({ upserts, deletes }) => {
+        if (upserts.size > 0) {
+            const responses = await Promise.all(Array.from(upserts).map(id => getOrdenCompraById(id)));
+            const validItems = responses.filter(i => i !== null) as OrdenCompra[];
+            setOrdenes(prev => mergeUpdates(prev, validItems, deletes));
+        } else if (deletes.size > 0) {
+            setOrdenes(prev => mergeUpdates(prev, [], deletes));
+        }
+    }, { table: 'ordenes_compra', throttleMs: 2000 });
 
+    // 2. Solicitudes Compra (New SCs or Updates to existing ones)
+    useRealtimeSubscription(async ({ upserts, deletes }) => {
+        if (upserts.size > 0) {
+            const responses = await Promise.all(Array.from(upserts).map(id => getSolicitudCompraById(id)));
+            const validItems = responses.filter(i => i !== null) as SolicitudCompra[];
+            setAllSolicitudes(prev => mergeUpdates(prev, validItems, deletes));
+        } else if (deletes.size > 0) {
+            setAllSolicitudes(prev => mergeUpdates(prev, [], deletes));
+        }
+    }, { table: 'solicitudes_compra', throttleMs: 2000 });
 
     const loadData = async () => {
         if (!selectedObra) return;

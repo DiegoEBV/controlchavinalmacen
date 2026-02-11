@@ -2,10 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { Card, Form, Table, Button, Row, Col, Alert } from 'react-bootstrap';
 import { supabase } from '../config/supabaseClient';
 import { getRequerimientos, getMateriales } from '../services/requerimientosService';
-import { registrarEntrada, getMovimientos, getMovimientoById } from '../services/almacenService';
-import { getSolicitudesCompra, getSolicitudCompraById } from '../services/comprasService';
+import { registrarEntrada, getMovimientos } from '../services/almacenService';
+import { getSolicitudesCompra } from '../services/comprasService';
 import { Requerimiento, Material, MovimientoAlmacen, SolicitudCompra, DetalleSC } from '../types';
 import { useAuth } from '../context/AuthContext';
+import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription';
+import { mergeUpdates } from '../utils/stateUpdates';
 
 const EntradasAlmacen: React.FC = () => {
     const { selectedObra } = useAuth();
@@ -26,50 +28,53 @@ const EntradasAlmacen: React.FC = () => {
     const [cantidadIngreso, setCantidadIngreso] = useState(0);
     const [docReferencia, setDocReferencia] = useState('');
 
+    // --- Optimized Realtime Subscriptions ---
 
-    // --- Realtime Subscription ---
-    useEffect(() => {
-        const channel = supabase
-            .channel('entradas-updates')
-            .on(
-                'postgres_changes',
-                { event: 'INSERT', schema: 'public', table: 'movimientos_almacen' },
-                async (payload) => {
-                    // Only care about ENTRADA
-                    if (payload.new.tipo !== 'ENTRADA') return;
-                    const newMov = await getMovimientoById(payload.new.id);
-                    if (newMov) {
-                        setHistorial(prev => {
-                            if (prev.find(m => m.id === newMov.id)) return prev;
-                            return [newMov, ...prev];
-                        });
-                        // Also refresh stats/calculations if needed, but history is main one
+    // 1. Movimientos (Entradas) - INSERT only, usually
+    useRealtimeSubscription(async ({ upserts }) => {
+        if (upserts.size > 0) {
+            // Need to filter ONLY Entradas if fetching by ID, 
+            // but fetching by ID returns the row regardless of type.
+            // We'll filter in memory after fetch or assume backend logic.
+            const { data: newMoves } = await supabase
+                .from('movimientos_almacen')
+                .select('*')
+                .in('id', Array.from(upserts))
+                .eq('tipo', 'ENTRADA'); // Server-side filter attempt
+
+            if (newMoves && newMoves.length > 0) {
+                setHistorial(prev => mergeUpdates(prev, newMoves, new Set()));
+            }
+        }
+    }, { table: 'movimientos_almacen', event: 'INSERT', throttleMs: 2000 });
+
+    // 2. Solicitudes Compra - UPDATE only (status changes, details)
+    useRealtimeSubscription(async ({ upserts }) => {
+        if (upserts.size > 0) {
+            const { data: updatedSCs } = await supabase
+                .from('solicitudes_compra')
+                .select(`
+                    *,
+                    requerimiento:requerimientos!inner(id, obra_id, item_correlativo, solicitante),
+                    detalles:detalles_sc(*, material:materiales(*))
+                `)
+                .in('id', Array.from(upserts));
+
+            if (updatedSCs) {
+                setSolicitudes(prev => mergeUpdates(prev, updatedSCs as SolicitudCompra[], new Set()));
+
+                // Update Selected SC if it was modified
+                const currentSelectedId = selectedSC?.id;
+                if (currentSelectedId) {
+                    const updatedSelected = updatedSCs.find(s => s.id === currentSelectedId);
+                    if (updatedSelected) {
+                        setSelectedSC(updatedSelected as SolicitudCompra);
                     }
                 }
-            )
-            .on(
-                'postgres_changes',
-                { event: 'UPDATE', schema: 'public', table: 'solicitudes_compra' },
-                async (payload) => {
-                    // Check if status changed or details updated
-                    const updatedSC = await getSolicitudCompraById(payload.new.id);
-                    if (updatedSC) {
-                        setSolicitudes(prev => {
-                            return prev.map(s => s.id === updatedSC.id ? updatedSC : s);
-                        });
-                        // If the currently selected SC was updated, update it too
-                        if (selectedSC?.id === updatedSC.id) {
-                            setSelectedSC(updatedSC);
-                        }
-                    }
-                }
-            )
-            .subscribe();
+            }
+        }
+    }, { table: 'solicitudes_compra', event: 'UPDATE', throttleMs: 2000 });
 
-        return () => {
-            supabase.removeChannel(channel);
-        };
-    }, [selectedSC]); // Depend on selectedSC to update it correctly
 
     useEffect(() => {
         if (selectedObra) {
