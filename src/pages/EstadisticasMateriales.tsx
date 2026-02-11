@@ -22,27 +22,27 @@ const EstadisticasMateriales: React.FC = () => {
 
     const { selectedObra } = useAuth();
 
-    // Filters
+    // Filtros
     const [startDate, setStartDate] = useState<string>('');
     const [endDate, setEndDate] = useState<string>('');
     const [selectedCategory, setSelectedCategory] = useState<string>('');
     const [availableCategories, setAvailableCategories] = useState<string[]>([]);
 
-    // Raw Data
+    // Datos Crudos
     const [allReqs, setAllReqs] = useState<Requerimiento[]>([]);
     const [allMaterials, setAllMaterials] = useState<Material[]>([]);
     const [allInventario, setAllInventario] = useState<Inventario[]>([]);
 
-    // Inventory Health
+    // Salud del Inventario
     const [stockoutRisk, setStockoutRisk] = useState<any[]>([]);
     const [excessInventory, setExcessInventory] = useState<any[]>([]);
     const [slowMoving, setSlowMoving] = useState<any[]>([]);
 
-    // Efficiency Metrics
+    // Métricas de Eficiencia
     const [avgFulfillmentTime, setAvgFulfillmentTime] = useState<number>(0);
     const [pendingMetrics, setPendingMetrics] = useState<{ total: number, avgDays: number, oldRequests: number }>({ total: 0, avgDays: 0, oldRequests: 0 });
 
-    // Trends
+    // Tendencias
     const [consumptionTrend, setConsumptionTrend] = useState<any[]>([]);
 
     const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'];
@@ -83,7 +83,7 @@ const EstadisticasMateriales: React.FC = () => {
             setAllMaterials(materials);
             setAllInventario(inventario);
 
-            // Extract Categories
+            // Extraer Categorías
             const categories = Array.from(new Set(materials.map(m => m.categoria).filter(Boolean)));
             setAvailableCategories(categories);
 
@@ -100,13 +100,13 @@ const EstadisticasMateriales: React.FC = () => {
         let totalAtendidas = 0;
 
         reqs.forEach(r => {
-            // Apply Date Filter on Requirement Level (using fecha_solicitud)
+            // Aplicar Filtro de Fecha a Nivel de Requerimiento (usando fecha_solicitud)
             if (startDate && new Date(r.fecha_solicitud) < new Date(startDate)) return;
             if (endDate && new Date(r.fecha_solicitud) > new Date(endDate)) return;
 
             if (r.detalles) {
                 r.detalles.forEach(d => {
-                    // Apply Category Filter
+                    // Aplicar Filtro de Categoría
                     if (selectedCategory && d.material_categoria !== selectedCategory) return;
 
                     allDetails.push({ ...d, solicitante: r.solicitante, especialidad: r.especialidad, fecha: r.fecha_solicitud });
@@ -119,7 +119,7 @@ const EstadisticasMateriales: React.FC = () => {
         // 1. Ratio de Consumo Global
         setConsumptionRatio(totalSolicitadas > 0 ? (totalAtendidas / totalSolicitadas) * 100 : 0);
 
-        // 2. Top Consumed Materials
+        // 2. Materiales Más Consumidos
         const materialMap = new Map<string, number>();
         allDetails.forEach(d => {
             const current = materialMap.get(d.descripcion) || 0;
@@ -132,7 +132,7 @@ const EstadisticasMateriales: React.FC = () => {
             .slice(0, 10);
         setTopConsumed(sortedMaterials);
 
-        // 3. By Specialty
+        // 3. Por Especialidad
         const specialtyMap = new Map<string, number>();
         allDetails.forEach(d => {
             const current = specialtyMap.get(d.especialidad) || 0;
@@ -140,7 +140,7 @@ const EstadisticasMateriales: React.FC = () => {
         });
         setSpecialtyStats(Array.from(specialtyMap.entries()).map(([name, value]) => ({ name, value })));
 
-        // 4. By Requester
+        // 4. Por Solicitante
         const requesterMap = new Map<string, number>();
         allDetails.forEach(d => {
             const current = requesterMap.get(d.solicitante) || 0;
@@ -148,8 +148,8 @@ const EstadisticasMateriales: React.FC = () => {
         });
         setRequesterStats(Array.from(requesterMap.entries()).slice(0, 10).map(([name, value]) => ({ name, value })));
 
-        // 5. Stock vs Consumed (Critical items)
-        // We need to match material details to material definitions to get Stock Max
+        // 5. Stock vs Consumido (Ítems Críticos)
+        // Necesitamos coincidir detalles de material con definiciones de material para obtener Stock Máx
         const comparisonData = materials.map(m => {
             const consumed = materialMap.get(m.descripcion) || 0;
             return {
@@ -161,8 +161,8 @@ const EstadisticasMateriales: React.FC = () => {
         }).filter(item => item.consumed > 0).sort((a, b) => b.consumed - a.consumed).slice(0, 15);
         setStockVsConsumed(comparisonData);
 
-        // 6. Predictive Analysis
-        // Calculate average daily consumption over last 30 days
+        // 6. Análisis Predictivo
+        // Calcular consumo diario promedio en últimos 30 días
         const limitDate = new Date();
         limitDate.setDate(limitDate.getDate() - 30);
 
@@ -189,25 +189,25 @@ const EstadisticasMateriales: React.FC = () => {
     };
 
     const processInventoryHealth = (reqs: Requerimiento[], materials: Material[], inventario: Inventario[]) => {
-        // Map material -> total consumed in last 30 days
+        // Mapear material -> total consumido en últimos 30 días
         const last30Days = new Date();
         last30Days.setDate(last30Days.getDate() - 30);
 
-        const consumptionMap = new Map<string, number>(); // material_id -> qty
-        const lastRequestDateMap = new Map<string, Date>(); // material_id -> date
+        const consumptionMap = new Map<string, number>(); // material_id -> cant
+        const lastRequestDateMap = new Map<string, Date>(); // material_id -> fecha
 
         reqs.forEach(r => {
             r.detalles?.forEach(d => {
-                // Find material ID by matching description (since detalle doesn't always have ID in type)
+                // Encontrar ID de material coincidiendo descripción (ya que detalle no siempre tiene ID en tipo)
                 const mat = materials.find(m => m.descripcion === d.descripcion && m.categoria === d.material_categoria);
                 if (mat) {
-                    // Track Last Request
+                    // Rastrear Última Solicitud
                     const reqDate = new Date(r.fecha_solicitud);
                     if (!lastRequestDateMap.has(mat.id) || reqDate > lastRequestDateMap.get(mat.id)!) {
                         lastRequestDateMap.set(mat.id, reqDate);
                     }
 
-                    // Track Consumption Last 30 Days
+                    // Rastrear Consumo Últimos 30 Días
                     if (reqDate >= last30Days) {
                         const current = consumptionMap.get(mat.id) || 0;
                         consumptionMap.set(mat.id, current + (d.cantidad_atendida || 0));
@@ -216,11 +216,11 @@ const EstadisticasMateriales: React.FC = () => {
             });
         });
 
-        // 1. Stockout Risk: Stock < 20% of Max OR Stock < Avg Weekly Consumption
+        // 1. Riesgo de Quiebre: Stock < 20% del Máx O Stock < Consumo Semanal Promedio
         const riskList: any[] = [];
-        // 2. Excess: Stock > Max
+        // 2. Exceso: Stock > Máx
         const excessList: any[] = [];
-        // 3. Slow Moving: High Stock (e.g. > 0) AND No requests in 60 days
+        // 3. Movimiento Lento: Stock Alto (ej. > 0) Y Sin solicitudes en 60 días
         const slowList: any[] = [];
         const slowThresholdDate = new Date();
         slowThresholdDate.setDate(slowThresholdDate.getDate() - 60);
@@ -230,11 +230,11 @@ const EstadisticasMateriales: React.FC = () => {
             if (!mat) return;
 
             const stock = inv.cantidad_actual;
-            const max = mat.stock_maximo || 100; // Default buffer
+            const max = mat.stock_maximo || 100; // Búfer por defecto
             const consumed30 = consumptionMap.get(mat.id) || 0;
             const lastReq = lastRequestDateMap.get(mat.id);
 
-            // Risk: Low Stock relative to Max or Consumption
+            // Riesgo: Stock Bajo relativo a Máx o Consumo
             if (stock > 0 && (stock < (max * 0.2) || (consumed30 > 0 && stock < (consumed30 / 4)))) {
                 riskList.push({
                     material: mat.descripcion,
@@ -244,7 +244,7 @@ const EstadisticasMateriales: React.FC = () => {
                 });
             }
 
-            // Excess
+            // Exceso
             if (stock > max) {
                 excessList.push({
                     material: mat.descripcion,
@@ -254,7 +254,7 @@ const EstadisticasMateriales: React.FC = () => {
                 });
             }
 
-            // Slow Moving
+            // Movimiento Lento
             if (stock > 0 && (!lastReq || lastReq < slowThresholdDate)) {
                 slowList.push({
                     material: mat.descripcion,
@@ -280,19 +280,19 @@ const EstadisticasMateriales: React.FC = () => {
         const now = new Date();
 
         reqs.forEach(r => {
-            // Date Filter check (though typically metrics should reflect current state, we can respect the filter or not. 
-            // Usually efficiency is analyzed over a period. Let's respect the filter if applied to 'req date')
+            // Verificación Filtro de Fecha (aunque típicamente métricas deberían reflejar estado actual, podemos respetar el filtro o no. 
+            // Usualmente la eficiencia se analiza sobre un periodo. Respetemos el filtro si aplica a 'fecha req')
             if (startDate && new Date(r.fecha_solicitud) < new Date(startDate)) return;
             if (endDate && new Date(r.fecha_solicitud) > new Date(endDate)) return;
 
             const reqDate = new Date(r.fecha_solicitud);
 
             r.detalles?.forEach(d => {
-                // Category Filter
+                // Filtro de Categoría
                 if (selectedCategory && d.material_categoria !== selectedCategory) return;
 
-                // 1. Fulfillment Time for Attended
-                // Note: d.fecha_atencion might be string or undefined.
+                // 1. Tiempo de Atención para Atendidos
+                // Nota: d.fecha_atencion podría ser cadena o indefinido.
                 if (d.estado === 'Atendido' || (d.cantidad_atendida > 0 && d.fecha_atencion)) {
                     if (d.fecha_atencion) {
                         const attDate = new Date(d.fecha_atencion);
@@ -303,7 +303,7 @@ const EstadisticasMateriales: React.FC = () => {
                     }
                 }
 
-                // 2. Pending Aging
+                // 2. Antigüedad de Pendientes
                 if (d.estado === 'Pendiente' || d.estado === 'Parcial') {
                     const diffTime = Math.abs(now.getTime() - reqDate.getTime());
                     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
@@ -330,7 +330,7 @@ const EstadisticasMateriales: React.FC = () => {
         const dateMap = new Map<string, number>();
 
         reqs.forEach(r => {
-            // Respect Date Filter
+            // Respetar Filtro de Fecha
             if (startDate && new Date(r.fecha_solicitud) < new Date(startDate)) return;
             if (endDate && new Date(r.fecha_solicitud) > new Date(endDate)) return;
 
@@ -392,7 +392,7 @@ const EstadisticasMateriales: React.FC = () => {
                 </button>
             </div>
 
-            {/* Filters */}
+            {/* Filtros */}
             <Card className="custom-card mb-4">
                 <Card.Body>
                     <Row className="g-3 align-items-end">
@@ -443,7 +443,7 @@ const EstadisticasMateriales: React.FC = () => {
                 </Card.Body>
             </Card>
 
-            {/* Global Ratio & Efficiency */}
+            {/* Ratio Global y Eficiencia */}
             <Row className="mb-4 g-3">
                 <Col xs={12} md={4}>
                     <Card className="custom-card text-center text-white bg-primary h-100">
@@ -486,7 +486,7 @@ const EstadisticasMateriales: React.FC = () => {
             </Row>
 
             <Row className="mb-4 g-3">
-                {/* Top Consumed Chart */}
+                {/* Gráfico de Más Consumidos */}
                 <Col xs={12} md={6}>
                     <Card className="custom-card h-100">
                         <Card.Header>Top 10 Materiales Más Consumidos</Card.Header>
@@ -504,7 +504,7 @@ const EstadisticasMateriales: React.FC = () => {
                     </Card>
                 </Col>
 
-                {/* Specialty Pie Chart */}
+                {/* Gráfico Circular de Especialidad */}
                 <Col xs={12} md={6}>
                     <Card className="custom-card h-100">
                         <Card.Header>Consumo por Especialidad</Card.Header>
@@ -535,7 +535,7 @@ const EstadisticasMateriales: React.FC = () => {
             </Row>
 
             <Row className="mb-4">
-                {/* Requester Bar Chart */}
+                {/* Gráfico de Barras de Solicitante */}
                 <Col xs={12} className="mb-4">
                     <Card className="custom-card h-100">
                         <Card.Header>Consumo por Solicitante (Top 10)</Card.Header>
@@ -556,7 +556,7 @@ const EstadisticasMateriales: React.FC = () => {
             </Row>
 
             <Row className="mb-4">
-                {/* Stock vs Consumed Scatter/Bar */}
+                {/* Dispersión/Barras Stock vs Consumido */}
                 <Col xs={12}>
                     <Card className="custom-card">
                         <Card.Header>Consumo Acumulado vs Stock Máximo (Items Críticos)</Card.Header>
@@ -577,7 +577,7 @@ const EstadisticasMateriales: React.FC = () => {
                 </Col>
             </Row>
 
-            {/* Trends Section */}
+            {/* Sección de Tendencias */}
             <Row className="mb-4">
                 <Col xs={12}>
                     <Card className="custom-card">
@@ -598,14 +598,14 @@ const EstadisticasMateriales: React.FC = () => {
                 </Col>
             </Row>
 
-            {/* Predictive Analysis Table */}
+            {/* Tabla de Análisis Predictivo */}
             <Row className="mb-4">
                 <Col xs={12}>
                     <Card className="custom-card">
                         <Card.Header className="d-flex justify-content-between align-items-center">
                             <span>🔮 Predicción de Necesidades (Basado en consumo de 30 días)</span>
                         </Card.Header>
-                        {/* ... Table Content ... */}
+                        {/* ... Contenido de la Tabla ... */}
                         <div className="table-responsive">
                             <Table hover>
                                 <thead>
@@ -640,10 +640,10 @@ const EstadisticasMateriales: React.FC = () => {
                 </Col>
             </Row>
 
-            {/* Inventory Health Section */}
+            {/* Sección de Salud del Inventario */}
             <h3 className="mb-3 text-muted text-center text-md-start">Salud del Inventario</h3>
             <Row className="mb-5 g-3">
-                {/* Stockout Risk */}
+                {/* Riesgo de Quiebre */}
                 <Col xs={12} md={4}>
                     <Card className="custom-card h-100 border-warning">
                         <Card.Header className="bg-warning text-dark fw-bold">⚠️ Riesgo de Quiebre (Stock Bajo)</Card.Header>
@@ -662,7 +662,7 @@ const EstadisticasMateriales: React.FC = () => {
                     </Card>
                 </Col>
 
-                {/* Dead Stock */}
+                {/* Stock Muerto */}
                 <Col xs={12} md={4}>
                     <Card className="custom-card h-100 border-secondary">
                         <Card.Header className="bg-secondary text-white fw-bold">🕸️ Inventario Inmovilizado (+60 días)</Card.Header>
@@ -681,7 +681,7 @@ const EstadisticasMateriales: React.FC = () => {
                     </Card>
                 </Col>
 
-                {/* Excess Stock */}
+                {/* Stock en Exceso */}
                 <Col xs={12} md={4}>
                     <Card className="custom-card h-100 border-primary">
                         <Card.Header className="bg-primary text-white fw-bold">📦 Exceso de Stock ({'>'} Máx)</Card.Header>

@@ -76,7 +76,7 @@ export const createRequerimiento = async (
 
         if (detError) {
             console.error("Error inserting details", detError);
-            // Rollback header if possible or manual cleanup
+            // Revertir cabecera si es posible o limpieza manual
             await supabase.from('requerimientos').delete().eq('id', reqData.id);
             throw detError;
         }
@@ -93,7 +93,7 @@ export const updateDetalleLogistica = async (
     updates: Partial<DetalleRequerimiento>
 ) => {
     try {
-        // Auto-calculate logic status
+        // Calcular automáticamente el estado lógico
         if (updates.cantidad_atendida !== undefined && !updates.estado) {
             const { data: currentItem, error: fetchError } = await supabase
                 .from('detalles_requerimiento')
@@ -131,7 +131,7 @@ export const getObras = async () => {
 };
 
 export const getUserAssignedObras = async (userId: string) => {
-    // 1. Get IDs from junction table
+    // 1. Obtener IDs de la tabla de unión
     const { data: relations, error: relError } = await supabase
         .from('usuario_obras')
         .select('obra_id')
@@ -146,7 +146,7 @@ export const getUserAssignedObras = async (userId: string) => {
 
     const obraIds = relations.map(r => r.obra_id);
 
-    // 2. Fetch Obra details
+    // 2. Obtener detalles de la Obra
     const { data, error } = await supabase
         .from('obras')
         .select('*')
@@ -161,7 +161,7 @@ export const getUserAssignedObras = async (userId: string) => {
     return data || [];
 };
 
-// Materiales CRUD
+// CRUD de Materiales
 export const getMateriales = async () => {
     const { data, error } = await supabase
         .from('materiales')
@@ -206,7 +206,7 @@ export const deleteMaterial = async (id: string) => {
         .eq('id', id);
     if (error) throw error;
 };
-// Solicitantes CRUD
+// CRUD de Solicitantes
 export const getSolicitantes = async () => {
     const { data, error } = await supabase
         .from('solicitantes')
@@ -239,7 +239,7 @@ export const deleteSolicitante = async (id: string) => {
     if (error) throw error;
 };
 
-// Categorias CRUD
+// CRUD de Categorías
 export const getCategorias = async () => {
     const { data, error } = await supabase
         .from('categorias')

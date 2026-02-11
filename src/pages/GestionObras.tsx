@@ -9,13 +9,13 @@ const GestionObras = () => {
     const [error, setError] = useState<string | null>(null);
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-    // Create Modal State
+    // Estado del Modal de Creación
     const [showModal, setShowModal] = useState(false);
     const [newObraName, setNewObraName] = useState('');
     const [newObraLocation, setNewObraLocation] = useState('');
     const [creating, setCreating] = useState(false);
 
-    // Edit Modal State
+    // Estado del Modal de Edición
     const [showEditModal, setShowEditModal] = useState(false);
     const [editingObra, setEditingObra] = useState<Obra | null>(null);
     const [editObraName, setEditObraName] = useState('');

@@ -90,8 +90,8 @@ export const getMovimientos = async (obraId?: string) => {
         .limit(100);
 
     if (obraId) {
-        // Movimientos don't have direct obra_id in current schema, need to verify migration
-        // In the migration we added obra_id to movimientos_almacen
+        // Movimientos no tiene obra_id directo en el esquema actual, se necesita verificar la migración
+        // En la migración agregamos obra_id a movimientos_almacen
         query = query.eq('obra_id', obraId);
     }
 

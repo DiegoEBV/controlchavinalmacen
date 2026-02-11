@@ -14,7 +14,7 @@ const StockAlmacen: React.FC = () => {
         loadStock();
     }, []);
 
-    // --- Realtime Subscription ---
+    // --- Suscripción en Tiempo Real ---
     useEffect(() => {
         const channel = supabase
             .channel('stock-updates')
@@ -44,7 +44,7 @@ const StockAlmacen: React.FC = () => {
         return () => {
             supabase.removeChannel(channel);
         };
-    }, []); // Empty dependency array
+    }, []); // Array de dependencias vacío
 
     useEffect(() => {
         if (selectedObra) {

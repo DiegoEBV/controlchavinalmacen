@@ -10,7 +10,7 @@ const GestionMateriales: React.FC = () => {
     const [materiales, setMateriales] = useState<Material[]>([]);
     const [categoriasList, setCategoriasList] = useState<any[]>([]);
     const [obras, setObras] = useState<any[]>([]);
-    const [frentes, setFrentes] = useState<any[]>([]); // For filter
+    const [frentes, setFrentes] = useState<any[]>([]); // Para filtrado
 
     // Filtros
     const [selectedObraId, setSelectedObraId] = useState('');
@@ -20,7 +20,7 @@ const GestionMateriales: React.FC = () => {
     const [showModal, setShowModal] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
 
-    // Modal dependent data
+    // Datos dependientes del modal
     const [modalFrentes, setModalFrentes] = useState<any[]>([]);
     const [modalObraId, setModalObraId] = useState('');
 
@@ -54,7 +54,7 @@ const GestionMateriales: React.FC = () => {
         }
     }, [selectedFrenteId]);
 
-    // Modal logic
+    // Lógica del modal
     useEffect(() => {
         if (modalObraId) {
             loadFrentes(modalObraId).then(setModalFrentes);
@@ -84,14 +84,14 @@ const GestionMateriales: React.FC = () => {
     };
 
     const loadMateriales = async (frenteId: string) => {
-        // We need to filter by Frente ID API side or Client side?
-        // Service `getMateriales` fetches all. Let's update or filter here.
-        // Assuming getMateriales currently returns all.
-        // Ideally we should update service to accept filters, but for now let's query directly or filter.
-        // Let's us direct query for efficiency if service is too broad, or keep using service if it's simple.
-        // 'getMateriales' probably uses 'supabase.from(materiales).select(...)'
-        // Let's try to search with filter using supabase directly here for "Frente" specific
-        const { data, error } = await supabase
+        // ¿Necesitamos filtrar por Frente ID en el lado de la API o del cliente?
+        // El servicio `getMateriales` obtiene todos. Vamos a actualizar o filtrar aquí.
+        // Asumiendo que getMateriales actualmente devuelve todos.
+        // Idealmente deberíamos actualizar el servicio para aceptar filtros, pero por ahora consultemos directamente o filtremos.
+        // Usemos consulta directa para eficiencia si el servicio es muy amplio, o sigamos usando el servicio si es simple.
+        // 'getMateriales' probablemente usa 'supabase.from(materiales).select(...)'
+        // Intentemos buscar con filtro usando supabase directamente aquí para "Frente" específico
+        const { data } = await supabase
             .from('materiales')
             .select('*, frentes(nombre_frente)')
             .eq('frente_id', frenteId)
@@ -105,7 +105,7 @@ const GestionMateriales: React.FC = () => {
 
         try {
             const materialToSave = { ...newMaterial };
-            // Ensure numeric
+            // Asegurar numérico
             materialToSave.stock_maximo = Number(materialToSave.stock_maximo);
 
             if (editingId) {
@@ -117,7 +117,7 @@ const GestionMateriales: React.FC = () => {
             setNewMaterial({ categoria: '', descripcion: '', unidad: 'und', stock_maximo: 0, informacion_adicional: '', frente_id: '' });
             setEditingId(null);
             setModalObraId('');
-            // Reload current view
+            // Recargar vista actual
             if (selectedFrenteId) loadMateriales(selectedFrenteId);
         } catch (error) {
             console.error(error);
@@ -127,13 +127,13 @@ const GestionMateriales: React.FC = () => {
 
     const handleEdit = (material: Material) => {
         setEditingId(material.id);
-        // We need to know which Obra this Frente belongs to.
-        // Material has `frente_id`. We can find the frente in `frentes` list IF we are in the same view context.
-        // But `frentes` state only has frentes of `selectedObraId`.
-        // If we are editing, we are likely in the view of that Obra/Frente.
-        // So `modalObraId` should be `selectedObraId`.
+        // Necesitamos saber a qué Obra pertenece este Frente.
+        // El material tiene `frente_id`. Podemos encontrar el frente en la lista `frentes` SI estamos en el mismo contexto de vista.
+        // Pero el estado `frentes` solo tiene frentes de `selectedObraId`.
+        // Si estamos editando, probablemente estamos en la vista de esa Obra/Frente.
+        // Así que `modalObraId` debería ser `selectedObraId`.
         setModalObraId(selectedObraId);
-        // Wait, if we use the same modal for create/edit.
+        // Espera, si usamos el mismo modal para crear/editar.
 
         setNewMaterial({
             categoria: material.categoria,
@@ -180,13 +180,13 @@ const GestionMateriales: React.FC = () => {
                 const existingCats = await getCategorias() || [];
                 const catMap = new Map(existingCats.map((c: any) => [c.nombre.toUpperCase(), c]));
 
-                // Fetch existing materials for this OBRA (to avoid duplicates across frentes if needed, or just by frente)
-                // Actually constraint is per Frente usually. 
-                // Let's optimize: fetch all materials for the Obra to check duplicates locally? 
-                // Or just rely on database constraints? Uniqueness is likely (Frente, Nombre).
-                // Let's just process.
+                // Obtener materiales existentes para esta OBRA (para evitar duplicados entre frentes si es necesario, o solo por frente)
+                // En realidad la restricción suele ser por Frente. 
+                // Optimicemos: ¿obtener todos los materiales para la Obra para verificar duplicados localmente? 
+                // ¿O solo confiar en las restricciones de la base de datos? La unicidad es probable (Frente, Nombre).
+                // Procesemos simplemente.
 
-                // Pre-fetch frentes lookup map
+                // Pre-obtener mapa de búsqueda de frentes
                 const frenteMap = new Map(frentes.map(f => [f.nombre_frente.toUpperCase(), f.id]));
 
                 for (const row of data as any[]) {
@@ -203,7 +203,7 @@ const GestionMateriales: React.FC = () => {
                     stockMax = parseFloat(stockMax.toFixed(2));
                     const info = norm.informacion || norm.comentario || norm.info_adicional || '';
 
-                    // Frente resolution
+                    // Resolución de Frente
                     const frenteName = norm.frente || norm.unidad_de_trabajo;
                     let targetFrenteId = selectedFrenteId;
 
@@ -214,16 +214,16 @@ const GestionMateriales: React.FC = () => {
 
                     if (!targetFrenteId) {
                         skippedCount++;
-                        continue; // No frente identified
+                        continue; // Ningún frente identificado
                     }
 
                     if (descripcion && categoriaName) {
                         const descUpper = descripcion.toString().toUpperCase();
                         const catUpper = categoriaName.toString().toUpperCase();
 
-                        // Check duplicates? (Checking local 'materiales' state is insufficient if we are importing for different frentes)
-                        // Ideally we should check against DB or just try insert and catch error.
-                        // For speed/simplicity let's try insert.
+                        // ¿Verificar duplicados? (Verificar el estado local 'materiales' es insuficiente si estamos importando para diferentes frentes)
+                        // Idealmente deberíamos verificar contra la BD o solo intentar insertar y capturar el error.
+                        // Por velocidad/simplicidad intentemos insertar.
 
                         if (!catMap.has(catUpper)) {
                             try {
@@ -251,7 +251,7 @@ const GestionMateriales: React.FC = () => {
 
                 alert(`Proceso completado.\nAgregados: ${count}\nErrores: ${errorCount}\nOmitidos (sin Frente): ${skippedCount}`);
 
-                // Refresh list if a frente is selected
+                // Refrescar lista si se selecciona un frente
                 if (selectedFrenteId) loadMateriales(selectedFrenteId);
 
             } catch (error) {
@@ -299,14 +299,14 @@ const GestionMateriales: React.FC = () => {
                                 </label>
                                 <Button onClick={() => {
                                     setEditingId(null);
-                                    setModalObraId(selectedObraId); // Default to current filter
+                                    setModalObraId(selectedObraId); // Por defecto al filtro actual
                                     setNewMaterial({
                                         categoria: '',
                                         descripcion: '',
                                         unidad: 'und',
                                         stock_maximo: 0,
                                         informacion_adicional: '',
-                                        frente_id: selectedFrenteId || '' // Default to current filter
+                                        frente_id: selectedFrenteId || '' // Por defecto al filtro actual
                                     });
                                     setShowModal(true);
                                 }} className="btn-primary flex-grow-1" disabled={!selectedObraId}>+ Nuevo Material</Button>
@@ -368,7 +368,7 @@ const GestionMateriales: React.FC = () => {
                                         value={modalObraId}
                                         onChange={e => {
                                             setModalObraId(e.target.value);
-                                            setNewMaterial({ ...newMaterial, frente_id: '' }); // Reset frente
+                                            setNewMaterial({ ...newMaterial, frente_id: '' }); // Reiniciar frente
                                         }}
                                     >
                                         <option value="">-- Seleccione --</option>

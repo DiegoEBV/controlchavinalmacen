@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Nav, Navbar, Container, Button } from 'react-bootstrap';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { UserRole } from '../types/auth';
+
 
 const Navigation: React.FC = () => {
     const location = useLocation();
@@ -12,7 +12,7 @@ const Navigation: React.FC = () => {
 
     const isActive = (path: string) => location.pathname.includes(path);
 
-    // Close nav when a link is clicked (mobile UX)
+    // Cerrar navegación al hacer clic en un enlace (UX móvil)
     const closeNav = () => setExpanded(false);
 
     const handleLogout = async () => {
@@ -20,17 +20,17 @@ const Navigation: React.FC = () => {
         navigate('/login');
     };
 
-    if (!user) return null; // Don't show nav if not logged in (or handle differently)
+    if (!user) return null; // No mostrar navegación si no ha iniciado sesión (o manejar de otra manera)
 
     const canViewRequerimientos = hasRole(['produccion', 'coordinador', 'admin']);
     const canViewSolicitudes = hasRole(['coordinador', 'admin']); // SC
     const canViewOrdenes = hasRole(['logistica', 'admin']); // OC
     const canViewMateriales = hasRole(['coordinador', 'logistica', 'admin']);
-    const canViewAlmacen = hasRole(['almacenero', 'produccion', 'coordinador', 'logistica', 'admin']); // Stock viewing
+    const canViewAlmacen = hasRole(['almacenero', 'produccion', 'coordinador', 'logistica', 'admin']); // Visualización de stock
     const canEditAlmacen = hasRole(['almacenero', 'admin']); // Entradas/Salidas
     const canViewReportes = hasRole(['produccion', 'coordinador', 'logistica', 'almacenero', 'admin']);
 
-    // Config permissions
+    // Permisos de configuración
     const canViewSolicitantes = hasRole(['admin', 'coordinador', 'logistica']);
     const canViewCategorias = hasRole(['admin', 'coordinador', 'logistica']);
     const canViewUsuarios = hasRole(['admin']);

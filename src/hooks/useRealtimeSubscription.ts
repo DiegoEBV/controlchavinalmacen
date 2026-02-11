@@ -21,7 +21,7 @@ export const useRealtimeSubscription = (
     const { table, schema = 'public', filter, event = '*', throttleMs = 1000 } = options;
 
     useEffect(() => {
-        // Buffer: Map<ID, Event> to deduplicate updates to the same record
+        // Bufer: Map<ID, Event> para deduplicar actualizaciones al mismo registro
         const buffer = new Map<string, RealtimeEvent>();
 
         let intervalId: NodeJS.Timeout;
@@ -35,12 +35,12 @@ export const useRealtimeSubscription = (
             buffer.forEach((payload, id) => {
                 if (payload.eventType === 'DELETE') {
                     deletes.add(id);
-                    // If it was previously marked for upsert in this batch, remove it since it's now deleted
+                    // Si se marcó previamente para upsert en este lote, eliminarlo ya que ahora está eliminado
                     upserts.delete(id);
                 } else if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
                     upserts.add(id);
-                    // If it was previously marked for delete (unlikely in same batch but possible), 
-                    // remove from deletes since it's back
+                    // Si se marcó previamente para eliminar (poco probable en el mismo lote pero posible), 
+                    // eliminar de eliminados ya que está de vuelta
                     deletes.delete(id);
                 }
             });
@@ -52,7 +52,7 @@ export const useRealtimeSubscription = (
             buffer.clear();
         };
 
-        // Start processing loop
+        // Iniciar ciclo de procesamiento
         intervalId = setInterval(processBuffer, throttleMs);
 
         const channel = supabase
@@ -61,7 +61,7 @@ export const useRealtimeSubscription = (
                 'postgres_changes',
                 { event, schema, table, filter },
                 (payload) => {
-                    // Extract ID safely
+                    // Extraer ID de forma segura
                     const id = (payload.new as any)?.id || (payload.old as any)?.id;
 
                     if (id) {
@@ -75,5 +75,5 @@ export const useRealtimeSubscription = (
             clearInterval(intervalId);
             supabase.removeChannel(channel);
         };
-    }, [table, schema, filter, event, throttleMs]); // Re-subscribe if options change
+    }, [table, schema, filter, event, throttleMs]); // Re-suscribirse si las opciones cambian
 };
