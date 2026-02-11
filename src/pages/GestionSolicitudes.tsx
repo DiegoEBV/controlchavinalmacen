@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Button, Table, Badge, Modal, Form, Row, Col, Accordion } from 'react-bootstrap';
-import { supabase } from '../config/supabaseClient';
+
 import { getRequerimientos, getMateriales, getRequerimientoById } from '../services/requerimientosService';
 import { getOrdenesCompra, getSolicitudesCompra, createSolicitudCompra, getSolicitudCompraById } from '../services/comprasService';
 import { getMovimientos } from '../services/almacenService';
 import { Requerimiento, SolicitudCompra, Material, MovimientoAlmacen, OrdenCompra } from '../types';
+import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription';
+import { mergeUpdates } from '../utils/stateUpdates';
 
 const GestionSolicitudes: React.FC = () => {
     const [requerimientos, setRequerimientos] = useState<Requerimiento[]>([]);
@@ -21,6 +23,39 @@ const GestionSolicitudes: React.FC = () => {
     useEffect(() => {
         loadData();
     }, []);
+
+    // --- Optimized Realtime Subscriptions ---
+
+    // 1. Requerimientos (New Pending)
+    useRealtimeSubscription(async ({ upserts, deletes }) => {
+        if (upserts.size > 0) {
+            const responses = await Promise.all(Array.from(upserts).map(id => getRequerimientoById(id)));
+            const validReqs = responses
+                .filter(res => res.data !== null)
+                .map(res => res.data as Requerimiento);
+
+            setRequerimientos(prev => mergeUpdates(prev, validReqs, deletes));
+        } else if (deletes.size > 0) {
+            setRequerimientos(prev => mergeUpdates(prev, [], deletes));
+        }
+    }, { table: 'requerimientos', throttleMs: 2000 });
+
+    // 2. Solicitudes (Changes)
+    useRealtimeSubscription(async ({ upserts, deletes }) => {
+        if (upserts.size > 0) {
+            const responses = await Promise.all(Array.from(upserts).map(id => getSolicitudCompraById(id)));
+            const validItems = responses.filter(i => i !== null) as SolicitudCompra[];
+            setSolicitudes(prev => mergeUpdates(prev, validItems, deletes));
+
+            // Proactive removal from pending requirements list
+            const reqIds = validItems.map(s => s.requerimiento_id);
+            setRequerimientos(prev => prev.filter(r => !reqIds.includes(r.id)));
+
+        } else if (deletes.size > 0) {
+            setSolicitudes(prev => mergeUpdates(prev, [], deletes));
+        }
+    }, { table: 'solicitudes_compra', throttleMs: 2000 });
+
 
     const loadData = async () => {
         const [reqs, scs, mats, movs, ocs] = await Promise.all([
@@ -92,59 +127,9 @@ const GestionSolicitudes: React.FC = () => {
         }
     };
 
-    // --- Realtime Subscription ---
-    useEffect(() => {
-        const channel = supabase
-            .channel('gestion-solicitudes-updates')
-            .on(
-                'postgres_changes',
-                { event: 'INSERT', schema: 'public', table: 'requerimientos' },
-                async (payload) => {
-                    console.log('New Requerimiento:', payload.new);
-                    // Targeted Fetch: Get the full Req with joins
-                    const { data: newReq } = await getRequerimientoById(payload.new.id);
-                    if (newReq) {
-                        setRequerimientos(prev => {
-                            // Avoid duplicates
-                            if (prev.find(r => r.id === newReq.id)) return prev;
-                            return [newReq, ...prev];
-                        });
-                    }
-                }
-            )
-            .on(
-                'postgres_changes',
-                { event: '*', schema: 'public', table: 'solicitudes_compra' },
-                async (payload) => {
-                    console.log('SC Change:', payload);
-                    const { eventType, new: newRecord, old: oldRecord } = payload;
-
-                    if (eventType === 'INSERT') {
-                        const newSC = await getSolicitudCompraById(newRecord.id);
-                        if (newSC) {
-                            setSolicitudes(prev => [newSC, ...prev]);
-                            // Remove from pending reqs if it was there
-                            setRequerimientos(prev => prev.filter(r => r.id !== newSC.requerimiento_id));
-                        }
-                    } else if (eventType === 'UPDATE') {
-                        // Optimistic / Targeted Update
-                        // Check if crucial fields changed (state) or just small details
-                        // For SCs, usually state changes. We can just fetch the single updated SC to be safe about joins
-                        const updatedSC = await getSolicitudCompraById(newRecord.id);
-                        if (updatedSC) {
-                            setSolicitudes(prev => prev.map(s => s.id === updatedSC.id ? updatedSC : s));
-                        }
-                    } else if (eventType === 'DELETE') {
-                        setSolicitudes(prev => prev.filter(s => s.id !== oldRecord.id));
-                    }
-                }
-            )
-            .subscribe();
-
-        return () => {
-            supabase.removeChannel(channel);
-        };
-    }, []); // Empty dependency array
+    // Filter VIEW of Pending Reqs again to be safe (if realtime SC came in but we missed the event)
+    const processedReqIds = new Set(solicitudes.map(s => s.requerimiento_id));
+    const pendingRequerimientos = requerimientos.filter(r => !processedReqIds.has(r.id));
 
     return (
         <div className="fade-in">
@@ -167,7 +152,7 @@ const GestionSolicitudes: React.FC = () => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {requerimientos.slice(0, 5).map(req => (
+                                {pendingRequerimientos.slice(0, 5).map(req => (
                                     <tr key={req.id}>
                                         <td>{req.item_correlativo}</td>
                                         <td>{req.bloque}</td>
@@ -178,7 +163,7 @@ const GestionSolicitudes: React.FC = () => {
                                         </td>
                                     </tr>
                                 ))}
-                                {requerimientos.length === 0 && <tr><td colSpan={5} className="text-muted text-center">No hay requerimientos pendientes.</td></tr>}
+                                {pendingRequerimientos.length === 0 && <tr><td colSpan={5} className="text-muted text-center">No hay requerimientos pendientes.</td></tr>}
                             </tbody>
                         </Table>
                     </Card>

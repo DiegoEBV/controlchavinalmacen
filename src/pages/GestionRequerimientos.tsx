@@ -1,11 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Button, Table, Badge, Accordion, ProgressBar, Row, Col, Form, Card } from 'react-bootstrap';
-import { supabase } from '../config/supabaseClient';
 import { getRequerimientos, createRequerimiento, getObras, getUserAssignedObras, getRequerimientoById } from '../services/requerimientosService';
 import { getSolicitudesCompra, getOrdenesCompra, getSolicitudCompraById, getOrdenCompraById } from '../services/comprasService';
 import { Requerimiento, Obra, SolicitudCompra, OrdenCompra } from '../types';
 import RequerimientoForm from '../components/RequerimientoForm';
 import { useAuth } from '../context/AuthContext';
+import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription';
+import { mergeUpdates } from '../utils/stateUpdates';
+
+const ITEMS_PER_PAGE = 20;
 
 const GestionRequerimientos: React.FC = () => {
     const [requerimientos, setRequerimientos] = useState<Requerimiento[]>([]);
@@ -14,65 +17,55 @@ const GestionRequerimientos: React.FC = () => {
     const [ordenes, setOrdenes] = useState<OrdenCompra[]>([]);
     const [showForm, setShowForm] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
+    const [visibleCount, setVisibleCount] = useState(ITEMS_PER_PAGE);
+
     const { selectedObra, user, isAdmin } = useAuth();
 
-    // --- Realtime Subscription ---
-    useEffect(() => {
-        const channel = supabase
-            .channel('requerimientos-updates')
-            .on(
-                'postgres_changes',
-                { event: '*', schema: 'public', table: 'requerimientos' },
-                async (payload) => {
-                    const { eventType, new: newRecord } = payload;
-                    if (eventType === 'INSERT' || eventType === 'UPDATE') {
-                        const { data: newReq } = await getRequerimientoById(newRecord.id);
-                        if (newReq) {
-                            setRequerimientos(prev => {
-                                const exists = prev.find(r => r.id === newReq.id);
-                                if (exists) return prev.map(r => r.id === newReq.id ? newReq : r);
-                                return [newReq, ...prev];
-                            });
-                        }
-                    }
-                }
-            )
-            .on(
-                'postgres_changes',
-                { event: '*', schema: 'public', table: 'solicitudes_compra' },
-                async (payload) => {
-                    const { eventType, new: newRecord } = payload;
-                    if (eventType === 'INSERT' || eventType === 'UPDATE') {
-                        const newSC = await getSolicitudCompraById(newRecord.id);
-                        if (newSC) {
-                            setSolicitudes(prev => {
-                                const exists = prev.find(s => s.id === newSC.id);
-                                if (exists) return prev.map(s => s.id === newSC.id ? newSC : s);
-                                return [newSC, ...prev];
-                            });
-                        }
-                    }
-                }
-            )
-            .on(
-                'postgres_changes',
-                { event: 'INSERT', schema: 'public', table: 'ordenes_compra' },
-                async (payload) => {
-                    const newOC = await getOrdenCompraById(payload.new.id);
-                    if (newOC) {
-                        setOrdenes(prev => {
-                            if (prev.find(o => o.id === newOC.id)) return prev;
-                            return [newOC, ...prev];
-                        });
-                    }
-                }
-            )
-            .subscribe();
+    // --- Optimized Realtime Subscriptions ---
 
-        return () => {
-            supabase.removeChannel(channel);
-        };
-    }, []); // Empty dependency array
+    // 1. Requerimientos
+    useRealtimeSubscription(async ({ upserts, deletes }) => {
+        if (upserts.size > 0) {
+            // Fetch full details
+            const responses = await Promise.all(Array.from(upserts).map(id => getRequerimientoById(id)));
+            const validItems = responses
+                .filter(res => res.data !== null)
+                .map(res => res.data as Requerimiento);
+
+            setRequerimientos(prev => mergeUpdates(prev, validItems, deletes, 'id', (a, b) => {
+                // Sort by item_correlativo descending (newest first)
+                if (a.item_correlativo > b.item_correlativo) return -1;
+                if (a.item_correlativo < b.item_correlativo) return 1;
+                return 0;
+            }));
+        } else if (deletes.size > 0) {
+            setRequerimientos(prev => mergeUpdates(prev, [], deletes));
+        }
+    }, { table: 'requerimientos', throttleMs: 2000 });
+
+    // 2. Solicitudes
+    useRealtimeSubscription(async ({ upserts, deletes }) => {
+        if (upserts.size > 0) {
+            // Fetch updated SCs
+            const responses = await Promise.all(Array.from(upserts).map(id => getSolicitudCompraById(id)));
+            const validItems = responses.filter(res => res !== null) as SolicitudCompra[];
+            setSolicitudes(prev => mergeUpdates(prev, validItems, deletes));
+        } else if (deletes.size > 0) {
+            setSolicitudes(prev => mergeUpdates(prev, [], deletes));
+        }
+    }, { table: 'solicitudes_compra', throttleMs: 2000 });
+
+    // 3. Ordenes
+    useRealtimeSubscription(async ({ upserts, deletes }) => {
+        if (upserts.size > 0) {
+            const responses = await Promise.all(Array.from(upserts).map(id => getOrdenCompraById(id)));
+            const validItems = responses.filter(res => res !== null) as OrdenCompra[];
+            setOrdenes(prev => mergeUpdates(prev, validItems, deletes));
+        } else if (deletes.size > 0) {
+            setOrdenes(prev => mergeUpdates(prev, [], deletes));
+        }
+    }, { table: 'ordenes_compra', throttleMs: 2000 });
+
 
     useEffect(() => {
         if (selectedObra) {
@@ -86,6 +79,9 @@ const GestionRequerimientos: React.FC = () => {
 
     const loadData = async () => {
         if (!selectedObra) return;
+
+        // Reset pagination
+        setVisibleCount(ITEMS_PER_PAGE);
 
         // Parallel fetching
         const pReqs = getRequerimientos(selectedObra.id);
@@ -112,6 +108,9 @@ const GestionRequerimientos: React.FC = () => {
 
     const handleCreate = async (header: any, items: any[]) => {
         await createRequerimiento(header, items);
+        // No need to call loadData() - Realtime will catch it! 
+        // But for UX responsiveness we might want to opt-in, 
+        // keeping it for now to ensure immediate feedback if realtime lags
         loadData();
     };
 
@@ -131,11 +130,21 @@ const GestionRequerimientos: React.FC = () => {
         return 'secondary';
     };
 
-    const filteredReqs = requerimientos.filter(req =>
-        req.solicitante.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        String(req.item_correlativo).includes(searchTerm) ||
-        (req.bloque && req.bloque.toLowerCase().includes(searchTerm.toLowerCase()))
-    );
+    // Memoize filtering to avoid re-calculation on every render
+    const filteredReqs = useMemo(() => {
+        return requerimientos.filter(req =>
+            req.solicitante.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            String(req.item_correlativo).includes(searchTerm) ||
+            (req.bloque && req.bloque.toLowerCase().includes(searchTerm.toLowerCase()))
+        );
+    }, [requerimientos, searchTerm]);
+
+    // Apply pagination to the filtered list
+    const visibleReqs = filteredReqs.slice(0, visibleCount);
+
+    const handleLoadMore = () => {
+        setVisibleCount(prev => prev + ITEMS_PER_PAGE);
+    };
 
     return (
         <div className="fade-in">
@@ -161,7 +170,7 @@ const GestionRequerimientos: React.FC = () => {
 
             <div className="custom-card p-0 overflow-hidden">
                 <Accordion defaultActiveKey="0" flush>
-                    {filteredReqs.map((req, idx) => {
+                    {visibleReqs.map((req, idx) => {
                         const progress = calculateProgress(req);
                         return (
                             <Accordion.Item eventKey={String(idx)} key={req.id}>
@@ -266,16 +275,26 @@ const GestionRequerimientos: React.FC = () => {
                             </Accordion.Item>
                         );
                     })}
+
                     {filteredReqs.length === 0 && <p className="text-center text-muted mt-5">No se encontraron requerimientos.</p>}
                 </Accordion>
 
-                <RequerimientoForm
-                    show={showForm}
-                    handleClose={() => setShowForm(false)}
-                    onSave={handleCreate}
-                    obras={obras}
-                />
+                {/* Load More Button */}
+                {visibleCount < filteredReqs.length && (
+                    <div className="text-center p-3">
+                        <Button variant="outline-primary" onClick={handleLoadMore}>
+                            Cargar más requerimientos ({filteredReqs.length - visibleCount} restantes)
+                        </Button>
+                    </div>
+                )}
             </div>
+
+            <RequerimientoForm
+                show={showForm}
+                handleClose={() => setShowForm(false)}
+                onSave={handleCreate}
+                obras={obras}
+            />
         </div>
     );
 };
