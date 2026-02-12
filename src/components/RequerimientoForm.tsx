@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Button, Form, Table, Row, Col } from 'react-bootstrap';
+import { Modal, Button, Form, Table, Row, Col, InputGroup, Spinner } from 'react-bootstrap';
 import { Requerimiento, DetalleRequerimiento, Obra, Material } from '../types';
 import { getMateriales, getSolicitantes, getCategorias } from '../services/requerimientosService';
 import { getInventario } from '../services/almacenService';
@@ -22,6 +22,10 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
     const [bloque, setBloque] = useState('');
     const [especialidad, setEspecialidad] = useState('');
     const [solicitante, setSolicitante] = useState('');
+
+    // Plantilla
+    const [templateId, setTemplateId] = useState('');
+    const [loadingTemplate, setLoadingTemplate] = useState(false);
 
     // Fuentes de Datos
     const [materialesList, setMaterialesList] = useState<Material[]>([]);
@@ -101,6 +105,79 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
         }
     }, [show, initialData, selectedObra]);
 
+    const handleLoadTemplate = async () => {
+        if (!obraId) {
+            alert("Seleccione una Obra primero.");
+            return;
+        }
+        if (!frenteId) {
+            alert("Seleccione un Frente primero.");
+            return;
+        }
+        if (!templateId) {
+            alert("Ingrese un número de requerimiento plantilla.");
+            return;
+        }
+
+        if (items.length > 0) {
+            if (!confirm("Al cargar la plantilla se reemplazarán los materiales actuales. ¿Desea continuar?")) {
+                return;
+            }
+        }
+
+        setLoadingTemplate(true);
+        try {
+            // Buscar el requerimiento por correlativo y obra
+            const { data: reqData, error } = await supabase
+                .from('requerimientos')
+                .select('id, frente_id')
+                .eq('item_correlativo', templateId)
+                .eq('obra_id', obraId)
+                .single();
+
+            if (error || !reqData) {
+                alert("Requerimiento plantilla no encontrado para esta obra.");
+                setLoadingTemplate(false);
+                return;
+            }
+
+            // Validar que pertenezca al mismo frente
+            if (reqData.frente_id !== frenteId) {
+                alert("El requerimiento plantilla no pertenece al Frente seleccionado.");
+                setLoadingTemplate(false);
+                return;
+            }
+
+            // Obtener detalles
+            const { data: detallesData, error: detError } = await supabase
+                .from('detalles_requerimiento')
+                .select('*')
+                .eq('requerimiento_id', reqData.id);
+
+            if (detError) {
+                console.error("Error fetching template details:", detError);
+                alert("Error al cargar detalles de la plantilla.");
+            } else if (detallesData) {
+                const newItems = detallesData.map(d => ({
+                    tipo: d.tipo,
+                    material_categoria: d.material_categoria,
+                    descripcion: d.descripcion,
+                    unidad: d.unidad,
+                    cantidad_solicitada: d.cantidad_solicitada, // Mantener cantidad original pero editable
+                    // Reiniciar estados de atención
+                    cantidad_atendida: 0,
+                    estado: 'Pendiente' as const
+                }));
+                setItems(newItems);
+            }
+        } catch (err) {
+            console.error("Error loading template:", err);
+            alert("Ocurrió un error al cargar la plantilla.");
+        } finally {
+            setLoadingTemplate(false);
+        }
+    };
+
     const handleAddItem = () => {
         if (!newItem.descripcion || !newItem.cantidad_solicitada || newItem.cantidad_solicitada <= 0) {
             alert("Complete descripción y cantidad > 0");
@@ -125,6 +202,12 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
         if (!solicitante) return alert("Ingrese Solicitante");
         if (!frenteId) return alert("Seleccione Frente");
         if (items.length === 0) return alert("Agregue al menos un ítem");
+
+        // Validar cantidades positivas
+        const invalidItems = items.filter(i => !i.cantidad_solicitada || i.cantidad_solicitada <= 0);
+        if (invalidItems.length > 0) {
+            return alert("Todos los ítems deben tener una cantidad mayor a 0.");
+        }
 
         const headerData = {
             obra_id: obraId || null,
@@ -221,6 +304,30 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
                         </Col>
                     </Row>
 
+                    <h6 className="text-primary mb-3">Cargar desde Plantilla</h6>
+                    <Row className="mb-3">
+                        <Col md={4}>
+                            <InputGroup>
+                                <Form.Control
+                                    placeholder="N° Req. Plantilla"
+                                    value={templateId}
+                                    onChange={e => setTemplateId(e.target.value)}
+                                    type="number"
+                                />
+                                <Button
+                                    variant="outline-primary"
+                                    onClick={handleLoadTemplate}
+                                    disabled={loadingTemplate || !obraId}
+                                >
+                                    {loadingTemplate ? <Spinner animation="border" size="sm" /> : 'Cargar Plantilla'}
+                                </Button>
+                            </InputGroup>
+                            <Form.Text className="text-muted">
+                                Ingrese el número del requerimiento anterior para copiar sus materiales.
+                            </Form.Text>
+                        </Col>
+                    </Row>
+
                     <h6 className="text-primary mb-3">Agregar Insumo</h6>
                     <Row className="mb-3 g-2 bg-light p-2 rounded">
                         <Col md={2}>
@@ -312,7 +419,20 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
                                     <td>{it.tipo}</td>
                                     <td>{it.descripcion}</td>
                                     <td>{it.unidad}</td>
-                                    <td>{it.cantidad_solicitada}</td>
+                                    <td style={{ width: '150px' }}>
+                                        <Form.Control
+                                            type="number"
+                                            min="0.01"
+                                            step="0.01"
+                                            value={it.cantidad_solicitada}
+                                            onChange={(e) => {
+                                                const val = parseFloat(e.target.value);
+                                                const updatedItems = [...items];
+                                                updatedItems[idx].cantidad_solicitada = isNaN(val) ? 0 : val;
+                                                setItems(updatedItems);
+                                            }}
+                                        />
+                                    </td>
                                     <td><Button size="sm" variant="danger" onClick={() => handleRemoveItem(idx)}>X</Button></td>
                                 </tr>
                             ))}
