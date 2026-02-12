@@ -107,7 +107,11 @@ const GestionRequerimientos: React.FC = () => {
     };
 
     const handleCreate = async (header: any, items: any[]) => {
-        await createRequerimiento(header, items);
+        const { error } = await createRequerimiento(header, items);
+        if (error) {
+            alert(error);
+            throw new Error(error);
+        }
         // No es necesario llamar a loadData() - ¡El tiempo real lo capturará! 
         // Pero para la respuesta de UX podríamos querer optar por ello, 
         // manteniéndolo por ahora para asegurar retroalimentación inmediata si el tiempo real se retrasa
