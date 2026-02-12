@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Button, Table, Badge, Accordion, ProgressBar, Row, Col, Form, Card } from 'react-bootstrap';
+import { Button, Table, Badge, Accordion, ProgressBar, Row, Col, Form, Card, Spinner } from 'react-bootstrap';
 import { getRequerimientos, createRequerimiento, getObras, getUserAssignedObras, getRequerimientoById } from '../services/requerimientosService';
 import { getSolicitudesCompra, getOrdenesCompra, getSolicitudCompraById, getOrdenCompraById } from '../services/comprasService';
 import { Requerimiento, Obra, SolicitudCompra, OrdenCompra } from '../types';
@@ -7,6 +7,8 @@ import RequerimientoForm from '../components/RequerimientoForm';
 import { useAuth } from '../context/AuthContext';
 import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription';
 import { mergeUpdates } from '../utils/stateUpdates';
+import { exportRequerimiento } from '../utils/excelExport';
+import { FaFileExcel } from 'react-icons/fa';
 
 const ITEMS_PER_PAGE = 20;
 
@@ -18,6 +20,7 @@ const GestionRequerimientos: React.FC = () => {
     const [showForm, setShowForm] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [visibleCount, setVisibleCount] = useState(ITEMS_PER_PAGE);
+    const [exportingId, setExportingId] = useState<string | null>(null);
 
     const { selectedObra, user, isAdmin } = useAuth();
 
@@ -146,8 +149,22 @@ const GestionRequerimientos: React.FC = () => {
     // Aplicar paginación a la lista filtrada
     const visibleReqs = filteredReqs.slice(0, visibleCount);
 
+
     const handleLoadMore = () => {
         setVisibleCount(prev => prev + ITEMS_PER_PAGE);
+    };
+
+    const handleExport = async (req: Requerimiento) => {
+        if (exportingId) return; // Prevent multiple clicks
+        setExportingId(req.id);
+        try {
+            await exportRequerimiento(req);
+        } catch (error) {
+            console.error("Export failed:", error);
+            // Alert already handled in utility
+        } finally {
+            setExportingId(null);
+        }
     };
 
     return (
@@ -190,9 +207,31 @@ const GestionRequerimientos: React.FC = () => {
                                                 Solicitado por: <strong>{req.solicitante}</strong> ({req.fecha_solicitud})
                                             </div>
                                         </div>
-                                        <div style={{ width: '100%', maxWidth: '200px', textAlign: 'left' }} className="mt-2 mt-md-0">
-                                            <small className="d-block mb-1 text-muted">Atención</small>
-                                            <ProgressBar now={progress} label={`${progress}%`} variant={progress === 100 ? 'success' : 'warning'} style={{ height: '20px' }} />
+                                        <div className="d-flex align-items-center gap-3 mt-2 mt-md-0">
+                                            {/* Progress Bar */}
+                                            <div style={{ width: '150px' }}>
+                                                <small className="d-block mb-1 text-muted">Atención</small>
+                                                <ProgressBar now={progress} label={`${progress}%`} variant={progress === 100 ? 'success' : 'warning'} style={{ height: '20px' }} />
+                                            </div>
+
+                                            {/* Export Button - Using div to avoid button-in-button warning from AccordionHeader */}
+                                            <div
+                                                className={`btn btn-sm btn-outline-success ${exportingId === req.id ? 'disabled' : ''}`}
+                                                style={{ cursor: exportingId === req.id ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                                onClick={(e) => {
+                                                    e.stopPropagation(); // Avoid toggling accordion
+                                                    if (exportingId !== req.id) {
+                                                        handleExport(req);
+                                                    }
+                                                }}
+                                                title="Exportar a Excel"
+                                            >
+                                                {exportingId === req.id ? (
+                                                    <Spinner animation="border" size="sm" />
+                                                ) : (
+                                                    <FaFileExcel size={18} />
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
                                 </Accordion.Header>
