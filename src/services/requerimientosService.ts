@@ -49,41 +49,51 @@ export const getRequerimientoById = async (id: string) => {
 export const createRequerimiento = async (
     requerimiento: Omit<Requerimiento, 'id' | 'created_at' | 'item_correlativo' | 'detalles'>,
     detalles: Omit<DetalleRequerimiento, 'id' | 'requerimiento_id' | 'created_at' | 'cantidad_atendida' | 'estado'>[]
-) => {
-    try {
-        // 1. Crear Cabecera
-        const { data: reqData, error: reqError } = await supabase
-            .from('requerimientos')
-            .insert([requerimiento])
-            .select()
-            .single();
-
-        if (reqError) throw reqError;
-
-        if (!reqData) throw new Error("No data returned from create requerimiento");
-
-        // 2. Preparar Detalles
-        const detallesConId = detalles.map(d => ({
-            ...d,
-            requerimiento_id: reqData.id,
-            cantidad_atendida: 0,
-            estado: 'Pendiente'
+): Promise<{ data: any; error: any }> => {
+    // Función auxiliar para intentar la creación via RPC
+    const attemptCreate = async () => {
+        // Mapear los detalles para asegurar que coincidan con lo que espera JSONB
+        const detallesPayload = detalles.map(d => ({
+            tipo: d.tipo,
+            material_categoria: d.material_categoria,
+            descripcion: d.descripcion,
+            unidad: d.unidad,
+            cantidad_solicitada: d.cantidad_solicitada
         }));
 
-        const { error: detError } = await supabase
-            .from('detalles_requerimiento')
-            .insert(detallesConId);
+        const { data, error } = await supabase.rpc('crear_requerimiento_completo', {
+            p_cabecera: requerimiento,
+            p_detalles: detallesPayload
+        });
 
-        if (detError) {
-            console.error("Error inserting details", detError);
-            // Revertir cabecera si es posible o limpieza manual
-            await supabase.from('requerimientos').delete().eq('id', reqData.id);
-            throw detError;
+        if (error) throw error;
+        return data;
+    };
+
+    try {
+        // Intento 1
+        return { data: await attemptCreate(), error: null };
+    } catch (error: any) {
+        console.error('Intento 1 fallido:', error.message);
+
+        // Verificar si es error de concurrencia (P0001 es raise exception, 23505 es unique violation)
+        const isConcurrencyError =
+            error.code === '23505' ||
+            (error.message && error.message.includes('Error de concurrencia'));
+
+        if (isConcurrencyError) {
+            console.log('Reintentando creación de requerimiento por concurrencia...');
+            try {
+                // Esperar un momento aleatorio entre 100ms y 500ms
+                await new Promise(resolve => setTimeout(resolve, 100 + Math.random() * 400));
+                // Intento 2
+                return { data: await attemptCreate(), error: null };
+            } catch (retryError: any) {
+                console.error('Intento 2 fallido:', retryError.message);
+                return { data: null, error: retryError.message || 'Error al crear requerimiento tras reintento.' };
+            }
         }
 
-        return { data: reqData, error: null };
-    } catch (error: any) {
-        console.error('Error creating requerimiento:', error);
         return { data: null, error: error.message };
     }
 };

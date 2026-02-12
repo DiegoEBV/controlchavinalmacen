@@ -218,8 +218,13 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
             fecha_solicitud: new Date().toISOString().split('T')[0]
         };
 
-        await onSave(headerData, items);
-        handleClose();
+        try {
+            await onSave(headerData, items);
+            handleClose();
+        } catch (error) {
+            console.error("Error al guardar requerimiento:", error);
+            // El alert ya se maneja en el padre (GestionRequerimientos)
+        }
     };
 
     // Filtrar materiales basados en categoría seleccionada Y frente seleccionado
