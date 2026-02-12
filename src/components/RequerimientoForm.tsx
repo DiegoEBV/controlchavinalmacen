@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Modal, Button, Form, Table, Row, Col, InputGroup, Spinner } from 'react-bootstrap';
+import SearchableSelect from './SearchableSelect';
 import { Requerimiento, DetalleRequerimiento, Obra, Material } from '../types';
 import { getMateriales, getSolicitantes, getCategorias } from '../services/requerimientosService';
 import { getInventario } from '../services/almacenService';
@@ -45,6 +46,8 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
         unidad: 'und',
         cantidad_solicitada: 0
     });
+
+    const [selectedMaterialId, setSelectedMaterialId] = useState('');
 
     useEffect(() => {
         loadCatalogs();
@@ -190,6 +193,7 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
             unidad: 'und',
             cantidad_solicitada: 0
         }));
+        setSelectedMaterialId('');
     };
 
     const handleRemoveItem = (index: number) => {
@@ -229,19 +233,23 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
 
     // Filtrar materiales basados en categoría seleccionada Y frente seleccionado
     const filteredMaterials = materialesList.filter(m =>
-        m.categoria === newItem.material_categoria &&
-        (m.frente_id === frenteId || !m.frente_id) // Opcional: ¿incluir materiales sin frente? ¿O estricto? 
-        // Estricto por solicitud de usuario: "me muestre recien los materiales de ese frente"
-    ).filter(m => m.frente_id === frenteId);
+        (newItem.material_categoria === 'General' || m.categoria === newItem.material_categoria) &&
+        m.frente_id === frenteId
+    );
 
     // Manejar selección de material para auto-rellenar unidad
-    const handleMaterialSelect = (desc: string) => {
-        const selectedMat = materialesList.find(m => m.descripcion === desc && m.categoria === newItem.material_categoria && m.frente_id === frenteId);
-        setNewItem(prev => ({
-            ...prev,
-            descripcion: desc,
-            unidad: selectedMat ? selectedMat.unidad : prev.unidad || 'und'
-        }));
+    const handleMaterialSelect = (id: string) => {
+        setSelectedMaterialId(id);
+        const selectedMat = materialesList.find(m => m.id === id);
+        if (selectedMat) {
+            setNewItem(prev => ({
+                ...prev,
+                descripcion: selectedMat.descripcion,
+                // Si estamos en General, actualizamos a la categoría real del material para consistencia de datos y stock
+                material_categoria: selectedMat.categoria,
+                unidad: selectedMat.unidad
+            }));
+        }
     };
 
     return (
@@ -267,7 +275,12 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
                                 <Form.Label>Frente *</Form.Label>
                                 <Form.Select
                                     value={frenteId}
-                                    onChange={e => setFrenteId(e.target.value)}
+                                    onChange={e => {
+                                        setFrenteId(e.target.value);
+                                        // Resetear item y selección de material al cambiar de frente
+                                        setNewItem({ ...newItem, material_categoria: '', descripcion: '', unidad: 'und', cantidad_solicitada: 0, tipo: newItem.tipo });
+                                        setSelectedMaterialId('');
+                                    }}
                                     disabled={!obraId}
                                 >
                                     <option value="">Seleccione...</option>
@@ -347,9 +360,13 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
                             <Form.Label>Categoría</Form.Label>
                             <Form.Select
                                 value={newItem.material_categoria}
-                                onChange={e => setNewItem({ ...newItem, material_categoria: e.target.value, descripcion: '' })}
+                                onChange={e => {
+                                    setNewItem({ ...newItem, material_categoria: e.target.value, descripcion: '' });
+                                    setSelectedMaterialId('');
+                                }}
                             >
                                 <option value="">Seleccione...</option>
+                                <option value="General">General</option>
                                 {categoriasList.map(c => <option key={c.id} value={c.nombre}>{c.nombre}</option>)}
                             </Form.Select>
                         </Col>
@@ -357,18 +374,17 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
                             <Form.Label>Descripción *</Form.Label>
                             {/* Si se selecciona categoría, mostrar dropdown de materiales. Si no, mostrar input de texto (o select vacío) */}
                             {newItem.material_categoria && newItem.tipo === 'Material' ? (
-                                <Form.Select
-                                    value={newItem.descripcion}
-                                    onChange={e => handleMaterialSelect(e.target.value)}
+                                <SearchableSelect
+                                    options={filteredMaterials.map(m => ({
+                                        value: m.id,
+                                        label: m.descripcion,
+                                        info: m.informacion_adicional
+                                    }))}
+                                    value={selectedMaterialId}
+                                    onChange={(val) => handleMaterialSelect(val as string)}
                                     disabled={!frenteId}
-                                >
-                                    <option value="">{frenteId ? 'Seleccione Material...' : 'Seleccione Frente Primero'}</option>
-                                    {filteredMaterials.map(m => (
-                                        <option key={m.id} value={m.descripcion}>
-                                            {m.descripcion} {m.informacion_adicional ? `- ${m.informacion_adicional}` : ''}
-                                        </option>
-                                    ))}
-                                </Form.Select>
+                                    placeholder={frenteId ? 'Seleccione Material...' : 'Seleccione Frente Primero'}
+                                />
                             ) : (
                                 <Form.Control
                                     value={newItem.descripcion}
@@ -395,7 +411,7 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
                             {newItem.descripcion && newItem.tipo === 'Material' && (
                                 <div className="mt-1">
                                     {(() => {
-                                        const selectedMat = materialesList.find(m => m.descripcion === newItem.descripcion && m.categoria === newItem.material_categoria);
+                                        const selectedMat = materialesList.find(m => m.id === selectedMaterialId);
                                         const stock = selectedMat ? (stockMap[selectedMat.id] || 0) : 0;
                                         return (
                                             <small className={stock > 0 ? "text-success fw-bold" : "text-danger fw-bold"}>
