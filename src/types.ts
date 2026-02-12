@@ -126,3 +126,32 @@ export interface DetalleOC {
     precio_unitario?: number;
     created_at: string;
 }
+
+export interface Equipo {
+    id: string;
+    obra_id: string;
+    nombre: string;
+    codigo: string;
+    estado: 'Operativo' | 'En Uso' | 'Inoperativo' | 'En Taller';
+    fecha_adquisicion?: string;
+    created_at: string;
+}
+
+export interface MovimientoEquipo {
+    id: string;
+    equipo_id: string;
+    equipo?: Equipo;
+    solicitante_id?: string; // Ahora opcional
+    solicitante?: { nombre: string }; // Join con solicitantes
+    nombre_solicitante?: string; // Nuevo: Texto libre
+    encargado_id?: string; // Nuevo: Usuario de producción
+    encargado?: { nombre: string }; // Join con profiles
+    usuario_autoriza_id: string;
+    bloque_destino: string;
+    fecha_salida: string;
+    fecha_retorno_estimada: string;
+    fecha_retorno_real?: string;
+    estado_retorno?: string;
+    evidencia_url?: string;
+    created_at: string;
+}

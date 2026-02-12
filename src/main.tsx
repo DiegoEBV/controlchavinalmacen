@@ -17,6 +17,7 @@ import ReporteMateriales from './pages/ReporteMateriales';
 import EstadisticasMateriales from './pages/EstadisticasMateriales';
 import GestionObras from './pages/GestionObras';
 import GestionFrentes from './pages/GestionFrentes';
+import GestionEquipos from './pages/GestionEquipos';
 import Layout from './components/Layout';
 import Login from './pages/Login';
 import ObraSelector from './pages/ObraSelector';
@@ -99,6 +100,10 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
 
                                 <Route element={<ProtectedRoute allowedRoles={['almacenero', 'produccion', 'coordinador', 'logistica']} />}>
                                     <Route path="/almacen/stock" element={<StockAlmacen />} />
+                                </Route>
+
+                                <Route element={<ProtectedRoute allowedRoles={['admin', 'coordinador', 'almacenero']} />}>
+                                    <Route path="/almacen/equipos" element={<GestionEquipos />} />
                                 </Route>
 
                                 <Route element={<ProtectedRoute allowedRoles={['produccion', 'coordinador', 'logistica', 'almacenero']} />}>

@@ -1,0 +1,28 @@
+/* Tabs Customization */
+.custom-tabs {
+    border-bottom: none !important;
+    margin-bottom: 2rem;
+    gap: 10px;
+}
+
+.custom-tabs .nav-link {
+    border: none !important;
+    border-radius: 50px !important;
+    padding: 10px 24px !important;
+    color: var(--text-secondary) !important;
+    font-weight: 600 !important;
+    background-color: transparent !important;
+    transition: all 0.3s ease !important;
+}
+
+.custom-tabs .nav-link:hover {
+    background-color: rgba(27, 156, 133, 0.05) !important;
+    color: var(--primary-green) !important;
+}
+
+.custom-tabs .nav-link.active {
+    background-color: white !important;
+    color: var(--primary-green) !important;
+    box-shadow: 0 4px 6px rgba(27, 156, 133, 0.15) !important;
+    transform: translateY(-2px);
+}

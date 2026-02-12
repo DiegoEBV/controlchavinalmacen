@@ -28,6 +28,7 @@ const Navigation: React.FC = () => {
     const canViewMateriales = hasRole(['coordinador', 'logistica', 'admin']);
     const canViewAlmacen = hasRole(['almacenero', 'produccion', 'coordinador', 'logistica', 'admin']); // Visualización de stock
     const canEditAlmacen = hasRole(['almacenero', 'admin']); // Entradas/Salidas
+    const canViewEquipos = hasRole(['almacenero', 'coordinador', 'admin']); // Gestión de Equipos
     const canViewReportes = hasRole(['produccion', 'coordinador', 'logistica', 'almacenero', 'admin']);
 
     // Permisos de configuración
@@ -97,6 +98,12 @@ const Navigation: React.FC = () => {
                         {canViewAlmacen && (
                             <Nav.Link as={Link} to="/almacen/stock" className={`nav-link ${isActive('/almacen/stock') ? 'active' : ''}`} onClick={closeNav}>
                                 <span className="me-2">📊</span> Stock Actual
+                            </Nav.Link>
+                        )}
+
+                        {canViewEquipos && (
+                            <Nav.Link as={Link} to="/almacen/equipos" className={`nav-link ${isActive('/almacen/equipos') ? 'active' : ''}`} onClick={closeNav}>
+                                <span className="me-2">🛠️</span> Gestión Equipos
                             </Nav.Link>
                         )}
 
