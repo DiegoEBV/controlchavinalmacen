@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Button, Table, Badge, Accordion, ProgressBar, Row, Col, Form, Card, Spinner } from 'react-bootstrap';
-import { getRequerimientos, createRequerimiento, getObras, getUserAssignedObras, getRequerimientoById } from '../services/requerimientosService';
+import { getRequerimientos, createRequerimiento, updateRequerimiento, getObras, getUserAssignedObras, getRequerimientoById } from '../services/requerimientosService';
 import { getSolicitudesCompra, getOrdenesCompra, getSolicitudCompraById, getOrdenCompraById } from '../services/comprasService';
 import { Requerimiento, Obra, SolicitudCompra, OrdenCompra } from '../types';
 import RequerimientoForm from '../components/RequerimientoForm';
@@ -8,7 +8,7 @@ import { useAuth } from '../context/AuthContext';
 import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription';
 import { mergeUpdates } from '../utils/stateUpdates';
 import { exportRequerimiento } from '../utils/excelExport';
-import { FaFileExcel } from 'react-icons/fa';
+import { FaFileExcel, FaEdit } from 'react-icons/fa';
 
 const ITEMS_PER_PAGE = 20;
 
@@ -18,6 +18,7 @@ const GestionRequerimientos: React.FC = () => {
     const [obras, setObras] = useState<Obra[]>([]);
     const [ordenes, setOrdenes] = useState<OrdenCompra[]>([]);
     const [showForm, setShowForm] = useState(false);
+    const [editingReq, setEditingReq] = useState<Requerimiento | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [visibleCount, setVisibleCount] = useState(ITEMS_PER_PAGE);
     const [exportingId, setExportingId] = useState<string | null>(null);
@@ -109,17 +110,36 @@ const GestionRequerimientos: React.FC = () => {
         setOrdenes(ocs || []);
     };
 
-    const handleCreate = async (header: any, items: any[]) => {
-        const { error } = await createRequerimiento(header, items);
+    const handleSave = async (header: any, items: any[]) => {
+        let error;
+        if (editingReq) {
+            const res = await updateRequerimiento(editingReq.id, header, items);
+            error = res.error;
+        } else {
+            const res = await createRequerimiento(header, items);
+            error = res.error;
+        }
+
         if (error) {
             alert(error);
             throw new Error(error);
         }
-        // No es necesario llamar a loadData() - ¡El tiempo real lo capturará! 
-        // Pero para la respuesta de UX podríamos querer optar por ello, 
-        // manteniéndolo por ahora para asegurar retroalimentación inmediata si el tiempo real se retrasa
+
         loadData();
+        setEditingReq(null);
+        setShowForm(false);
     };
+
+    const handleEdit = (req: Requerimiento) => {
+        setEditingReq(req);
+        setShowForm(true);
+    };
+
+    const handleCloseModal = () => {
+        setShowForm(false);
+        setEditingReq(null);
+    };
+
 
     const calculateProgress = (req: Requerimiento) => {
         if (!req.detalles?.length) return 0;
@@ -215,6 +235,7 @@ const GestionRequerimientos: React.FC = () => {
                                             </div>
 
                                             {/* Export Button - Using div to avoid button-in-button warning from AccordionHeader */}
+                                            {/* Export Button - Using div to avoid button-in-button warning from AccordionHeader */}
                                             <div
                                                 className={`btn btn-sm btn-outline-success ${exportingId === req.id ? 'disabled' : ''}`}
                                                 style={{ cursor: exportingId === req.id ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
@@ -231,6 +252,21 @@ const GestionRequerimientos: React.FC = () => {
                                                 ) : (
                                                     <FaFileExcel size={18} />
                                                 )}
+                                            </div>
+
+                                            {/* Edit Button */}
+                                            <div
+                                                className={`btn btn-sm btn-outline-primary ${solicitudes.some(s => s.requerimiento_id === req.id) ? 'disabled' : ''}`}
+                                                style={{ cursor: solicitudes.some(s => s.requerimiento_id === req.id) ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    if (!solicitudes.some(s => s.requerimiento_id === req.id)) {
+                                                        handleEdit(req);
+                                                    }
+                                                }}
+                                                title={solicitudes.some(s => s.requerimiento_id === req.id) ? "No se puede editar con SC generada" : "Editar Requerimiento"}
+                                            >
+                                                <FaEdit size={18} />
                                             </div>
                                         </div>
                                     </div>
@@ -334,10 +370,12 @@ const GestionRequerimientos: React.FC = () => {
 
             <RequerimientoForm
                 show={showForm}
-                handleClose={() => setShowForm(false)}
-                onSave={handleCreate}
+                handleClose={handleCloseModal}
+                onSave={handleSave}
                 obras={obras}
+                initialData={editingReq}
             />
+
         </div>
     );
 };
