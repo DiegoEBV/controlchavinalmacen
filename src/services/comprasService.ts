@@ -8,7 +8,7 @@ export const getSolicitudesCompra = async (obraId?: string) => {
         .from('solicitudes_compra')
         .select(`
             *,
-            requerimiento:requerimientos!inner(id, obra_id, item_correlativo, solicitante),
+            requerimiento:requerimientos!inner(id, obra_id, item_correlativo, solicitante, bloque, frente:frentes(nombre_frente)),
             detalles:detalles_sc(*, material:materiales(*))
         `)
         .order('created_at', { ascending: false });

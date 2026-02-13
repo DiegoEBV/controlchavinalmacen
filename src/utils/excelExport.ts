@@ -103,18 +103,18 @@ export const exportRequerimiento = async (req: Requerimiento) => {
         for (let i = 0; i < totalPages; i++) {
             let currentSheet: ExcelJS.Worksheet;
 
-            // Strategy: Use existing sheet if available, otherwise clone the LAST available sheet
+            // Estrategia: Usar hoja existente si está disponible, de lo contrario clonar la ÚLTIMA hoja disponible
             if (i < workbook.worksheets.length) {
                 currentSheet = workbook.worksheets[i];
-                // Optional: Rename it nicely if needed, or keep template name
+                // Opcional: Renombrar si es necesario, o mantener el nombre de la plantilla
                 // currentSheet.name = `Hoja ${i + 1}`; 
             } else {
-                // Fallback: Clone the last sheet
+                // Fallback: Clonar la última hoja
                 const lastSheet = workbook.worksheets[workbook.worksheets.length - 1];
                 const newName = `Hoja ${i + 1}`;
                 currentSheet = workbook.addWorksheet(newName);
 
-                // Model copy for fallback
+                // Copia del modelo para el fallback
                 const model = Object.assign({}, lastSheet.model);
                 if (lastSheet.model.merges) {
                     model.merges = [...lastSheet.model.merges];
@@ -135,8 +135,8 @@ export const exportRequerimiento = async (req: Requerimiento) => {
             fillItems(currentSheet, chunk, inventoryMap, startParam);
         }
 
-        // CLEANUP: Remove unused sheets
-        // If template has 5 sheets but we only used 2, remove sheets 3, 4, 5.
+        // LIMPIEZA: Eliminar hojas no utilizadas
+        // Si la plantilla tiene 5 hojas pero solo usamos 2, eliminamos las hojas 3, 4 y 5.
         while (workbook.worksheets.length > totalPages) {
             const sheetToRemove = workbook.worksheets[workbook.worksheets.length - 1];
             workbook.removeWorksheet(sheetToRemove.id);

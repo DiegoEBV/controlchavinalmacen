@@ -58,7 +58,7 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [user]);
+    }, [user?.id]);
 
     const handleDismiss = async () => {
         if (notifications.length === 0) return;
