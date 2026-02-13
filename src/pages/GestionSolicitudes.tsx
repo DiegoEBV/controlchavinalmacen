@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Button, Table, Badge, Modal, Form, Row, Col, Accordion } from 'react-bootstrap';
+import { Card, Button, Table, Badge, Modal, Form, Row, Col, Accordion, Spinner } from 'react-bootstrap';
 
 import { getRequerimientos, getMateriales, getRequerimientoById } from '../services/requerimientosService';
 import { getOrdenesCompra, getSolicitudesCompra, createSolicitudCompra, getSolicitudCompraById } from '../services/comprasService';
@@ -7,6 +7,9 @@ import { getMovimientos } from '../services/almacenService';
 import { Requerimiento, SolicitudCompra, Material, MovimientoAlmacen, OrdenCompra } from '../types';
 import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription';
 import { mergeUpdates } from '../utils/stateUpdates';
+import { exportSolicitudCompra } from '../utils/scExcelExport';
+
+import { FaFileExcel } from 'react-icons/fa';
 
 const GestionSolicitudes: React.FC = () => {
     const [requerimientos, setRequerimientos] = useState<Requerimiento[]>([]);
@@ -19,6 +22,7 @@ const GestionSolicitudes: React.FC = () => {
     const [showModal, setShowModal] = useState(false);
     const [selectedReq, setSelectedReq] = useState<Requerimiento | null>(null);
     const [items, setItems] = useState<any[]>([]); // Ítems para incluir en SC
+    const [exportingId, setExportingId] = useState<string | null>(null);
 
     useEffect(() => {
         loadData();
@@ -204,9 +208,35 @@ const GestionSolicitudes: React.FC = () => {
                                                 <span className="text-muted small me-3 d-block d-md-inline">Fecha: {sc.fecha_sc}</span>
                                                 <Badge bg={headerVariant}>{headerStatus}</Badge>
                                             </div>
-                                            <div className="text-start text-md-end mt-2 mt-md-0">
-                                                <small className="text-muted d-block">Req Origen</small>
-                                                <strong>#{sc.requerimiento?.item_correlativo || 'N/A'}</strong>
+                                            <div className="text-start text-md-end mt-2 mt-md-0 d-flex align-items-center gap-3">
+                                                <div
+                                                    className={`btn btn-sm btn-outline-success ${exportingId === sc.id ? 'disabled' : ''}`}
+                                                    style={{ cursor: exportingId === sc.id ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                                    onClick={async (e) => {
+                                                        e.stopPropagation();
+                                                        if (exportingId !== sc.id) {
+                                                            setExportingId(sc.id);
+                                                            try {
+                                                                await exportSolicitudCompra(sc);
+                                                            } catch (error) {
+                                                                console.error("Export failed:", error);
+                                                            } finally {
+                                                                setExportingId(null);
+                                                            }
+                                                        }
+                                                    }}
+                                                    title="Exportar SC a Excel"
+                                                >
+                                                    {exportingId === sc.id ? (
+                                                        <Spinner animation="border" size="sm" />
+                                                    ) : (
+                                                        <FaFileExcel size={18} />
+                                                    )}
+                                                </div>
+                                                <div>
+                                                    <small className="text-muted d-block">Req Origen</small>
+                                                    <strong>#{sc.requerimiento?.item_correlativo || 'N/A'}</strong>
+                                                </div>
                                             </div>
                                         </div>
                                     </Accordion.Header>
