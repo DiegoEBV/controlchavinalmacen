@@ -1,9 +1,11 @@
 /* /src/pages/GestionOrdenes.tsx */
 import React, { useState, useEffect, useMemo } from 'react';
-import { Card, Button, Table, Badge, Modal, Form, Row, Col } from 'react-bootstrap';
+import { Card, Button, Table, Badge, Modal, Form, Row, Col, Spinner } from 'react-bootstrap';
+import { RiFileExcel2Line } from 'react-icons/ri';
 
 import { getSolicitudesCompra, createOrdenCompra, getOrdenesCompra, getOrdenCompraById, getSolicitudCompraById } from '../services/comprasService';
 import { SolicitudCompra, OrdenCompra } from '../types';
+import { exportSolicitudCompra } from '../utils/scExcelExport';
 import { useAuth } from '../context/AuthContext';
 import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription';
 import { mergeUpdates } from '../utils/stateUpdates';
@@ -16,6 +18,7 @@ const GestionOrdenes: React.FC = () => {
     // Estado del Modal
     const [showModal, setShowModal] = useState(false);
     const [selectedSC, setSelectedSC] = useState<SolicitudCompra | null>(null);
+    const [exportingId, setExportingId] = useState<string | null>(null);
 
     // Entradas del Formulario
     const [proveedor, setProveedor] = useState('');
@@ -159,6 +162,17 @@ const GestionOrdenes: React.FC = () => {
         }
     };
 
+    const handleExportSC = async (sc: SolicitudCompra) => {
+        try {
+            setExportingId(sc.id);
+            await exportSolicitudCompra(sc);
+        } catch (error) {
+            console.error("Export failed:", error);
+        } finally {
+            setExportingId(null);
+        }
+    };
+
     return (
         <div className="fade-in">
             <div className="page-header">
@@ -186,6 +200,19 @@ const GestionOrdenes: React.FC = () => {
                                         <td><Badge bg="info">{sc.estado}</Badge></td>
                                         <td>
                                             <Button size="sm" variant="success" onClick={() => handleOpenCreate(sc)}>Crear OC</Button>
+                                            <Button
+                                                size="sm"
+                                                variant="outline-success"
+                                                className="ms-2"
+                                                onClick={() => handleExportSC(sc)}
+                                                disabled={exportingId === sc.id}
+                                            >
+                                                {exportingId === sc.id ? (
+                                                    <Spinner animation="border" size="sm" />
+                                                ) : (
+                                                    <RiFileExcel2Line size={16} />
+                                                )}
+                                            </Button>
                                         </td>
                                     </tr>
                                 ))}
