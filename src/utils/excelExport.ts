@@ -91,18 +91,56 @@ export const exportRequerimiento = async (req: Requerimiento) => {
         const ITEMS_PER_PAGE = 29;
         const detalles = req.detalles || [];
 
-        // Llenar Hoja 1
-        // Usar la primera hoja disponible independientemente de su ID
-        const sheet = workbook.worksheets[0];
-        if (!sheet) throw new Error('La plantilla no tiene hojas (worksheets.length is 0)');
+        // Definir la hoja plantilla (la primera)
+        const templateSheet = workbook.worksheets[0];
+        if (!templateSheet) throw new Error('La plantilla no tiene hojas (worksheets.length is 0)');
 
-        fillHeader(sheet, req);
-        fillItems(sheet, detalles.slice(0, ITEMS_PER_PAGE), inventoryMap);
+        // Calcular cuántos chunks (páginas) necesitamos
+        const totalItems = detalles.length;
+        const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE) || 1;
+        // Si no hay items, igual generamos 1 página vacía
 
-        // TODO: Manejar paginación si items > 29 clonando hoja.
-        // ExcelJS no tiene un método nativo robusto para clonar hojas con estilos completos de forma sencilla.
-        // Por simplicidad y robustez, actualmente truncamos en 29 o llenamos solo la primera página.
-        // Si hay más items, podríamos intentar agregarlos en nuevas filas pero rompería el formato de pie de página.
+        for (let i = 0; i < totalPages; i++) {
+            let currentSheet: ExcelJS.Worksheet;
+
+            // Strategy: Use existing sheet if available, otherwise clone the LAST available sheet
+            if (i < workbook.worksheets.length) {
+                currentSheet = workbook.worksheets[i];
+                // Optional: Rename it nicely if needed, or keep template name
+                // currentSheet.name = `Hoja ${i + 1}`; 
+            } else {
+                // Fallback: Clone the last sheet
+                const lastSheet = workbook.worksheets[workbook.worksheets.length - 1];
+                const newName = `Hoja ${i + 1}`;
+                currentSheet = workbook.addWorksheet(newName);
+
+                // Model copy for fallback
+                const model = Object.assign({}, lastSheet.model);
+                if (lastSheet.model.merges) {
+                    model.merges = [...lastSheet.model.merges];
+                }
+                currentSheet.model = model;
+                currentSheet.name = newName;
+            }
+
+            // Datos del chunk actual
+            const startParam = i * ITEMS_PER_PAGE;
+            const endParam = startParam + ITEMS_PER_PAGE;
+            const chunk = detalles.slice(startParam, endParam);
+
+            // Llenar Header (repetir en cada hoja)
+            fillHeader(currentSheet, req);
+
+            // Llenar Items (con índice global para la numeración)
+            fillItems(currentSheet, chunk, inventoryMap, startParam);
+        }
+
+        // CLEANUP: Remove unused sheets
+        // If template has 5 sheets but we only used 2, remove sheets 3, 4, 5.
+        while (workbook.worksheets.length > totalPages) {
+            const sheetToRemove = workbook.worksheets[workbook.worksheets.length - 1];
+            workbook.removeWorksheet(sheetToRemove.id);
+        }
 
         // Generar Blob y Descargar
         const outBuffer = await workbook.xlsx.writeBuffer();
@@ -111,9 +149,9 @@ export const exportRequerimiento = async (req: Requerimiento) => {
         const filename = `REQ-${String(req.item_correlativo).padStart(3, '0')}_${req.bloque || ''}.xlsx`;
         saveAs(blob, filename);
 
-    } catch (error) {
+    } catch (error: any) {
         console.error("Error exporting excel:", error);
-        alert("Error al exportar el Excel. Verifica que la plantilla exista en /public/FORMATO.xlsx");
+        alert(`Error al exportar el Excel: ${error.message || error}`);
         throw error;
     }
 };
@@ -129,9 +167,14 @@ const fillHeader = (sheet: ExcelJS.Worksheet, req: Requerimiento) => {
 
     // B11: Fecha (Row 11, Col 2)
     sheet.getCell(11, 2).value = req.fecha_solicitud || '';
+
+    // B12: REQ - item_correlativo (Row 12, Col 2)
+    if (req.item_correlativo !== undefined && req.item_correlativo !== null) {
+        sheet.getCell(12, 2).value = `REQ - ${req.item_correlativo}`;
+    }
 };
 
-const fillItems = (sheet: ExcelJS.Worksheet, items: any[], invMap: InventoryCache['items']) => {
+const fillItems = (sheet: ExcelJS.Worksheet, items: any[], invMap: InventoryCache['items'], startIndex: number) => {
     const START_ROW = 17;
     // B=2, C=3, D=4, E=5, G=7
 
@@ -139,13 +182,16 @@ const fillItems = (sheet: ExcelJS.Worksheet, items: any[], invMap: InventoryCach
         const rowNum = START_ROW + index;
         const row = sheet.getRow(rowNum);
 
-        // Descripción (Col 2)
+        // Col A (1): Item Number (Global Index + 1)
+        row.getCell(1).value = startIndex + index + 1;
+
+        // B: Descripción (Col 2)
         row.getCell(2).value = item.descripcion;
 
-        // Unidad (Col 3)
+        // C: Unidad (Col 3)
         row.getCell(3).value = item.unidad;
 
-        // Cantidad Solicitada (Col 4)
+        // D: Cantidad Solicitada (Col 4)
         row.getCell(4).value = Number(item.cantidad_solicitada);
 
         // Buscar datos de inventario
@@ -153,9 +199,9 @@ const fillItems = (sheet: ExcelJS.Worksheet, items: any[], invMap: InventoryCach
         const invData = invMap[key];
 
         if (invData) {
-            // Stock (Col 5)
+            // E: Stock (Col 5)
             row.getCell(5).value = invData.stock;
-            // Último Ingreso (Col 7)
+            // G: Último Ingreso (Col 7)
             row.getCell(7).value = invData.lastIngreso;
         } else {
             // Si no hay dato, dejar vacío o guión
