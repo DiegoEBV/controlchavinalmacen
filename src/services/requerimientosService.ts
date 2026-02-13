@@ -98,6 +98,26 @@ export const createRequerimiento = async (
     }
 };
 
+export const updateRequerimiento = async (
+    id: string,
+    header: any,
+    items: any[]
+) => {
+    try {
+        const { error } = await supabase.rpc('actualizar_requerimiento_completo', {
+            p_req_id: id,
+            p_cabecera: header,
+            p_detalles: items
+        });
+
+        if (error) throw error;
+        return { error: null };
+    } catch (error: any) {
+        console.error('Error updating requerimiento:', error);
+        return { error: error.message };
+    }
+};
+
 export const updateDetalleLogistica = async (
     detalleId: string,
     updates: Partial<DetalleRequerimiento>
