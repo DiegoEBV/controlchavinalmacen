@@ -1,7 +1,8 @@
 import type ExcelJS from 'exceljs';
 import { Requerimiento } from '../types';
 import { supabase } from '../config/supabaseClient';
-import templateUrl from '../assets/FORMATO.xlsx?url';
+
+const DEFAULT_TEMPLATE_URL = 'https://hmrytxzwpjmvynjbmdas.supabase.co/storage/v1/object/public/formatos-obras/defaults/FORMATO.xlsx';
 
 // --- Caching Interface ---
 interface InventoryCache {
@@ -65,7 +66,7 @@ const loadInventoryCache = async (): Promise<InventoryCache['items']> => {
     }
 };
 
-export const exportRequerimiento = async (req: Requerimiento) => {
+export const exportRequerimiento = async (req: Requerimiento, customFormatUrl?: string | null) => {
     try {
         // Carga dinámica de librerías pesadas
         let ExcelJSModule: any;
@@ -88,15 +89,38 @@ export const exportRequerimiento = async (req: Requerimiento) => {
         const inventoryMap = await loadInventoryCache();
 
         // 2. Cargar plantilla
-        console.log("Loading template from:", templateUrl);
-        const response = await fetch(templateUrl);
-        if (!response.ok) throw new Error(`No se pudo cargar la plantilla Excel desde ${templateUrl}`);
+        let templateBuffer: ArrayBuffer | null = null;
 
-        const buffer = await response.arrayBuffer();
-        console.log("Template buffer size:", buffer.byteLength);
+        // Intento 1: URL Personalizada
+        if (customFormatUrl) {
+            try {
+                console.log("Attempting to load custom template:", customFormatUrl);
+                const response = await fetch(customFormatUrl);
+                if (response.ok) {
+                    templateBuffer = await response.arrayBuffer();
+                } else {
+                    console.warn(`Custom template not found or unauthorized (${response.status}). Falling back to default.`);
+                }
+            } catch (err) {
+                console.warn("Error fetching custom template:", err);
+            }
+        }
+
+        // Intento 2: Default
+        if (!templateBuffer) {
+            try {
+                console.log("Loading default template from:", DEFAULT_TEMPLATE_URL);
+                const response = await fetch(DEFAULT_TEMPLATE_URL);
+                if (!response.ok) throw new Error(`Status ${response.status}`);
+                templateBuffer = await response.arrayBuffer();
+            } catch (err) {
+                console.error("Error fetching default template:", err);
+                throw new Error("No se pudo cargar la plantilla de exportación (ni personalizada ni por defecto).");
+            }
+        }
 
         const workbook = new ExcelJSModule.Workbook();
-        await workbook.xlsx.load(buffer);
+        await workbook.xlsx.load(templateBuffer);
 
         console.log("Workbook loaded. Sheet count:", workbook.worksheets.length);
         if (workbook.worksheets.length > 0) {

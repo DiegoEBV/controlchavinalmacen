@@ -178,7 +178,10 @@ const GestionRequerimientos: React.FC = () => {
         if (exportingId) return; // Prevent multiple clicks
         setExportingId(req.id);
         try {
-            await exportRequerimiento(req);
+            // Obtener datos frescos de la obra si es posible, o usar del contexto
+            // Para mantenerlo rápido y simple, usamos del contexto ya que 'getObras' o 'getUserAssignedObras' ya trae los campos.
+            const obraData = obras.find(o => o.id === req.obra_id) || selectedObra;
+            await exportRequerimiento(req, obraData?.formato_requerimiento_url);
         } catch (error) {
             console.error("Export failed:", error);
             // Alert already handled in utility
