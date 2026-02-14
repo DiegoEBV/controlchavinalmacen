@@ -3,7 +3,7 @@ import { Row, Col, Table, Button, Form, Modal, Card } from 'react-bootstrap';
 import { createMaterial, deleteMaterial, updateMaterial, getCategorias, createCategoria } from '../services/requerimientosService';
 import { supabase } from '../config/supabaseClient';
 import { Material } from '../types';
-import * as XLSX from 'xlsx';
+import type * as XLSX from 'xlsx';
 
 
 const GestionMateriales: React.FC = () => {
@@ -167,6 +167,15 @@ const GestionMateriales: React.FC = () => {
         const reader = new FileReader();
         reader.onload = async (evt) => {
             try {
+                let XLSX: any;
+                try {
+                    XLSX = await import('xlsx');
+                } catch (error) {
+                    console.error("Error loading xlsx module:", error);
+                    alert("Error al cargar el módulo de importación. Verifique su conexión.");
+                    return;
+                }
+
                 const bstr = evt.target?.result;
                 const wb = XLSX.read(bstr, { type: 'binary' });
                 const wsname = wb.SheetNames[0];

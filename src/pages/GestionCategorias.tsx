@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Row, Col, Table, Button, Form, Modal, Card } from 'react-bootstrap';
 import { getCategorias, createCategoria, deleteCategoria } from '../services/requerimientosService';
-import * as XLSX from 'xlsx';
+import type * as XLSX from 'xlsx';
 
 const GestionCategorias: React.FC = () => {
     const [categorias, setCategorias] = useState<any[]>([]);
@@ -59,6 +59,15 @@ const GestionCategorias: React.FC = () => {
         const reader = new FileReader();
         reader.onload = async (evt) => {
             try {
+                let XLSX: any;
+                try {
+                    XLSX = await import('xlsx');
+                } catch (error) {
+                    console.error("Error loading xlsx module:", error);
+                    alert("Error al cargar el módulo de importación. Verifique su conexión.");
+                    return;
+                }
+
                 const bstr = evt.target?.result;
                 const wb = XLSX.read(bstr, { type: 'binary' });
                 const wsname = wb.SheetNames[0];

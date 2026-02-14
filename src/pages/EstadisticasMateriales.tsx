@@ -4,8 +4,8 @@ import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
     PieChart, Pie, Cell, LineChart, Line
 } from 'recharts';
-import html2canvas from 'html2canvas';
-import jsPDF from 'jspdf';
+import type html2canvas from 'html2canvas';
+import type jsPDF from 'jspdf';
 import { getRequerimientos, getMateriales } from '../services/requerimientosService';
 import { getInventario } from '../services/almacenService';
 import { Requerimiento, Material, Inventario } from '../types';
@@ -351,10 +351,18 @@ const EstadisticasMateriales: React.FC = () => {
         setConsumptionTrend(sortedTrends);
     };
 
-    const handleExportPDF = () => {
+    const handleExportPDF = async () => {
         const input = document.getElementById('dashboard-content');
         if (input) {
-            html2canvas(input, { scale: 2, backgroundColor: '#ffffff' }).then((canvas) => {
+            try {
+                const [html2canvasModule, jsPDFModule] = await Promise.all([
+                    import('html2canvas'),
+                    import('jspdf')
+                ]);
+                const html2canvas = html2canvasModule.default;
+                const jsPDF = jsPDFModule.default;
+
+                const canvas = await html2canvas(input, { scale: 2, backgroundColor: '#ffffff' });
                 const imgData = canvas.toDataURL('image/png');
                 const pdf = new jsPDF('p', 'mm', 'a4');
                 const pdfWidth = pdf.internal.pageSize.getWidth();
@@ -377,7 +385,10 @@ const EstadisticasMateriales: React.FC = () => {
                 }
 
                 pdf.save('Dashboard_Estadisticas.pdf');
-            });
+            } catch (error) {
+                console.error("Error exporting PDF:", error);
+                alert("Error al exportar a PDF. Verifique su conexión.");
+            }
         }
     };
 
