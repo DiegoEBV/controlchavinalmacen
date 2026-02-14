@@ -2,9 +2,9 @@ import type { Worksheet, Row, Cell } from 'exceljs';
 import { SolicitudCompra } from '../types';
 // import { saveAs } from 'file-saver';
 
-const TEMPLATE_URL = '/SCFORMATO.xlsx';
+const DEFAULT_SC_TEMPLATE_URL = 'https://hmrytxzwpjmvynjbmdas.supabase.co/storage/v1/object/public/formatos-obras/defaults/SCFORMATO.xlsx';
 
-export const exportSolicitudCompra = async (sc: SolicitudCompra) => {
+export const exportSolicitudCompra = async (sc: SolicitudCompra, customFormatUrl?: string | null) => {
     let ExcelJS: any;
     let saveAs: any;
 
@@ -22,13 +22,38 @@ export const exportSolicitudCompra = async (sc: SolicitudCompra) => {
     }
 
     try {
-        console.log("Loading SC template from:", TEMPLATE_URL);
-        const response = await fetch(TEMPLATE_URL);
-        if (!response.ok) throw new Error(`No se pudo cargar la plantilla Excel desde ${TEMPLATE_URL}`);
+        let templateBuffer: ArrayBuffer | null = null;
 
-        const buffer = await response.arrayBuffer();
+        // Intento 1: URL Personalizada
+        if (customFormatUrl) {
+            try {
+                console.log("Attempting to load custom SC template:", customFormatUrl);
+                const response = await fetch(customFormatUrl);
+                if (response.ok) {
+                    templateBuffer = await response.arrayBuffer();
+                } else {
+                    console.warn(`Custom SC template not found or unauthorized (${response.status}). Falling back to default.`);
+                }
+            } catch (err) {
+                console.warn("Error fetching custom SC template:", err);
+            }
+        }
+
+        // Intento 2: Default
+        if (!templateBuffer) {
+            try {
+                console.log("Loading default SC template from:", DEFAULT_SC_TEMPLATE_URL);
+                const response = await fetch(DEFAULT_SC_TEMPLATE_URL);
+                if (!response.ok) throw new Error(`Status ${response.status}`);
+                templateBuffer = await response.arrayBuffer();
+            } catch (err) {
+                console.error("Error fetching default SC template:", err);
+                throw new Error("No se pudo cargar la plantilla SC (ni personalizada ni por defecto).");
+            }
+        }
+
         const workbook = new ExcelJS.Workbook();
-        await workbook.xlsx.load(buffer);
+        await workbook.xlsx.load(templateBuffer);
 
         // --- PREPARAR DATOS ---
         const ITEMS_PER_PAGE = 23;

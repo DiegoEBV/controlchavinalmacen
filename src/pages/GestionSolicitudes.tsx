@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { supabase } from '../config/supabaseClient';
 import { Card, Button, Table, Badge, Modal, Form, Row, Col, Accordion, Spinner } from 'react-bootstrap';
 
 import { getRequerimientos, getMateriales, getRequerimientoById } from '../services/requerimientosService';
@@ -217,7 +218,20 @@ const GestionSolicitudes: React.FC = () => {
                                                         if (exportingId !== sc.id) {
                                                             setExportingId(sc.id);
                                                             try {
-                                                                await exportSolicitudCompra(sc);
+                                                                // Obtener URL personalizada de la obra si existe
+                                                                let customUrl = null;
+                                                                const obraId = sc.requerimiento?.obra_id;
+
+                                                                if (obraId) {
+                                                                    const { data } = await supabase
+                                                                        .from('obras')
+                                                                        .select('formato_solicitud_url')
+                                                                        .eq('id', obraId)
+                                                                        .single();
+                                                                    customUrl = data?.formato_solicitud_url;
+                                                                }
+
+                                                                await exportSolicitudCompra(sc, customUrl);
                                                             } catch (error) {
                                                                 console.error("Export failed:", error);
                                                             } finally {
