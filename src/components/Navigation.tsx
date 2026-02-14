@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Nav, Navbar, Container, Button } from 'react-bootstrap';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { FaBell } from 'react-icons/fa';
 import { useAuth } from '../context/AuthContext';
 
 
@@ -8,6 +9,7 @@ const Navigation: React.FC = () => {
     const location = useLocation();
     const navigate = useNavigate();
     const [expanded, setExpanded] = useState(false);
+    const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>(Notification.permission);
     const { user, profile, signOut, hasRole } = useAuth();
 
     const isActive = (path: string) => location.pathname.includes(path);
@@ -36,6 +38,17 @@ const Navigation: React.FC = () => {
     const canViewUsuarios = hasRole(['admin']);
     const showConfigSection = canViewSolicitantes || canViewCategorias || canViewUsuarios;
 
+    const requestNotificationPermission = async () => {
+        const permission = await Notification.requestPermission();
+        setNotificationPermission(permission);
+        if (permission === 'granted') {
+            new Notification('Notificaciones Activas', {
+                body: 'Ahora recibirás alertas de material',
+                icon: '/icono.png'
+            });
+        }
+    };
+
     return (
         <Navbar
             expand="lg"
@@ -47,12 +60,28 @@ const Navigation: React.FC = () => {
             <Container fluid className="d-flex flex-lg-column align-items-lg-start h-100 p-0">
                 <div className="d-flex justify-content-between w-100 align-items-center px-4 py-3 py-lg-4 px-lg-0">
                     <Navbar.Brand as={Link} to="/" className="sidebar-brand m-0" onClick={closeNav}>
-                        <span role="img" aria-label="logo">🏗️</span> Control Obras
+                        <span role="img" aria-label="logo">🏗️</span> Control Almacen
                     </Navbar.Brand>
                     <Navbar.Toggle aria-controls="sidebar-nav" className="border-0 text-white" />
                 </div>
 
                 <Navbar.Collapse id="sidebar-nav" className="w-100 px-3 px-lg-0 sidebar-scroll d-lg-flex flex-lg-column">
+                    {/* Notification Button */}
+                    {notificationPermission === 'default' && (
+                        <div className="px-2 px-lg-4 mt-3 mb-2 w-100">
+                            <Button variant="outline-light" size="sm" className="w-100 d-flex align-items-center justify-content-center gap-2" onClick={requestNotificationPermission} style={{ backgroundColor: 'rgba(255, 255, 255, 0.1)', border: '1px solid rgba(255,255,255,0.2)' }}>
+                                <FaBell /> Activar Notificaciones
+                            </Button>
+                        </div>
+                    )}
+                    {notificationPermission === 'denied' && (
+                        <div className="px-2 px-lg-4 mt-3 mb-2 w-100">
+                            <Button variant="outline-danger" size="sm" className="w-100 d-flex align-items-center justify-content-center gap-2" disabled>
+                                <FaBell /> Notificaciones Bloqueadas
+                            </Button>
+                        </div>
+                    )}
+
                     <Nav className="flex-column w-100 px-2 px-lg-4 pb-4 flex-grow-1">
                         <div className="nav-section-title">Principal</div>
 
