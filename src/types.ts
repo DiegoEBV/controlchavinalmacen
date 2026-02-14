@@ -44,6 +44,8 @@ export interface Obra {
     id: string;
     nombre_obra: string;
     ubicacion?: string;
+    formato_requerimiento_url?: string;
+    formato_solicitud_url?: string;
 }
 
 export interface Material {
