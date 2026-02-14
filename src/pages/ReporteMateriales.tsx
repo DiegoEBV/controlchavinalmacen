@@ -3,10 +3,10 @@ import { Card, Form, Table, Button, Row, Col, Badge, Alert, Tab, Tabs } from 're
 import { getRequerimientos, getMateriales } from '../services/requerimientosService';
 import { Requerimiento, Material } from '../types';
 import { useAuth } from '../context/AuthContext';
-import * as XLSX from 'xlsx';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
-import { saveAs } from 'file-saver';
+import type * as XLSX from 'xlsx';
+import type jsPDF from 'jspdf';
+// import autoTable from 'jspdf-autotable';
+// import { saveAs } from 'file-saver';
 
 // Clave de Almacenamiento Local
 const HISTORY_KEY = 'reporte_materiales_history';
@@ -206,56 +206,78 @@ const ReporteMateriales: React.FC = () => {
         setGenerated(false);
     };
 
-    const exportExcel = () => {
-        const wb = XLSX.utils.book_new();
+    const exportExcel = async () => {
+        try {
+            const [XLSX, { saveAs }] = await Promise.all([
+                import('xlsx'),
+                import('file-saver')
+            ]);
 
-        // Hoja 1: Detalle
-        const wsDetalle = XLSX.utils.json_to_sheet(reportData);
-        XLSX.utils.book_append_sheet(wb, wsDetalle, "Detalle");
+            const wb = XLSX.utils.book_new();
 
-        // Hoja 2: Resumen
-        const wsResumen = XLSX.utils.json_to_sheet(summaryData);
-        XLSX.utils.book_append_sheet(wb, wsResumen, "Resumen");
+            // Hoja 1: Detalle
+            const wsDetalle = XLSX.utils.json_to_sheet(reportData);
+            XLSX.utils.book_append_sheet(wb, wsDetalle, "Detalle");
 
-        const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-        const data = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8' });
-        saveAs(data, `Reporte_Materiales_${new Date().toISOString().split('T')[0]}.xlsx`);
+            // Hoja 2: Resumen
+            const wsResumen = XLSX.utils.json_to_sheet(summaryData);
+            XLSX.utils.book_append_sheet(wb, wsResumen, "Resumen");
+
+            const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+            const data = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8' });
+            saveAs(data, `Reporte_Materiales_${new Date().toISOString().split('T')[0]}.xlsx`);
+        } catch (error) {
+            console.error("Error exporting excel:", error);
+            alert("Error al exportar a Excel. Verifique su conexión.");
+        }
     };
 
-    const exportPDF = () => {
-        const doc = new jsPDF();
+    const exportPDF = async () => {
+        try {
+            const [jsPDFModule, autoTableModule] = await Promise.all([
+                import('jspdf'),
+                import('jspdf-autotable')
+            ]);
+            const jsPDF = jsPDFModule.default;
+            const autoTable = autoTableModule.default;
 
-        doc.text("Reporte de Materiales", 14, 15);
-        doc.setFontSize(10);
-        doc.text(`Generado: ${new Date().toLocaleString()}`, 14, 22);
+            const doc = new jsPDF();
 
-        // Tabla de Resumen
-        doc.text("Resumen de Atención vs Stock Máximo", 14, 30);
-        autoTable(doc, {
-            startY: 35,
-            head: [['Material', 'Categoría', 'Total Atendido', 'Stock Máx']],
-            body: summaryData.map(s => [s.material, s.categoria, s.total_atendida, s.stock_max]),
-        });
+            doc.text("Reporte de Materiales", 14, 15);
+            doc.setFontSize(10);
+            doc.text(`Generado: ${new Date().toLocaleString()}`, 14, 22);
 
-        // Tabla de Detalle
-        const finalY = (doc as any).lastAutoTable.finalY || 40;
-        doc.text("Detalle de Solicitudes", 14, finalY + 10);
+            // Tabla de Resumen
+            doc.text("Resumen de Atención vs Stock Máximo", 14, 30);
+            autoTable(doc, {
+                startY: 35,
+                head: [['Material', 'Categoría', 'Total Atendido', 'Stock Máx']],
+                body: summaryData.map(s => [s.material, s.categoria, s.total_atendida, s.stock_max]),
+            });
 
-        autoTable(doc, {
-            startY: finalY + 15,
-            head: [['Fecha', 'Solicitante', 'Especialidad', 'Material', 'Solicitada', 'Atendida', 'Estado']],
-            body: reportData.map(r => [
-                r.fecha ? new Date(r.fecha).toISOString().split('T')[0] : '-',
-                r.solicitante,
-                r.especialidad || '-',
-                r.material,
-                Number(r.cant_solicitada).toFixed(2),
-                Number(r.cant_atendida).toFixed(2),
-                r.estado
-            ]),
-        });
+            // Tabla de Detalle
+            const finalY = (doc as any).lastAutoTable.finalY || 40;
+            doc.text("Detalle de Solicitudes", 14, finalY + 10);
 
-        doc.save(`Reporte_Materiales_${new Date().toISOString().split('T')[0]}.pdf`);
+            autoTable(doc, {
+                startY: finalY + 15,
+                head: [['Fecha', 'Solicitante', 'Especialidad', 'Material', 'Solicitada', 'Atendida', 'Estado']],
+                body: reportData.map(r => [
+                    r.fecha ? new Date(r.fecha).toISOString().split('T')[0] : '-',
+                    r.solicitante,
+                    r.especialidad || '-',
+                    r.material,
+                    Number(r.cant_solicitada).toFixed(2),
+                    Number(r.cant_atendida).toFixed(2),
+                    r.estado
+                ]),
+            });
+
+            doc.save(`Reporte_Materiales_${new Date().toISOString().split('T')[0]}.pdf`);
+        } catch (error) {
+            console.error("Error exporting PDF:", error);
+            alert("Error al exportar a PDF. Verifique su conexión.");
+        }
     };
 
     return (

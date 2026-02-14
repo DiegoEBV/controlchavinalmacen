@@ -38,19 +38,21 @@ h6 {
 .app-container {
   display: flex;
   min-height: 100vh;
+  align-items: flex-start;
 }
 
 .main-content {
   flex: 1;
   padding: 40px;
-  margin-left: var(--sidebar-width);
   background-color: var(--bg-color);
   min-height: 100vh;
+  /* Prevent flex item from overflowing due to table width */
+  width: 0;
 }
 
 @media (max-width: 991.98px) {
   .main-content {
-    margin-left: 0;
+    width: 100%;
     padding: 20px;
   }
 
@@ -80,8 +82,7 @@ h6 {
 .sidebar {
   width: var(--sidebar-width);
   height: 100vh;
-  position: fixed;
-  left: 0;
+  position: sticky;
   top: 0;
   background: linear-gradient(180deg, #1B9C85 0%, #16806C 100%);
   color: white;
@@ -90,6 +91,7 @@ h6 {
   flex-direction: column;
   z-index: 1000;
   box-shadow: 4px 0 25px rgba(0, 0, 0, 0.05);
+  flex-shrink: 0;
 }
 
 @media (max-width: 991.98px) {
@@ -104,14 +106,17 @@ h6 {
 }
 
 .sidebar-scroll {
-  flex: 1 1 auto; /* Allow shrinking/growing */
+  flex: 1 1 auto;
+  /* Allow shrinking/growing */
   overflow-y: auto;
-  overflow-x: hidden; /* Prevent horizontal scroll */
+  overflow-x: hidden;
+  /* Prevent horizontal scroll */
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
   display: flex;
   flex-direction: column;
-  min-height: 0; /* Important for nested flex scroll */
+  min-height: 0;
+  /* Important for nested flex scroll */
 }
 
 .sidebar-scroll::-webkit-scrollbar {

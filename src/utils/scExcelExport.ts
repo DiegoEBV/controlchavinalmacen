@@ -1,16 +1,25 @@
-import type { Worksheet } from 'exceljs';
+import type { Worksheet, Row, Cell } from 'exceljs';
 import { SolicitudCompra } from '../types';
-import { saveAs } from 'file-saver';
+// import { saveAs } from 'file-saver';
 
 const TEMPLATE_URL = '/SCFORMATO.xlsx';
 
 export const exportSolicitudCompra = async (sc: SolicitudCompra) => {
-    // Dynamic imports to avoid load-time issues with ExcelJS/FileSaver
-    const ExcelJS = (await import('exceljs')).default;
-    // file-saver can be tricky with ESM, but we'll try standard import if dynamic fails or vice versa.
-    // However, saveAs is already imported statically above which might be fine if only used inside async.
-    // Actually, to be safe, let's stick to the dynamic pattern for both if possible, OR if static works.
-    // Let's rely on static imports for file-saver (usually fine) and dynamic for exceljs (heavy).
+    let ExcelJS: any;
+    let saveAs: any;
+
+    try {
+        const modules = await Promise.all([
+            import('exceljs'),
+            import('file-saver')
+        ]);
+        ExcelJS = modules[0].default;
+        saveAs = modules[1].saveAs;
+    } catch (error) {
+        console.error("Error loading export modules:", error);
+        alert("Error al cargar los módulos de exportación. Verifique su conexión.");
+        return;
+    }
 
     try {
         console.log("Loading SC template from:", TEMPLATE_URL);
@@ -82,9 +91,9 @@ export const exportSolicitudCompra = async (sc: SolicitudCompra) => {
                 currentSheet = workbook.addWorksheet(desiredName);
 
                 if (baseSheet) {
-                    baseSheet.eachRow((row, rowNumber) => {
+                    baseSheet.eachRow((row: Row, rowNumber: number) => {
                         const newRow = currentSheet.getRow(rowNumber);
-                        row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+                        row.eachCell({ includeEmpty: true }, (cell: Cell, colNumber: number) => {
                             const newCell = newRow.getCell(colNumber);
                             newCell.value = cell.value;
                             newCell.style = cell.style;
@@ -138,7 +147,7 @@ export const exportSolicitudCompra = async (sc: SolicitudCompra) => {
 
         // --- LIMPIEZA ---
         const sheetsToDelete: number[] = [];
-        workbook.eachSheet((sheet, id) => {
+        workbook.eachSheet((sheet: Worksheet, id: number) => {
             if (sheet.name.startsWith('HOJASC')) {
                 const num = parseInt(sheet.name.replace('HOJASC', ''), 10);
                 if (!isNaN(num) && num > totalPages) {

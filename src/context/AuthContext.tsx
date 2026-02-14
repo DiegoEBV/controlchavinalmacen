@@ -86,6 +86,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     };
 
     const signIn = async (email: string) => {
+        console.log("Simulating sign in for:", email);
         // Inicio de sesión simple con enlace mágico por ahora, o contraseña si se prefiere
         // Para este ejemplo asumamos que el inicio de sesión con contraseña se maneja directamente en el componente Login
         // exponiendo un ayudante genérico si es necesario, pero usualmente llamamos a supabase.auth.signInWithPassword directamente en el componente

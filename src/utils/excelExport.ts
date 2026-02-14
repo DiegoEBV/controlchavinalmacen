@@ -1,5 +1,4 @@
-import ExcelJS from 'exceljs';
-import { saveAs } from 'file-saver';
+import type ExcelJS from 'exceljs';
 import { Requerimiento } from '../types';
 import { supabase } from '../config/supabaseClient';
 import templateUrl from '../assets/FORMATO.xlsx?url';
@@ -68,6 +67,23 @@ const loadInventoryCache = async (): Promise<InventoryCache['items']> => {
 
 export const exportRequerimiento = async (req: Requerimiento) => {
     try {
+        // Carga dinámica de librerías pesadas
+        let ExcelJSModule: any;
+        let saveAs: any;
+
+        try {
+            const modules = await Promise.all([
+                import('exceljs'),
+                import('file-saver')
+            ]);
+            ExcelJSModule = modules[0].default;
+            saveAs = modules[1].saveAs;
+        } catch (error) {
+            console.error("Error loading export modules:", error);
+            alert("Error al cargar el módulo de exportación. Por favor verifica tu conexión a internet e inténtalo de nuevo.");
+            return;
+        }
+
         // 1. Cargar caché de inventario
         const inventoryMap = await loadInventoryCache();
 
@@ -79,7 +95,7 @@ export const exportRequerimiento = async (req: Requerimiento) => {
         const buffer = await response.arrayBuffer();
         console.log("Template buffer size:", buffer.byteLength);
 
-        const workbook = new ExcelJS.Workbook();
+        const workbook = new ExcelJSModule.Workbook();
         await workbook.xlsx.load(buffer);
 
         console.log("Workbook loaded. Sheet count:", workbook.worksheets.length);

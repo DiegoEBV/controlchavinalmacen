@@ -216,8 +216,8 @@ const GestionRequerimientos: React.FC = () => {
                         return (
                             <Accordion.Item eventKey={String(idx)} key={req.id}>
                                 <Accordion.Header>
-                                    <div className="d-flex flex-column flex-md-row w-100 justify-content-between align-items-md-center me-3 gap-2">
-                                        <div>
+                                    <div className="d-flex flex-column flex-md-row w-100 justify-content-between align-items-center me-3 gap-2">
+                                        <div className="text-center text-md-start">
                                             <strong>REQ #{req.item_correlativo}</strong>
                                             <span className="mx-2 text-muted d-none d-md-inline">|</span>
                                             <div className="d-md-inline d-block">
@@ -227,7 +227,7 @@ const GestionRequerimientos: React.FC = () => {
                                                 Solicitado por: <strong>{req.solicitante}</strong> ({req.fecha_solicitud})
                                             </div>
                                         </div>
-                                        <div className="d-flex align-items-center gap-3 mt-2 mt-md-0">
+                                        <div className="d-flex align-items-center justify-content-center justify-content-md-start gap-3 mt-2 mt-md-0">
                                             {/* Progress Bar */}
                                             <div style={{ width: '150px' }}>
                                                 <small className="d-block mb-1 text-muted">Atención</small>
