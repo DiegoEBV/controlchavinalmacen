@@ -46,7 +46,30 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
                 },
                 (payload) => {
                     console.log('New notification received:', payload);
-                    setNotifications(prev => [payload.new, ...prev]);
+                    const newNotification = payload.new;
+                    setNotifications(prev => [newNotification, ...prev]);
+
+                    // System Notification Logic
+                    if (Notification.permission === 'granted' && document.visibilityState === 'hidden') {
+                        const title = 'Control Obras';
+                        const body = newNotification.message || newNotification.content || 'Nueva notificación recibida';
+                        const icon = '/icono.png';
+
+                        if ('serviceWorker' in navigator) {
+                            navigator.serviceWorker.ready.then(registration => {
+                                const options = {
+                                    body,
+                                    icon,
+                                    badge: icon,
+                                    vibrate: [200, 100, 200],
+                                    tag: 'control-obras-notification'
+                                };
+                                registration.showNotification(title, options as any); // Cast to any to avoid strict type checks on vibrate
+                            });
+                        } else {
+                            new Notification(title, { body, icon });
+                        }
+                    }
                 }
             )
             .subscribe((status) => {

@@ -1,5 +1,16 @@
 import 'bootstrap/dist/css/bootstrap.min.css';
 import './index.css';
+import { registerSW } from 'virtual:pwa-register';
+
+// Register PWA Service Worker
+const updateSW = registerSW({
+    onNeedRefresh() {
+        if (confirm('Nueva versión disponible. ¿Recargar?')) {
+            updateSW(true);
+        }
+    },
+});
+
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
