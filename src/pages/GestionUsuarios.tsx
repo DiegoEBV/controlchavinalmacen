@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Container, Table, Button, Form, Alert, Badge, Modal, Spinner } from 'react-bootstrap';
+import { FaEye, FaEyeSlash, FaKey, FaBuilding, FaMagic, FaClipboard } from 'react-icons/fa';
 import { supabase } from '../config/supabaseClient';
 import { createClient } from '@supabase/supabase-js';
 import { UserProfile, UserRole } from '../types/auth';
@@ -32,7 +33,15 @@ const GestionUsuarios = () => {
     const [selectedUserForObras, setSelectedUserForObras] = useState<UserProfile | null>(null);
     const [allObras, setAllObras] = useState<Obra[]>([]);
     const [userObras, setUserObras] = useState<string[]>([]); // Array of obra_ids
+
     const [savingObras, setSavingObras] = useState(false);
+
+    // Estado de Cambio de Contraseña
+    const [showPasswordModal, setShowPasswordModal] = useState(false);
+    const [passwordResetUserId, setPasswordResetUserId] = useState<string | null>(null);
+    const [newPasswordReset, setNewPasswordReset] = useState('');
+    const [resetLoading, setResetLoading] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
 
     const ROLES: UserRole[] = ['admin', 'produccion', 'coordinador', 'logistica', 'almacenero', 'sin_asignar'];
 
@@ -241,6 +250,60 @@ const GestionUsuarios = () => {
         }
     };
 
+    const handleOpenPasswordModal = (userProfile: UserProfile) => {
+        setPasswordResetUserId(userProfile.id);
+        setNewPasswordReset('');
+        setShowPasswordModal(true);
+        setShowPassword(false);
+    };
+
+    const generatePassword = () => {
+        const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
+        const length = 12;
+        let pwd = "";
+        for (let i = 0; i < length; i++) {
+            pwd += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        setNewPasswordReset(pwd);
+        setShowPassword(true); // Mostrar para que el admin la pueda copiar
+    };
+
+    const copyToClipboard = () => {
+        navigator.clipboard.writeText(newPasswordReset);
+        // Opcional: Mostrar un toast o alerta pequeña
+    };
+
+    const handlePasswordReset = async () => {
+        if (!passwordResetUserId) return;
+        if (newPasswordReset.length < 8) {
+            setError('La contraseña debe tener al menos 8 caracteres.');
+            setTimeout(() => setError(null), 3000);
+            return;
+        }
+
+        setResetLoading(true);
+        try {
+            const { error } = await supabase.rpc('admin_update_user_password', {
+                target_user_id: passwordResetUserId,
+                new_password: newPasswordReset
+            });
+
+            if (error) throw error;
+
+            setSuccessMessage('Contraseña actualizada correctamente.');
+            setShowPasswordModal(false);
+            setNewPasswordReset('');
+            setPasswordResetUserId(null);
+        } catch (error: any) {
+            console.error('Error resetting password:', error);
+            setError(error.message || 'Error al actualizar la contraseña.');
+        } finally {
+            setResetLoading(false);
+            setTimeout(() => setSuccessMessage(null), 5000);
+            setTimeout(() => setError(null), 5000);
+        }
+    };
+
     return (
         <Container className="mt-4">
             <div className="d-flex justify-content-between align-items-center mb-4">
@@ -261,7 +324,7 @@ const GestionUsuarios = () => {
                             <th className="py-3 text-secondary text-uppercase x-small opacity-75 border-0">Email</th>
                             <th className="py-3 text-secondary text-uppercase x-small opacity-75 border-0 text-center">Rol Actual</th>
                             <th className="py-3 text-secondary text-uppercase x-small opacity-75 border-0">Asignar Rol</th>
-                            <th className="py-3 text-secondary text-uppercase x-small opacity-75 border-0 text-center">Obras</th>
+                            <th className="py-3 text-secondary text-uppercase x-small opacity-75 border-0 text-center">Acciones</th>
                             <th className="py-3 pe-4 text-end text-secondary text-uppercase x-small opacity-75 border-0">Fecha Registro</th>
                         </tr>
                     </thead>
@@ -330,14 +393,26 @@ const GestionUsuarios = () => {
                                         </Form.Select>
                                     </td>
                                     <td className="py-3 text-center">
-                                        <Button
-                                            variant="outline-primary"
-                                            size="sm"
-                                            className="rounded-pill px-3"
-                                            onClick={() => handleOpenObraModal(profile)}
-                                        >
-                                            <i className="bi bi-building me-1"></i> Gestionar
-                                        </Button>
+                                        <div className="d-flex justify-content-center gap-2">
+                                            <Button
+                                                variant="outline-primary"
+                                                size="sm"
+                                                className="d-flex align-items-center px-3"
+                                                onClick={() => handleOpenObraModal(profile)}
+                                                title="Gestionar Obras"
+                                            >
+                                                <i className="bi bi-building me-2"></i> Obras
+                                            </Button>
+                                            <Button
+                                                variant="outline-danger"
+                                                size="sm"
+                                                className="d-flex align-items-center px-3"
+                                                onClick={() => handleOpenPasswordModal(profile)}
+                                                title="Cambiar Contraseña"
+                                            >
+                                                <FaKey className="me-2" /> Clave
+                                            </Button>
+                                        </div>
                                     </td>
                                     <td className="pe-4 py-3 text-end text-muted small">
                                         {new Date(profile.created_at).toLocaleDateString()}
@@ -451,6 +526,62 @@ const GestionUsuarios = () => {
                     </Button>
                     <Button variant="primary" onClick={handleSaveObras} disabled={savingObras}>
                         {savingObras ? 'Guardando...' : 'Guardar Cambios'}
+                    </Button>
+                </Modal.Footer>
+            </Modal>
+
+            {/* Password Reset Modal */}
+            <Modal show={showPasswordModal} onHide={() => setShowPasswordModal(false)} backdrop="static" keyboard={false}>
+                <Modal.Header closeButton>
+                    <Modal.Title>Cambiar Contraseña</Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    <Alert variant="danger">
+                        <i className="bi bi-exclamation-triangle-fill me-2"></i>
+                        <strong>Advertencia:</strong> Esta acción cerrará la sesión actual del usuario en todos sus dispositivos.
+                    </Alert>
+
+                    <Form.Group className="mb-3">
+                        <Form.Label>Nueva Contraseña</Form.Label>
+                        <div className="input-group">
+                            <Form.Control
+                                type={showPassword ? "text" : "password"}
+                                placeholder="Mínimo 8 caracteres"
+                                value={newPasswordReset}
+                                onChange={(e) => setNewPasswordReset(e.target.value)}
+                                minLength={8}
+                            />
+                            <Button variant="outline-secondary" onClick={() => setShowPassword(!showPassword)} title={showPassword ? "Ocultar" : "Mostrar"}>
+                                {showPassword ? <FaEyeSlash /> : <FaEye />}
+                            </Button>
+                        </div>
+                        <Form.Text className="text-muted">
+                            La contraseña debe tener al menos 8 caracteres.
+                        </Form.Text>
+                    </Form.Group>
+
+                    <div className="d-flex gap-2 mb-3">
+                        <Button variant="outline-primary" size="sm" onClick={generatePassword}>
+                            <FaMagic className="me-1" /> Generar Aleatoria
+                        </Button>
+                        <Button variant="outline-secondary" size="sm" onClick={copyToClipboard} disabled={!newPasswordReset}>
+                            <FaClipboard className="me-1" /> Copiar
+                        </Button>
+                    </div>
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="secondary" onClick={() => setShowPasswordModal(false)}>
+                        Cancelar
+                    </Button>
+                    <Button variant="danger" onClick={handlePasswordReset} disabled={resetLoading || newPasswordReset.length < 8}>
+                        {resetLoading ? (
+                            <>
+                                <Spinner as="span" animation="border" size="sm" role="status" aria-hidden="true" className="me-2" />
+                                Cambiando...
+                            </>
+                        ) : (
+                            'Cambiar Contraseña'
+                        )}
                     </Button>
                 </Modal.Footer>
             </Modal>
