@@ -89,14 +89,23 @@ export interface MovimientoAlmacen {
     id: string;
     obra_id: string;
     tipo: 'ENTRADA' | 'SALIDA';
-    material_id: string;
+    material_id?: string; // Ahora opcional
+    equipo_id?: string;   // Nuevo
+    epp_id?: string;      // Nuevo
     cantidad: number;
     fecha: string;
     documento_referencia?: string;
     requerimiento_id?: string;
-    vintar_code?: string; // Nuevo campo
+    vintar_code?: string;
     destino_o_uso?: string;
     solicitante?: string;
+
+    // Nuevos campos para Salida
+    tercero_id?: string;
+    encargado_id?: string;
+    bloque_id?: string;
+    numero_vale?: string;
+
     created_at: string;
 }
 
@@ -191,5 +200,15 @@ export interface Tercero {
     direccion?: string;
     telefono?: string;
     email?: string;
+    created_at: string;
+}
+
+export type UserRole = 'admin' | 'produccion' | 'coordinador' | 'logistica' | 'almacenero' | 'sin_asignar';
+
+export interface UserProfile {
+    id: string;
+    email: string;
+    role: UserRole;
+    nombre: string;
     created_at: string;
 }

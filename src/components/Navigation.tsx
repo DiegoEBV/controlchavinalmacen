@@ -38,7 +38,7 @@ const Navigation: React.FC = () => {
     const canViewUsuarios = hasRole(['admin']);
     const canViewEquipos = hasRole(['admin', 'coordinador', 'logistica']);
     const canViewEpps = hasRole(['admin', 'coordinador', 'logistica']);
-    const canViewEspecialidades = hasRole(['admin', 'coordinador', 'logistica']);
+    const canViewEspecialidades = hasRole(['admin']);
     const canViewTerceros = hasRole(['admin', 'coordinador', 'logistica']);
     const showConfigSection = canViewSolicitantes || canViewCategorias || canViewUsuarios || canViewEquipos || canViewTerceros || canViewEpps || canViewEspecialidades;
 

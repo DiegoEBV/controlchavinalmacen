@@ -457,7 +457,6 @@ const EntradasAlmacen: React.FC = () => {
                             <tr>
                                 <th>Fecha</th>
                                 <th>N° Req.</th>
-                                <th>VINTAR</th>
                                 <th>Doc. Referencia</th>
                                 <th>Material / Descripción</th>
                                 <th>Cantidad</th>
@@ -477,9 +476,6 @@ const EntradasAlmacen: React.FC = () => {
                                         <td className="fw-bold text-primary">
                                             {reqNum !== '-' ? `#${reqNum}` : '-'}
                                         </td>
-                                        <td>
-                                            {h.vintar_code ? <span className="badge bg-info text-dark">{h.vintar_code}</span> : '-'}
-                                        </td>
                                         <td className="fw-bold">{h.documento_referencia || '-'}</td>
                                         <td>
                                             <div>{mat?.descripcion || 'Material Desconocido'}</div>
@@ -492,7 +488,7 @@ const EntradasAlmacen: React.FC = () => {
                             })}
                             {historial.length === 0 && (
                                 <tr>
-                                    <td colSpan={6} className="text-center text-muted">No hay entradas registradas recientemente.</td>
+                                    <td colSpan={5} className="text-center text-muted">No hay entradas registradas recientemente.</td>
                                 </tr>
                             )}
                         </tbody>

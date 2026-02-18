@@ -1,8 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Form, Button, Row, Col, Alert, Table } from 'react-bootstrap';
 import { supabase } from '../config/supabaseClient';
-import { getInventario, registrarSalida, getMovimientos, getMovimientoById } from '../services/almacenService';
-import { Inventario, MovimientoAlmacen } from '../types';
+import { getInventario, registrarSalida, getMovimientos } from '../services/almacenService';
+import { getTerceros } from '../services/tercerosService';
+import { getFrentes, getBloques } from '../services/frentesService';
+import { getEquipos } from '../services/equiposService';
+import { getEpps } from '../services/eppsService';
+import { Inventario, MovimientoAlmacen, Tercero, Bloque, UserProfile, Equipo, EppC } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription';
 import { mergeUpdates } from '../utils/stateUpdates';
@@ -14,14 +18,30 @@ const SalidasAlmacen: React.FC = () => {
     // Estado del Encabezado del Formulario
     const [solicitante, setSolicitante] = useState('');
     const [destino, setDestino] = useState('');
+    const [selectedTercero, setSelectedTercero] = useState<string>('');
+    const [selectedEncargado, setSelectedEncargado] = useState<string>('');
+    const [selectedBloque, setSelectedBloque] = useState<string>('');
+    const [numeroVale, setNumeroVale] = useState('');
+
+    // Datos maestros
+    const [terceros, setTerceros] = useState<Tercero[]>([]);
+    const [encargados, setEncargados] = useState<UserProfile[]>([]);
+    const [bloques, setBloques] = useState<Bloque[]>([]);
+    // const [frentes, setFrentes] = useState<Frente[]>([]); // Para uso futuro si se requiere filtrar bloques por frente
 
     // Estado de Adición de Ítems
-    const [selectedItem, setSelectedItem] = useState<Inventario | null>(null);
+    const [tipoItem, setTipoItem] = useState<'MATERIAL' | 'EQUIPO' | 'EPP'>('MATERIAL');
+    const [selectedItem, setSelectedItem] = useState<Inventario | Equipo | EppC | null>(null);
     const [cantidadSalida, setCantidadSalida] = useState(0);
+
+    // Listas para selección según tipo
+    const [listaEquipos, setListaEquipos] = useState<Equipo[]>([]);
+    const [listaEpps, setListaEpps] = useState<EppC[]>([]);
 
     // Lista de Ítems a Retirar
     interface SalidaItem {
-        materialId: string;
+        tipo: 'MATERIAL' | 'EQUIPO' | 'EPP';
+        id: string; // ID del material/equipo/epp
         nombre: string;
         unidad: string;
         cantidad: number;
@@ -51,7 +71,8 @@ const SalidasAlmacen: React.FC = () => {
 
                 // Actualizar ítem seleccionado si fue modificado
                 const currentSelectedId = selectedItem?.id;
-                if (currentSelectedId) {
+                // Verificamos si es tipo Material antes de actualizar
+                if (currentSelectedId && tipoItem === 'MATERIAL') {
                     const match = updatedStock.find(i => i.id === currentSelectedId);
                     if (match) setSelectedItem(match as Inventario);
                 }
@@ -64,76 +85,179 @@ const SalidasAlmacen: React.FC = () => {
         if (upserts.size > 0) {
             const { data: newMoves } = await supabase
                 .from('movimientos_almacen')
-                .select('*')
+                .select(`
+                    *,
+                    tercero:terceros(nombre_completo),
+                    encargado:profiles(nombre),
+                    bloque:bloques(nombre_bloque)
+                `)
                 .in('id', Array.from(upserts))
                 .eq('tipo', 'SALIDA');
 
             if (newMoves && newMoves.length > 0) {
-                // Obtener detalles para visualización (uniones de material) si es necesario, 
-                // pero por ahora podríamos confiar en los datos básicos o manejarlo mejor.
-                // La tabla de historial necesita información del material. 
-                // Una solución rápida es obtener ítems individuales o confiar en que podemos mapear desde la lista de inventario/material existente.
-                // Para robustez, obtengamos movimientos completos con material
-                const fullMoves = await Promise.all(newMoves.map(m => getMovimientoById(m.id)));
-                const validMoves = fullMoves.filter(m => m !== null) as MovimientoAlmacen[];
-
-                setHistorial(prev => mergeUpdates(prev, validMoves, new Set()));
+                // Obtener detalles para visualización (uniones de material) si es necesario (Pending: Handle Equipos/EPP display in history)
+                // Por simplicidad, recargamos el historial completo o manejamos la actualización parcial si tenemos el mapper.
+                // Dado que el historial ahora es complejo (Material|Equipo|EPP), lo mejor por ahora es refrescar
+                // o intentar obtener el movimiento completo.
+                // Como getMovimientoById puede traer todo, intentemos eso.
+                // Pero getMovimientoById necesita ser actualizado en el servicio para traer Equipos y EPPs también.
+                // Por ahora, recargaremos datos.
+                loadData();
             }
         }
     }, { table: 'movimientos_almacen', event: 'INSERT', throttleMs: 2000 });
 
-
     useEffect(() => {
         if (selectedObra) {
             loadData();
+            loadMaestros();
         } else {
             setInventario([]);
             setHistorial([]);
+            setTerceros([]);
+            setBloques([]);
         }
     }, [selectedObra]);
+
+    // Limpiar selección al cambiar tipo
+    useEffect(() => {
+        setSelectedItem(null);
+        setCantidadSalida(0);
+    }, [tipoItem]);
+
+    const loadMaestros = async () => {
+        if (!selectedObra) return;
+
+        try {
+            // 1. Terceros
+            const tercerosData = await getTerceros(selectedObra.id);
+            setTerceros(tercerosData);
+            // Seleccionar CASA por defecto
+            const casa = tercerosData.find(t => t.nombre_completo.toUpperCase() === 'CASA');
+            if (casa) setSelectedTercero(casa.id);
+
+            // 2. Encargados (Usuarios de Produccion)
+            // Nota: supabase.from('profiles') lo hacemos directo aquí o en un servicio de usuarios si existe.
+            // Asumimos acceso a profiles. Filtramos por rol 'produccion'.
+            const { data: usersData } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('role', 'produccion')
+                .order('nombre');
+            setEncargados(usersData as UserProfile[] || []);
+
+            // 3. Frentes y Bloques
+            // Nota: Bloques dependen de Frentes, aqui traemos todos los bloques de la obra indirectamente
+            // Una mejor aproximación es traer todos los frentes y luego todos los bloques de esos frentes.
+            const frentesData = await getFrentes(selectedObra.id);
+            // setFrentes(frentesData);
+
+            // Traer todos los bloques de los frentes (Promise.all)
+            const bloquesPromises = frentesData.map(f => getBloques(f.id));
+            const bloquesResponses = await Promise.all(bloquesPromises);
+            const allBloques = bloquesResponses.flat();
+            // Filtrar duplicados por nombre si es lo que se pide, o mostrar todos con su frente.
+            // El requerimiento dice: "lista desplegable de los bloques que hay (mostrar todos los bloques que hay sin duplicarlos)"
+            // Usaremos un Map para unificar por nombre
+            const uniqueBloques = Array.from(new Map(allBloques.map(b => [b.nombre_bloque, b])).values());
+
+            // Ordenar alfanuméricamente (ej. Bloque 1, Bloque 2, Bloque 10...)
+            uniqueBloques.sort((a, b) => a.nombre_bloque.localeCompare(b.nombre_bloque, undefined, { numeric: true, sensitivity: 'base' }));
+
+            setBloques(uniqueBloques);
+
+            // 4. Cargar Equipos y EPPs para las listas
+            const [equiposData, eppsData] = await Promise.all([
+                getEquipos(selectedObra.id),
+                getEpps(false) // Solo activos
+            ]);
+            setListaEquipos(equiposData);
+            setListaEpps(eppsData);
+
+        } catch (err) {
+            console.error("Error cargando maestros:", err);
+        }
+    };
 
     const loadData = async () => {
         if (!selectedObra) return;
         const [stockData, movsData] = await Promise.all([
             getInventario(selectedObra.id),
-            getMovimientos(selectedObra.id)
+            supabase
+                .from('movimientos_almacen')
+                .select(`
+                    *,
+                    material:materiales(descripcion, unidad, frente:frentes(nombre_frente), categoria),
+                    tercero:terceros(nombre_completo),
+                    encargado:profiles(nombre),
+                    bloque:bloques(nombre_bloque)
+                `)
+                .eq('obra_id', selectedObra.id)
+                .eq('tipo', 'SALIDA')
+                .order('fecha', { ascending: false })
         ]);
 
         // Filtrar stock > 0
         setInventario(stockData?.filter(i => i.cantidad_actual > 0) || []);
 
         // Filtrar movimientos válidos (SALIDA)
-        if (movsData) {
-            const salidas = movsData.filter((m: any) => m.tipo === 'SALIDA');
-            setHistorial(salidas);
+        if (movsData.data) {
+            setHistorial(movsData.data as any[]);
         }
     };
 
     const handleAddItem = () => {
-        if (!selectedItem) return alert("Seleccione un material");
+        if (!selectedItem) return alert("Seleccione un ítem");
         if (cantidadSalida <= 0) return alert("Cantidad debe ser mayor a 0");
-        if (cantidadSalida > selectedItem.cantidad_actual) return alert("No hay suficiente stock");
+
+        let currentStock = 0;
+        let itemName = '';
+        let itemUnit = '';
+        let itemId = '';
+
+        if (tipoItem === 'MATERIAL') {
+            const item = selectedItem as Inventario;
+            currentStock = item.cantidad_actual;
+            itemName = item.material?.descripcion || '';
+            itemUnit = item.material?.unidad || '';
+            itemId = item.material_id; // Ojo: Usamos el ID del material, no del inventario, para el registro
+        } else if (tipoItem === 'EQUIPO') {
+            const item = selectedItem as Equipo;
+            currentStock = item.cantidad;
+            itemName = item.nombre;
+            itemUnit = 'und'; // Equipos suelen ser unidades
+            itemId = item.id;
+        } else { // EPP
+            const item = selectedItem as EppC;
+            currentStock = item.stock_actual;
+            itemName = item.descripcion;
+            itemUnit = item.unidad;
+            itemId = item.id;
+        }
+
+        if (cantidadSalida > currentStock) return alert("No hay suficiente stock");
 
         // Verificar si ya fue agregado
-        const existing = itemsToAdd.find(i => i.materialId === selectedItem.material_id);
+        const existing = itemsToAdd.find(i => i.id === itemId && i.tipo === tipoItem);
         if (existing) {
-            if (existing.cantidad + cantidadSalida > selectedItem.cantidad_actual) {
+            if (existing.cantidad + cantidadSalida > currentStock) {
                 return alert("La suma de cantidades supera el stock disponible");
             }
             // Actualizar existente
             setItemsToAdd(itemsToAdd.map(i =>
-                i.materialId === selectedItem.material_id
+                (i.id === itemId && i.tipo === tipoItem)
                     ? { ...i, cantidad: i.cantidad + cantidadSalida }
                     : i
             ));
         } else {
             // Agregar nuevo
             setItemsToAdd([...itemsToAdd, {
-                materialId: selectedItem.material_id,
-                nombre: selectedItem.material?.descripcion || 'Desconocido',
-                unidad: selectedItem.material?.unidad || 'und',
+                tipo: tipoItem,
+                id: itemId,
+                nombre: itemName,
+                unidad: itemUnit,
                 cantidad: cantidadSalida,
-                maxStock: selectedItem.cantidad_actual
+                maxStock: currentStock
             }]);
         }
 
@@ -142,12 +266,16 @@ const SalidasAlmacen: React.FC = () => {
         setSelectedItem(null);
     };
 
-    const handleRemoveItem = (materialId: string) => {
-        setItemsToAdd(itemsToAdd.filter(i => i.materialId !== materialId));
+    const handleRemoveItem = (id: string, tipo: string) => {
+        setItemsToAdd(itemsToAdd.filter(i => !(i.id === id && i.tipo === tipo)));
     };
 
     const handleRegister = async () => {
-        if (itemsToAdd.length === 0) return alert("Agregue al menos un material");
+        if (itemsToAdd.length === 0) return alert("Agregue al menos un ítem");
+        if (!selectedTercero) return alert("Seleccione un Tercero (o CASA)");
+        if (!selectedEncargado) return alert("Seleccione un Encargado");
+        if (!selectedBloque) return alert("Seleccione un Bloque");
+        if (!numeroVale.trim()) return alert("Ingrese el Número de Vale");
         if (!solicitante.trim()) return alert("Ingrese el nombre del solicitante");
         if (!destino.trim()) return alert("Ingrese Destino/Uso");
 
@@ -159,11 +287,18 @@ const SalidasAlmacen: React.FC = () => {
             // Dados las verificaciones del frontend, haremos paralelo por velocidad a menos que los bloqueos de BD sean un problema.
             await Promise.all(itemsToAdd.map(item =>
                 registrarSalida(
-                    item.materialId,
+                    item.tipo,
+                    item.id,
                     item.cantidad,
                     destino,
                     solicitante,
-                    selectedObra!.id
+                    selectedObra!.id,
+                    {
+                        terceroId: selectedTercero,
+                        encargadoId: selectedEncargado,
+                        bloqueId: selectedBloque,
+                        numeroVale: numeroVale
+                    }
                 )
             ));
 
@@ -195,9 +330,61 @@ const SalidasAlmacen: React.FC = () => {
                 <Card.Header className="bg-white fw-bold">1. Datos Generales de la Salida</Card.Header>
                 <Card.Body>
                     <Row className="g-3">
+                        <Col xs={12} md={3}>
+                            <Form.Group>
+                                <Form.Label>Tercero (Asignado a) <span className="text-danger">*</span></Form.Label>
+                                <Form.Select
+                                    value={selectedTercero}
+                                    onChange={e => setSelectedTercero(e.target.value)}
+                                >
+                                    <option value="">Seleccione...</option>
+                                    {terceros.map(t => (
+                                        <option key={t.id} value={t.id}>{t.nombre_completo}</option>
+                                    ))}
+                                </Form.Select>
+                            </Form.Group>
+                        </Col>
+                        <Col xs={12} md={3}>
+                            <Form.Group>
+                                <Form.Label>Encargado (Producción) <span className="text-danger">*</span></Form.Label>
+                                <Form.Select
+                                    value={selectedEncargado}
+                                    onChange={e => setSelectedEncargado(e.target.value)}
+                                >
+                                    <option value="">Seleccione...</option>
+                                    {encargados.map(u => (
+                                        <option key={u.id} value={u.id}>{u.nombre}</option>
+                                    ))}
+                                </Form.Select>
+                            </Form.Group>
+                        </Col>
+                        <Col xs={12} md={3}>
+                            <Form.Group>
+                                <Form.Label>Bloque <span className="text-danger">*</span></Form.Label>
+                                <Form.Select
+                                    value={selectedBloque}
+                                    onChange={e => setSelectedBloque(e.target.value)}
+                                >
+                                    <option value="">Seleccione...</option>
+                                    {bloques.map(b => (
+                                        <option key={b.id} value={b.id}>{b.nombre_bloque}</option>
+                                    ))}
+                                </Form.Select>
+                            </Form.Group>
+                        </Col>
+                        <Col xs={12} md={3}>
+                            <Form.Group>
+                                <Form.Label>Número de Vale <span className="text-danger">*</span></Form.Label>
+                                <Form.Control
+                                    value={numeroVale}
+                                    onChange={e => setNumeroVale(e.target.value)}
+                                    placeholder="Ej. VALE-001"
+                                />
+                            </Form.Group>
+                        </Col>
                         <Col xs={12} md={6}>
                             <Form.Group>
-                                <Form.Label>Solicitado Por <span className="text-danger">*</span></Form.Label>
+                                <Form.Label>Solicitado Por (Nombre) <span className="text-danger">*</span></Form.Label>
                                 <Form.Control
                                     value={solicitante}
                                     onChange={e => setSolicitante(e.target.value)}
@@ -223,20 +410,49 @@ const SalidasAlmacen: React.FC = () => {
                 <Card.Header className="bg-white fw-bold">2. Agregar Materiales</Card.Header>
                 <Card.Body>
                     <Row className="align-items-end g-3">
-                        <Col xs={12} md={5}>
+                        <Col xs={12} md={2}>
                             <Form.Group>
-                                <Form.Label>Material (Stock Disponible)</Form.Label>
+                                <Form.Label>Tipo</Form.Label>
+                                <Form.Select
+                                    value={tipoItem}
+                                    onChange={(e: any) => setTipoItem(e.target.value)}
+                                >
+                                    <option value="MATERIAL">Material</option>
+                                    <option value="EQUIPO">Equipo</option>
+                                    <option value="EPP">EPP</option>
+                                </Form.Select>
+                            </Form.Group>
+                        </Col>
+                        <Col xs={12} md={3}>
+                            <Form.Group>
+                                <Form.Label>Ítem Disponible</Form.Label>
                                 <Form.Select
                                     value={selectedItem?.id || ''}
                                     onChange={e => {
-                                        const item = inventario.find(i => i.id === e.target.value);
-                                        setSelectedItem(item || null);
+                                        const id = e.target.value;
+                                        if (tipoItem === 'MATERIAL') {
+                                            setSelectedItem(inventario.find(i => i.id === id) || null);
+                                        } else if (tipoItem === 'EQUIPO') {
+                                            setSelectedItem(listaEquipos.find(i => i.id === id) || null);
+                                        } else {
+                                            setSelectedItem(listaEpps.find(i => i.id === id) || null);
+                                        }
                                     }}
                                 >
                                     <option value="">Seleccione...</option>
-                                    {inventario.map(i => (
+                                    {tipoItem === 'MATERIAL' && inventario.map(i => (
                                         <option key={i.id} value={i.id}>
-                                            [{i.material?.frente?.nombre_frente || 'S/F'}] {i.material?.descripcion} ({i.material?.unidad}) - Stock: {i.cantidad_actual}
+                                            {i.material?.descripcion} - Stock: {i.cantidad_actual}
+                                        </option>
+                                    ))}
+                                    {tipoItem === 'EQUIPO' && listaEquipos.map(e => (
+                                        <option key={e.id} value={e.id}>
+                                            {e.nombre} - Disp: {e.cantidad}
+                                        </option>
+                                    ))}
+                                    {tipoItem === 'EPP' && listaEpps.map(e => (
+                                        <option key={e.id} value={e.id}>
+                                            {e.descripcion} - Stock: {e.stock_actual}
                                         </option>
                                     ))}
                                 </Form.Select>
@@ -275,7 +491,8 @@ const SalidasAlmacen: React.FC = () => {
                         <Table hover responsive className="mb-0">
                             <thead>
                                 <tr>
-                                    <th>Material</th>
+                                    <th>Tipo</th>
+                                    <th>Ítem</th>
                                     <th>Cantidad</th>
                                     <th>Unidad</th>
                                     <th>Acción</th>
@@ -284,6 +501,7 @@ const SalidasAlmacen: React.FC = () => {
                             <tbody>
                                 {itemsToAdd.map((item, idx) => (
                                     <tr key={idx}>
+                                        <td>{item.tipo}</td>
                                         <td>{item.nombre}</td>
                                         <td className="fw-bold">{item.cantidad}</td>
                                         <td>{item.unidad}</td>
@@ -291,7 +509,7 @@ const SalidasAlmacen: React.FC = () => {
                                             <Button
                                                 variant="outline-danger"
                                                 size="sm"
-                                                onClick={() => handleRemoveItem(item.materialId)}
+                                                onClick={() => handleRemoveItem(item.id, item.tipo)}
                                             >
                                                 Quitar
                                             </Button>
@@ -320,7 +538,11 @@ const SalidasAlmacen: React.FC = () => {
                     <thead>
                         <tr>
                             <th>Fecha</th>
+                            <th>N° Vale</th>
                             <th>Solicitante</th>
+                            <th>Encargado</th>
+                            <th>Bloque</th>
+                            <th>Tercero</th>
                             <th>Material</th>
                             <th>Cantidad</th>
                             <th>Destino / Uso</th>
@@ -330,7 +552,11 @@ const SalidasAlmacen: React.FC = () => {
                         {historial.map(h => (
                             <tr key={h.id}>
                                 <td>{h.fecha ? new Date(h.fecha).toLocaleDateString() : '-'}</td>
-                                <td className="fw-bold text-primary">{h.solicitante || '-'}</td>
+                                <td className="fw-bold">{h.numero_vale || '-'}</td>
+                                <td className="text-primary">{h.solicitante || '-'}</td>
+                                <td>{(h as any).encargado?.nombre || '-'}</td>
+                                <td>{(h as any).bloque?.nombre_bloque || '-'}</td>
+                                <td>{(h as any).tercero?.nombre_completo || '-'}</td>
                                 <td>
                                     <div>{(h as any).material?.descripcion}</div>
                                     <small className="text-muted">{(h as any).material?.frente?.nombre_frente || (h as any).material?.categoria}</small>

@@ -77,19 +77,35 @@ export const registrarEntradaMasiva = async (
 };
 
 export const registrarSalida = async (
-    materialId: string,
+    tipoItem: 'MATERIAL' | 'EQUIPO' | 'EPP',
+    itemId: string,
     cantidad: number,
     destino: string,
     solicitante: string,
-    obraId: string
+    obraId: string,
+    extraData: {
+        terceroId?: string | null,
+        encargadoId?: string | null,
+        bloqueId?: string | null,
+        numeroVale?: string
+    }
 ) => {
-    const { error } = await supabase.rpc('registrar_salida_almacen', {
-        p_material_id: materialId,
+    // Mapear el ID al campo correcto según el tipo
+    const params = {
+        p_material_id: tipoItem === 'MATERIAL' ? itemId : null,
+        p_equipo_id: tipoItem === 'EQUIPO' ? itemId : null,
+        p_epp_id: tipoItem === 'EPP' ? itemId : null,
         p_cantidad: cantidad,
         p_destino: destino,
         p_solicitante: solicitante,
-        p_obra_id: obraId
-    });
+        p_obra_id: obraId,
+        p_tercero_id: extraData.terceroId || null,
+        p_encargado_id: extraData.encargadoId || null,
+        p_bloque_id: extraData.bloqueId || null,
+        p_numero_vale: extraData.numeroVale || null
+    };
+
+    const { error } = await supabase.rpc('registrar_salida_almacen', params);
 
     if (error) throw error;
 };
