@@ -1,0 +1,271 @@
+import React, { useState, useEffect } from 'react';
+import { Container, Row, Col, Table, Button, Form, Modal, Badge, InputGroup } from 'react-bootstrap';
+import { FaPlus, FaEdit, FaSearch, FaArchive, FaBoxOpen } from 'react-icons/fa';
+import { EppC } from '../types';
+import { getEpps, createEpp, updateEpp, toggleEppStatus, getNextEppCode } from '../services/eppsService';
+import { useAuth } from '../context/AuthContext';
+
+const GestionEPPs: React.FC = () => {
+    const { hasRole } = useAuth();
+    const canEdit = hasRole(['admin', 'coordinador', 'logistica']);
+
+    const [epps, setEpps] = useState<EppC[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [showModal, setShowModal] = useState(false);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [showArchived, setShowArchived] = useState(false);
+
+    const [currentEpp, setCurrentEpp] = useState<Partial<EppC>>({
+        descripcion: '',
+        unidad: 'und',
+        tipo: 'Personal',
+        stock_actual: 0,
+        activo: true
+    });
+    const [isEditing, setIsEditing] = useState(false);
+    const [errorMsg, setErrorMsg] = useState('');
+    const [predictedCode, setPredictedCode] = useState('Cargando...');
+
+    useEffect(() => {
+        const fetchNextCode = async () => {
+            if (!isEditing && currentEpp.tipo) {
+                setPredictedCode('Calculando...');
+                const code = await getNextEppCode(currentEpp.tipo);
+                setPredictedCode(code);
+            }
+        };
+        fetchNextCode();
+    }, [currentEpp.tipo, isEditing, showModal]);
+
+    useEffect(() => {
+        loadEpps();
+    }, [showArchived]);
+
+    const loadEpps = async () => {
+        setLoading(true);
+        try {
+            const data = await getEpps(showArchived);
+            setEpps(data);
+        } catch (error) {
+            console.error("Error loading EPPs:", error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleOpenModal = (epp?: EppC) => {
+        if (epp) {
+            setCurrentEpp(epp);
+            setIsEditing(true);
+        } else {
+            setCurrentEpp({
+                descripcion: '',
+                unidad: 'und',
+                tipo: 'Personal',
+                stock_actual: 0,
+                activo: true
+            });
+            setIsEditing(false);
+        }
+        setErrorMsg('');
+        setShowModal(true);
+    };
+
+    const handleSave = async () => {
+        if (!currentEpp.descripcion) {
+            setErrorMsg("La descripción es obligatoria");
+            return;
+        }
+
+        try {
+            if (isEditing && currentEpp.id) {
+                await updateEpp(currentEpp.id, currentEpp);
+            } else {
+                await createEpp(currentEpp as EppC);
+            }
+            setShowModal(false);
+            loadEpps();
+        } catch (error) {
+            console.error("Error saving EPP:", error);
+            setErrorMsg("Error al guardar. Verifique los datos.");
+        }
+    };
+
+    const handleToggleStatus = async (epp: EppC) => {
+        if (!confirm(`¿Está seguro de ${epp.activo ? 'archivar' : 'activar'} este ítem?`)) return;
+        try {
+            await toggleEppStatus(epp.id, epp.activo);
+            loadEpps();
+        } catch (error) {
+            console.error("Error toggling status:", error);
+        }
+    };
+
+    const filteredEpps = epps.filter(e =>
+        e.descripcion.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (e.codigo && e.codigo.toLowerCase().includes(searchTerm.toLowerCase()))
+    );
+
+    return (
+        <Container className="mt-4">
+            <div className="d-flex justify-content-between align-items-center mb-4 fade-in">
+                <h2 className="mb-0 fw-bold text-dark">Gestión de EPPs y Colectivos</h2>
+                {canEdit && (
+                    <Button variant="primary" onClick={() => handleOpenModal()} className="shadow-sm">
+                        <FaPlus className="me-2" /> Nuevo Ítem
+                    </Button>
+                )}
+            </div>
+
+            <div className="custom-card fade-in">
+                <Row className="mb-4">
+                    <Col md={6}>
+                        <InputGroup>
+                            <InputGroup.Text><FaSearch /></InputGroup.Text>
+                            <Form.Control
+                                placeholder="Buscar por descripción o código..."
+                                value={searchTerm}
+                                onChange={e => setSearchTerm(e.target.value)}
+                            />
+                        </InputGroup>
+                    </Col>
+                    <Col md={6} className="text-end">
+                        <Form.Check
+                            type="switch"
+                            id="show-archived"
+                            label="Mostrar Archivados"
+                            checked={showArchived}
+                            onChange={e => setShowArchived(e.target.checked)}
+                            className="d-inline-block"
+                        />
+                    </Col>
+                </Row>
+
+                {loading ? (
+                    <div className="text-center py-5">
+                        <div className="spinner-border text-primary" role="status">
+                            <span className="visually-hidden">Cargando...</span>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="table-responsive">
+                        <Table hover className="table-borderless-custom align-middle mb-0">
+                            <thead className="bg-light">
+                                <tr>
+                                    <th className="ps-4">Código</th>
+                                    <th>Descripción</th>
+                                    <th>Tipo</th>
+                                    <th>Unidad</th>
+                                    <th>Stock</th>
+                                    <th>Estado</th>
+                                    {canEdit && <th className="text-end pe-4">Acciones</th>}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {filteredEpps.length > 0 ? filteredEpps.map(epp => (
+                                    <tr key={epp.id} className={!epp.activo ? 'table-secondary opacity-75' : ''}>
+                                        <td>{epp.codigo || '-'}</td>
+                                        <td>{epp.descripcion}</td>
+                                        <td>
+                                            <Badge bg={epp.tipo === 'Personal' ? 'info' : 'warning'} text="dark">
+                                                {epp.tipo}
+                                            </Badge>
+                                        </td>
+                                        <td>{epp.unidad}</td>
+                                        <td>{epp.stock_actual}</td>
+                                        <td>
+                                            {epp.activo ? <Badge bg="success">Activo</Badge> : <Badge bg="secondary">Archivado</Badge>}
+                                        </td>
+                                        {canEdit && (
+                                            <td>
+                                                <Button variant="outline-primary" size="sm" className="me-2" onClick={() => handleOpenModal(epp)} title="Editar">
+                                                    <FaEdit />
+                                                </Button>
+                                                <Button
+                                                    variant={epp.activo ? "outline-danger" : "outline-success"}
+                                                    size="sm"
+                                                    onClick={() => handleToggleStatus(epp)}
+                                                    title={epp.activo ? "Archivar" : "Activar"}
+                                                >
+                                                    {epp.activo ? <FaArchive /> : <FaBoxOpen />}
+                                                </Button>
+                                            </td>
+                                        )}
+                                    </tr>
+                                )) : (
+                                    <tr>
+                                        <td colSpan={7} className="text-center py-3">No se encontraron ítems</td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </Table>
+                    </div>
+                )}
+
+
+            </div>
+
+            <Modal show={showModal} onHide={() => setShowModal(false)}>
+                <Modal.Header closeButton>
+                    <Modal.Title>{isEditing ? 'Editar EPP' : 'Nuevo EPP'}</Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    {errorMsg && <div className="alert alert-danger">{errorMsg}</div>}
+                    <Form>
+                        <Form.Group className="mb-3">
+                            <Form.Label>Código</Form.Label>
+                            <Form.Control
+                                value={currentEpp.id ? currentEpp.codigo : predictedCode}
+                                readOnly
+                                disabled
+                                className="bg-light fw-bold"
+                            />
+                            <Form.Text className="text-muted">
+                                {currentEpp.id ? 'Código asignado' : 'Código preliminar (se confirmará al guardar)'}
+                            </Form.Text>
+                        </Form.Group>
+                        <Form.Group className="mb-3">
+                            <Form.Label>Descripción *</Form.Label>
+                            <Form.Control
+                                value={currentEpp.descripcion || ''}
+                                onChange={e => setCurrentEpp({ ...currentEpp, descripcion: e.target.value })}
+                                placeholder="Nombre del equipo..."
+                                required
+                            />
+                        </Form.Group>
+                        <Row>
+                            <Col>
+                                <Form.Group className="mb-3">
+                                    <Form.Label>Tipo</Form.Label>
+                                    <Form.Select
+                                        value={currentEpp.tipo}
+                                        onChange={e => setCurrentEpp({ ...currentEpp, tipo: e.target.value as any })}
+                                    >
+                                        <option value="Personal">Personal</option>
+                                        <option value="Colectivo">Colectivo</option>
+                                    </Form.Select>
+                                </Form.Group>
+                            </Col>
+                            <Col>
+                                <Form.Group className="mb-3">
+                                    <Form.Label>Unidad</Form.Label>
+                                    <Form.Control
+                                        value={currentEpp.unidad}
+                                        onChange={e => setCurrentEpp({ ...currentEpp, unidad: e.target.value })}
+                                    />
+                                </Form.Group>
+                            </Col>
+                        </Row>
+
+                    </Form>
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="secondary" onClick={() => setShowModal(false)}>Cancelar</Button>
+                    <Button variant="primary" onClick={handleSave}>Guardar</Button>
+                </Modal.Footer>
+            </Modal>
+        </Container>
+    );
+};
+
+export default GestionEPPs;

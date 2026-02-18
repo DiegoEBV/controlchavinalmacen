@@ -8,7 +8,8 @@ export const getRequerimientos = async (obraId?: string) => {
             .select(`
                 *,
                 detalles:detalles_requerimiento(*),
-                frente:frentes(*)
+                frente:frentes(*),
+                specialty:specialties(*)
             `)
             .order('created_at', { ascending: false });
 
@@ -33,7 +34,8 @@ export const getRequerimientoById = async (id: string) => {
             .select(`
                  *,
                  detalles:detalles_requerimiento(*),
-                 frente:frentes(*)
+                 frente:frentes(*),
+                 specialty:specialties(*)
              `)
             .eq('id', id)
             .single();

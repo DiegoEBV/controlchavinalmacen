@@ -1,11 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Button, Form, Table, Row, Col, InputGroup, Spinner } from 'react-bootstrap';
+import { Modal, Button, Form, Table, Row, Col, InputGroup, Spinner, Dropdown } from 'react-bootstrap';
 import SearchableSelect from './SearchableSelect';
-import { Requerimiento, DetalleRequerimiento, Obra, Material } from '../types';
+import { Requerimiento, DetalleRequerimiento, Obra, Material, Equipo, EppC } from '../types';
 import { getMateriales, getSolicitantes, getCategorias } from '../services/requerimientosService';
+import { getEquipos } from '../services/equiposService';
+import { getBloques } from '../services/frentesService';
 import { getInventario } from '../services/almacenService';
-import { supabase } from '../config/supabaseClient';
+import { getEpps } from '../services/eppsService';
+
+
 import { useAuth } from '../context/AuthContext';
+import { supabase } from '../config/supabaseClient';
+import { getFrontSpecialties } from '../services/specialtiesService';
+import { Specialty } from '../types';
 
 interface RequerimientoFormProps {
     show: boolean;
@@ -30,10 +37,19 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
 
     // Fuentes de Datos
     const [materialesList, setMaterialesList] = useState<Material[]>([]);
+    const [equiposList, setEquiposList] = useState<Equipo[]>([]);
+    const [eppsList, setEppsList] = useState<EppC[]>([]);
     const [frentesList, setFrentesList] = useState<any[]>([]); // Frentes de la obra seleccionada
+    const [bloquesList, setBloquesList] = useState<any[]>([]);
+    const [selectedBloques, setSelectedBloques] = useState<string[]>([]);
     const [solicitantesList, setSolicitantesList] = useState<any[]>([]);
+
     const [categoriasList, setCategoriasList] = useState<any[]>([]);
     const [stockMap, setStockMap] = useState<Record<string, number>>({});
+
+    // Especialidades (Cascada)
+    const [specialtiesList, setSpecialtiesList] = useState<Specialty[]>([]);
+    const [selectedSpecialtyId, setSelectedSpecialtyId] = useState('');
 
     // Ítems
     const [items, setItems] = useState<Partial<DetalleRequerimiento>[]>([]);
@@ -41,13 +57,34 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
     // Nuevo Ítem
     const [newItem, setNewItem] = useState<Partial<DetalleRequerimiento>>({
         tipo: 'Material',
-        material_categoria: '',
+        material_categoria: 'General',
         descripcion: '',
         unidad: 'und',
         cantidad_solicitada: 0
     });
 
     const [selectedMaterialId, setSelectedMaterialId] = useState('');
+
+    // Optimization: Filter materials with useMemo
+    // Filtrar materiales basados en categoría seleccionada Y frente seleccionado Y especialidad seleccionada
+    const filteredMaterials = React.useMemo(() => {
+        return materialesList.filter(m => {
+            const matchesFrente = m.frente_id === frenteId;
+            const matchesSpecialty = selectedSpecialtyId ? m.specialty_id === selectedSpecialtyId : true;
+            const matchesCategory = newItem.material_categoria === 'General' || m.categoria === newItem.material_categoria;
+            return matchesFrente && matchesSpecialty && matchesCategory;
+        });
+    }, [materialesList, frenteId, selectedSpecialtyId, newItem.material_categoria]);
+
+    // Derived: Available categories based on filtered materials (ignoring current category selection)
+    const availableCategories = React.useMemo(() => {
+        const relevantMaterials = materialesList.filter(m =>
+            m.frente_id === frenteId &&
+            (selectedSpecialtyId ? m.specialty_id === selectedSpecialtyId : true)
+        );
+        const cats = new Set(relevantMaterials.map(m => m.categoria));
+        return categoriasList.filter((c: any) => cats.has(c.nombre));
+    }, [materialesList, frenteId, selectedSpecialtyId, categoriasList]);
 
     useEffect(() => {
         loadCatalogs();
@@ -56,27 +93,34 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
     useEffect(() => {
         if (obraId) {
             loadFrentes(obraId);
+            loadEquipos(obraId);
         } else {
             setFrentesList([]);
+            setEquiposList([]);
+            setBloquesList([]);
             setFrenteId('');
+            setBloque('');
+            setSelectedBloques([]);
         }
     }, [obraId]);
 
     const loadCatalogs = async () => {
-        const [mats, sols, cats, inv] = await Promise.all([
+        const [mats, sols, cats, inv, epps] = await Promise.all([
             getMateriales(),
             getSolicitantes(),
             getCategorias(),
-            getInventario()
+            getInventario(),
+            getEpps()
         ]);
 
         if (mats) setMaterialesList(mats);
         if (sols) setSolicitantesList(sols);
         if (cats) setCategoriasList(cats);
+        if (epps) setEppsList(epps);
 
         if (inv) {
             const map: Record<string, number> = {};
-            inv.forEach(i => {
+            inv.forEach((i: any) => {
                 map[i.material_id] = i.cantidad_actual;
             });
             setStockMap(map);
@@ -88,6 +132,20 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
         if (data) setFrentesList(data);
     };
 
+    const loadBloques = async (fid: string) => {
+        if (!fid) {
+            setBloquesList([]);
+            return;
+        }
+        const data = await getBloques(fid);
+        setBloquesList(data || []);
+    };
+
+    const loadEquipos = async (oid: string) => {
+        const data = await getEquipos(oid);
+        if (data) setEquiposList(data);
+    };
+
     useEffect(() => {
         if (show) {
             if (initialData) {
@@ -97,13 +155,42 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
                 setEspecialidad(initialData.especialidad);
                 setSolicitante(initialData.solicitante);
                 setItems(initialData.detalles || []);
+
+                // Parsear bloques si existen
+                if (initialData.frente_id) {
+                    loadBloques(initialData.frente_id);
+                }
+
+                if (initialData.bloque) {
+                    const blqs = initialData.bloque.split(',').map(s => s.trim());
+                    setSelectedBloques(blqs);
+                }
+
+                if (initialData.frente_id) {
+                    getFrontSpecialties(initialData.frente_id).then(setSpecialtiesList);
+                    if (initialData.specialty_id) {
+                        setSelectedSpecialtyId(initialData.specialty_id);
+                    }
+                }
             } else {
                 setObraId(selectedObra?.id || '');
                 setFrenteId('');
+
                 setBloque('');
+                setBloquesList([]);
+                setSelectedBloques([]);
+
                 setEspecialidad('');
                 setSolicitante(profile?.nombre || '');
                 setItems([]);
+                // Reset newItem to default when opening fresh
+                setNewItem({
+                    tipo: 'Material',
+                    material_categoria: 'General',
+                    descripcion: '',
+                    unidad: 'und',
+                    cantidad_solicitada: 0
+                });
             }
         }
     }, [show, initialData, selectedObra]);
@@ -161,7 +248,7 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
                 console.error("Error fetching template details:", detError);
                 alert("Error al cargar detalles de la plantilla.");
             } else if (detallesData) {
-                const newItems = detallesData.map(d => ({
+                const newItems = detallesData.map((d: any) => ({
                     tipo: d.tipo,
                     material_categoria: d.material_categoria,
                     descripcion: d.descripcion,
@@ -186,9 +273,30 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
             alert("Complete descripción y cantidad > 0");
             return;
         }
-        setItems([...items, { ...newItem }]);
+        // Verificar si ya existe
+        const existingIndex = items.findIndex(i =>
+            i.tipo === newItem.tipo &&
+            i.descripcion === newItem.descripcion &&
+            i.material_categoria === newItem.material_categoria // Opcional, para mayor precisión
+        );
+
+        if (existingIndex >= 0) {
+            // Actualizar cantidad
+            const updatedItems = [...items];
+            const currentQty = updatedItems[existingIndex].cantidad_solicitada || 0;
+            updatedItems[existingIndex] = {
+                ...updatedItems[existingIndex],
+                cantidad_solicitada: currentQty + (newItem.cantidad_solicitada || 0)
+            };
+            setItems(updatedItems);
+        } else {
+            // Agregar nuevo
+            setItems([...items, { ...newItem }]);
+        }
+
         setNewItem(prev => ({
             ...prev,
+            material_categoria: prev.tipo === 'Material' ? 'General' : '',
             descripcion: '',
             unidad: 'und',
             cantidad_solicitada: 0
@@ -218,6 +326,7 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
             frente_id: frenteId,
             bloque,
             especialidad,
+            specialty_id: selectedSpecialtyId || null,
             solicitante,
             fecha_solicitud: new Date().toISOString().split('T')[0]
         };
@@ -232,10 +341,7 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
     };
 
     // Filtrar materiales basados en categoría seleccionada Y frente seleccionado
-    const filteredMaterials = materialesList.filter(m =>
-        (newItem.material_categoria === 'General' || m.categoria === newItem.material_categoria) &&
-        m.frente_id === frenteId
-    );
+
 
     // Manejar selección de material para auto-rellenar unidad
     const handleMaterialSelect = (id: string) => {
@@ -252,6 +358,31 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
         }
     };
 
+    const handleEppSelect = (id: string) => {
+        const selectedEpp = eppsList.find(e => e.id === id);
+        if (selectedEpp) {
+            setNewItem(prev => ({
+                ...prev,
+                descripcion: selectedEpp.descripcion,
+                unidad: selectedEpp.unidad,
+                epp_id: selectedEpp.id,
+                // Si es EPP, no usamos Categoria por ahora o podríamos mapearlo
+            }));
+        }
+    };
+
+    const handleEquipoSelect = (id: string) => {
+        const selectedEq = equiposList.find(e => e.id === id);
+        if (selectedEq) {
+            setNewItem(prev => ({
+                ...prev,
+                descripcion: `${selectedEq.nombre} - ${selectedEq.marca}`,
+                unidad: 'und', // Default unit for equipment
+                equipo_id: selectedEq.id
+            }));
+        }
+    };
+
     return (
         <Modal show={show} onHide={handleClose} size="xl" backdrop="static">
             <Modal.Header closeButton>
@@ -264,7 +395,17 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
                         <Col md={3}>
                             <Form.Group>
                                 <Form.Label>Obra/Proyecto</Form.Label>
-                                <Form.Select value={obraId} onChange={e => setObraId(e.target.value)}>
+                                <Form.Select
+                                    value={obraId}
+                                    onChange={e => {
+                                        setObraId(e.target.value);
+                                        // Resetear frentes y bloques si cambia la obra
+                                        setFrenteId('');
+                                        setBloquesList([]);
+                                        setSelectedBloques([]);
+                                        setBloque('');
+                                    }}
+                                >
                                     <option value="">Seleccione...</option>
                                     {obras.map(o => <option key={o.id} value={o.id}>{o.nombre_obra}</option>)}
                                 </Form.Select>
@@ -277,11 +418,33 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
                                     value={frenteId}
                                     onChange={e => {
                                         setFrenteId(e.target.value);
+                                        loadBloques(e.target.value); // Cargar bloques
+                                        setBloquesList([]); // Limpiar previo
+                                        setSelectedBloques([]); // Limpiar selección
+                                        setBloque('');
+
                                         // Resetear item y selección de material al cambiar de frente
-                                        setNewItem({ ...newItem, material_categoria: '', descripcion: '', unidad: 'und', cantidad_solicitada: 0, tipo: newItem.tipo });
+                                        setNewItem({
+                                            ...newItem,
+                                            // Si es Material, mantener General. Si no, vacío.
+                                            material_categoria: newItem.tipo === 'Material' ? 'General' : '',
+                                            descripcion: '',
+                                            unidad: newItem.tipo === 'Equipo' ? 'und' : 'und',
+                                            cantidad_solicitada: 0
+                                        });
                                         setSelectedMaterialId('');
+
+                                        // Reset Specialty
+                                        setSpecialtiesList([]);
+                                        setSelectedSpecialtyId('');
+                                        setEspecialidad('');
+
+                                        // Load Specialties for new Frente
+                                        if (e.target.value) {
+                                            getFrontSpecialties(e.target.value).then(setSpecialtiesList);
+                                        }
                                     }}
-                                    disabled={!obraId}
+                                    disabled={!obraId || !!initialData}
                                 >
                                     <option value="">Seleccione...</option>
                                     {frentesList.map(f => <option key={f.id} value={f.id}>{f.nombre_frente}</option>)}
@@ -291,20 +454,67 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
                         <Col md={2}>
                             <Form.Group>
                                 <Form.Label>Bloque</Form.Label>
-                                <Form.Control value={bloque} onChange={e => setBloque(e.target.value)} placeholder="Ej. Torre A" />
+                                <Dropdown autoClose="outside">
+                                    <Dropdown.Toggle
+                                        variant=""
+                                        className="form-select text-start d-flex align-items-center justify-content-between text-truncate"
+                                        style={{ height: 'auto' }} // Ensure height adjusts if necessary
+                                    >
+                                        <span className="text-truncate" style={{ maxWidth: '90%' }}>
+                                            {selectedBloques.length > 0 ? selectedBloques.join(', ') : 'Seleccione...'}
+                                        </span>
+                                    </Dropdown.Toggle>
+
+                                    <Dropdown.Menu className="w-100 p-2" style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                                        {bloquesList.length > 0 ? (
+                                            bloquesList.map(b => (
+                                                <Form.Check
+                                                    key={b.id}
+                                                    type="checkbox"
+                                                    id={`bloque-${b.id}`}
+                                                    label={b.nombre_bloque}
+                                                    checked={selectedBloques.includes(b.nombre_bloque)}
+                                                    onChange={() => {
+                                                        const nombre = b.nombre_bloque;
+                                                        const newSelection = selectedBloques.includes(nombre)
+                                                            ? selectedBloques.filter(s => s !== nombre)
+                                                            : [...selectedBloques, nombre];
+                                                        setSelectedBloques(newSelection);
+                                                        setBloque(newSelection.join(', '));
+                                                    }}
+                                                    className="mb-2"
+                                                />
+                                            ))
+                                        ) : (
+                                            <div className="text-muted small text-center">No hay bloques registrados en este frente.</div>
+                                        )}
+                                        {/* Opción de "Otro" para escribir manual si fuera necesario, 
+                                            pero por ahora restringimos a la lista para forzar uso de Gestion de Frentes */}
+                                    </Dropdown.Menu>
+                                </Dropdown>
                             </Form.Group>
                         </Col>
                         <Col md={2}>
                             <Form.Group>
                                 <Form.Label>Especialidad</Form.Label>
-                                <Form.Select value={especialidad} onChange={e => setEspecialidad(e.target.value)}>
+                                <Form.Select
+                                    value={selectedSpecialtyId}
+                                    onChange={e => {
+                                        const id = e.target.value;
+                                        setSelectedSpecialtyId(id);
+                                        const spec = specialtiesList.find(s => s.id === id);
+                                        setEspecialidad(spec ? spec.name : '');
+
+                                        // Reset material selection logic when specialty changes
+                                        setNewItem(prev => ({ ...prev, material_categoria: 'General', descripcion: '' }));
+                                        setSelectedMaterialId('');
+                                    }}
+                                    disabled={!frenteId || !!initialData}
+                                >
                                     <option value="">Seleccione...</option>
-                                    <option value="Arquitectura">Arquitectura</option>
-                                    <option value="Estructura">Estructura</option>
-                                    <option value="IISS">IISS</option>
-                                    <option value="IIEE">IIEE</option>
-                                    <option value="Comunicaciones">Comunicaciones</option>
-                                    <option value="Mecanicas">Mecanicas</option>
+                                    {specialtiesList.map(s => (
+                                        <option key={s.id} value={s.id}>{s.name}</option>
+                                    ))}
                                 </Form.Select>
                             </Form.Group>
                         </Col>
@@ -350,10 +560,24 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
                     <Row className="mb-3 g-2 bg-light p-2 rounded">
                         <Col md={2}>
                             <Form.Label>Tipo</Form.Label>
-                            <Form.Select value={newItem.tipo} onChange={e => setNewItem({ ...newItem, tipo: e.target.value as any })}>
+                            <Form.Select
+                                value={newItem.tipo}
+                                onChange={e => {
+                                    const newType = e.target.value as any;
+                                    setNewItem({
+                                        ...newItem,
+                                        tipo: newType,
+                                        material_categoria: newType === 'Material' ? 'General' : '',
+                                        descripcion: '',
+                                        unidad: (newType === 'Equipo' || newType === 'EPP') ? 'und' : newItem.unidad // Reset unit
+                                    });
+                                    setSelectedMaterialId('');
+                                }}
+                            >
                                 <option value="Material">Material</option>
                                 <option value="Servicio">Servicio</option>
                                 <option value="Equipo">Equipo</option>
+                                <option value="EPP">EPP</option>
                             </Form.Select>
                         </Col>
                         <Col md={2}>
@@ -364,16 +588,18 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
                                     setNewItem({ ...newItem, material_categoria: e.target.value, descripcion: '' });
                                     setSelectedMaterialId('');
                                 }}
+                                disabled={newItem.tipo !== 'Material'}
                             >
                                 <option value="">Seleccione...</option>
                                 <option value="General">General</option>
-                                {categoriasList.map(c => <option key={c.id} value={c.nombre}>{c.nombre}</option>)}
+
+                                {availableCategories.map((c: any) => <option key={c.id} value={c.nombre}>{c.nombre}</option>)}
                             </Form.Select>
                         </Col>
                         <Col md={4}>
                             <Form.Label>Descripción *</Form.Label>
                             {/* Si se selecciona categoría, mostrar dropdown de materiales. Si no, mostrar input de texto (o select vacío) */}
-                            {newItem.material_categoria && newItem.tipo === 'Material' ? (
+                            {newItem.tipo === 'Material' && newItem.material_categoria ? (
                                 <SearchableSelect
                                     options={filteredMaterials.map(m => ({
                                         value: m.id,
@@ -385,11 +611,33 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
                                     disabled={!frenteId}
                                     placeholder={frenteId ? 'Seleccione Material...' : 'Seleccione Frente Primero'}
                                 />
+                            ) : newItem.tipo === 'Equipo' ? (
+                                <SearchableSelect
+                                    options={equiposList.map(e => ({
+                                        value: e.id,
+                                        label: `${e.nombre} - ${e.marca} (${e.codigo || 'S/C'})`,
+                                        info: `Stock Total: ${e.cantidad}`
+                                    }))}
+                                    value={newItem.equipo_id || ''}
+                                    onChange={(val) => handleEquipoSelect(val as string)}
+                                    placeholder="Buscar Equipo..."
+                                />
+                            ) : newItem.tipo === 'EPP' ? (
+                                <SearchableSelect
+                                    options={eppsList.map(e => ({
+                                        value: e.id,
+                                        label: `${e.descripcion} [${e.codigo || 'S/C'}]`,
+                                        info: `Stock: ${e.stock_actual} ${e.unidad}`
+                                    }))}
+                                    value={newItem.epp_id || ''}
+                                    onChange={(val) => handleEppSelect(val as string)}
+                                    placeholder="Buscar EPP..."
+                                />
                             ) : (
                                 <Form.Control
                                     value={newItem.descripcion}
                                     onChange={e => setNewItem({ ...newItem, descripcion: e.target.value })}
-                                    placeholder={newItem.tipo === 'Servicio' || newItem.tipo === 'Equipo' ? `Descripción del ${newItem.tipo.toLowerCase()}` : "Seleccione categoría primero"}
+                                    placeholder={newItem.tipo === 'Servicio' ? "Descripción del servicio" : "Seleccione categoría primero"}
                                 />
                             )}
                         </Col>
@@ -398,7 +646,7 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
                             <Form.Control
                                 value={newItem.unidad}
                                 onChange={e => setNewItem({ ...newItem, unidad: e.target.value })}
-                                readOnly={newItem.tipo === 'Material' && !!newItem.material_categoria} // Solo lectura si se auto-rellena del material
+                                readOnly={(newItem.tipo === 'Material' && !!newItem.material_categoria) || newItem.tipo === 'EPP'} // Solo lectura si se auto-rellena
                             />
                         </Col>
                         <Col md={2}>

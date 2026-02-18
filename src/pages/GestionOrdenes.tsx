@@ -115,6 +115,7 @@ const GestionOrdenes: React.FC = () => {
                 cantidad_sc: d.cantidad, // Agregar este campo
                 cantidad_pendiente: remaining, // Mostrar saldo restante real
                 cantidad_compra: remaining, // Usar nomenclatura consistente
+                precio_unitario: 0, // Nuevo campo
                 selected: remaining > 0 // Solo seleccionar si hay saldo
             };
         }) || [];
@@ -128,7 +129,7 @@ const GestionOrdenes: React.FC = () => {
         const selectedItems = itemsToOrder.filter(i => i.selected && i.cantidad_compra > 0).map(i => ({
             detalle_sc_id: i.detalle_sc_id,
             cantidad: parseFloat(i.cantidad_compra),
-            precio_unitario: 0 // Por defecto a 0 como se solicitó
+            precio_unitario: parseFloat(i.precio_unitario) || 0
         }));
 
         if (selectedItems.length === 0) return alert("Seleccione al menos un item");
@@ -297,8 +298,10 @@ const GestionOrdenes: React.FC = () => {
                             <tr>
                                 <th style={{ width: 50 }}>Sel.</th>
                                 <th>Item</th>
+
                                 <th>Cant. SC</th>
                                 <th>A Comprar</th>
+                                <th>P. Unit S/.</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -324,10 +327,23 @@ const GestionOrdenes: React.FC = () => {
                                             onChange={e => {
                                                 const val = parseFloat(e.target.value) || 0;
                                                 const newItems = [...itemsToOrder];
-                                                // Limitar a 2 decimales
                                                 newItems[idx].cantidad_compra = parseFloat(val.toFixed(2));
                                                 setItemsToOrder(newItems);
                                             }}
+                                        />
+                                    </td>
+                                    <td>
+                                        <Form.Control
+                                            type="number"
+                                            size="sm"
+                                            value={it.precio_unitario}
+                                            onChange={e => {
+                                                const val = parseFloat(e.target.value) || 0;
+                                                const newItems = [...itemsToOrder];
+                                                newItems[idx].precio_unitario = val;
+                                                setItemsToOrder(newItems);
+                                            }}
+                                            placeholder="0.00"
                                         />
                                     </td>
                                 </tr>

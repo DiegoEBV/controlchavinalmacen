@@ -5,14 +5,25 @@ export interface Frente {
     created_at?: string;
 }
 
+export interface Bloque {
+    id: string;
+    frente_id: string;
+    nombre_bloque: string;
+    created_at?: string;
+}
+
 export interface DetalleRequerimiento {
     id: string;
     requerimiento_id: string;
-    tipo: 'Material' | 'Servicio' | 'Equipo';
+    tipo: 'Material' | 'Servicio' | 'Equipo' | 'EPP';
     material_categoria: string;
     descripcion: string;
     unidad: string;
     cantidad_solicitada: number;
+    equipo_id?: string; // Nuevo campo referencial
+    equipo?: Equipo; // Unión
+    epp_id?: string;
+    epp?: EppC;
     cantidad_atendida: number;
     atencion_por?: string;
     fecha_atencion?: string;
@@ -32,6 +43,8 @@ export interface Requerimiento {
     item_correlativo: number;
     bloque: string;
     especialidad: string;
+    specialty_id?: string; // Nuevo campo
+    specialty?: Specialty; // Unión
     solicitante: string;
     fecha_solicitud: string;
     created_at: string;
@@ -57,6 +70,8 @@ export interface Material {
     unidad: string;
     stock_maximo: number;
     informacion_adicional?: string;
+    specialty_id?: string;
+    specialty?: Specialty;
     created_at?: string;
 }
 
@@ -79,6 +94,7 @@ export interface MovimientoAlmacen {
     fecha: string;
     documento_referencia?: string;
     requerimiento_id?: string;
+    vintar_code?: string; // Nuevo campo
     destino_o_uso?: string;
     solicitante?: string;
     created_at: string;
@@ -126,5 +142,54 @@ export interface DetalleOC {
     detalle_sc?: DetalleSC; // Unido
     cantidad: number;
     precio_unitario?: number;
+    created_at: string;
+}
+
+export interface Equipo {
+    id: string;
+    obra_id: string;
+    nombre: string;
+    codigo: string;
+    marca: string;
+    cantidad: number;
+    created_at?: string;
+}
+
+export interface EppC {
+    id: string;
+    codigo?: string;
+    descripcion: string;
+    unidad: string;
+    tipo: 'Personal' | 'Colectivo';
+    stock_actual: number;
+    activo: boolean;
+    created_at?: string;
+}
+
+export interface Specialty {
+    id: string;
+    name: string;
+    description?: string;
+    active: boolean;
+    created_at?: string;
+}
+
+export interface FrontSpecialty {
+    id: string;
+    front_id: string;
+    specialty_id: string;
+    specialty?: Specialty;
+    created_at?: string;
+}
+
+export interface Tercero {
+    id: string;
+    obra_id: string;
+    nombre_completo: string;
+    ruc?: string;
+    dni?: string;
+    direccion?: string;
+    telefono?: string;
+    email?: string;
     created_at: string;
 }

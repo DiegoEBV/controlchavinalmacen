@@ -19,7 +19,6 @@ import GestionMateriales from './pages/GestionMateriales';
 import EntradasAlmacen from './pages/EntradasAlmacen';
 import SalidasAlmacen from './pages/SalidasAlmacen';
 import StockAlmacen from './pages/StockAlmacen';
-import GestionSolicitantes from './pages/GestionSolicitantes';
 import GestionCategorias from './pages/GestionCategorias';
 import GestionUsuarios from './pages/GestionUsuarios';
 import GestionSolicitudes from './pages/GestionSolicitudes';
@@ -28,6 +27,10 @@ import ReporteMateriales from './pages/ReporteMateriales';
 import EstadisticasMateriales from './pages/EstadisticasMateriales';
 import GestionObras from './pages/GestionObras';
 import GestionFrentes from './pages/GestionFrentes';
+import GestionEquipos from './pages/GestionEquipos';
+import GestionEPPs from './components/GestionEPPs';
+import GestionEspecialidades from './pages/GestionEspecialidades';
+import GestionTerceros from './pages/GestionTerceros';
 import Layout from './components/Layout';
 import Login from './pages/Login';
 import ObraSelector from './pages/ObraSelector';
@@ -118,13 +121,16 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                                 </Route>
 
                                 <Route element={<ProtectedRoute allowedRoles={['admin', 'coordinador', 'logistica']} />}>
-                                    <Route path="/solicitantes" element={<GestionSolicitantes />} />
                                     <Route path="/categorias" element={<GestionCategorias />} />
+                                    <Route path="/equipos" element={<GestionEquipos />} />
+                                    <Route path="/epps" element={<GestionEPPs />} />
+                                    <Route path="/terceros" element={<GestionTerceros />} />
                                 </Route>
                                 <Route element={<ProtectedRoute allowedRoles={['admin']} />}>
                                     <Route path="/usuarios" element={<GestionUsuarios />} />
                                     <Route path="/obras" element={<GestionObras />} />
                                     <Route path="/frentes" element={<GestionFrentes />} />
+                                    <Route path="/especialidades" element={<GestionEspecialidades />} />
                                 </Route>
                             </Route>
                         </Route>

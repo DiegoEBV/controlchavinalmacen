@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { Row, Col, Table, Button, Form, Modal, Card } from 'react-bootstrap';
 import { createMaterial, deleteMaterial, updateMaterial, getCategorias, createCategoria } from '../services/requerimientosService';
 import { supabase } from '../config/supabaseClient';
-import { Material } from '../types';
-import type * as XLSX from 'xlsx';
+import { Material, Specialty } from '../types';
+import { getFrontSpecialties, getSpecialties } from '../services/specialtiesService';
+
 
 
 const GestionMateriales: React.FC = () => {
@@ -20,9 +21,15 @@ const GestionMateriales: React.FC = () => {
     const [showModal, setShowModal] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
 
+    // Initial Filter Lists
+    const [filterSpecialties, setFilterSpecialties] = useState<Specialty[]>([]);
+    const [selectedSpecialtyId, setSelectedSpecialtyId] = useState('');
+    const [isSpecialtyLocked, setIsSpecialtyLocked] = useState(false);
+
     // Datos dependientes del modal
     const [modalFrentes, setModalFrentes] = useState<any[]>([]);
     const [modalObraId, setModalObraId] = useState('');
+    const [modalSpecialties, setModalSpecialties] = useState<Specialty[]>([]);
 
     const [newMaterial, setNewMaterial] = useState<Partial<Material>>({
         categoria: '',
@@ -30,7 +37,8 @@ const GestionMateriales: React.FC = () => {
         unidad: 'und',
         stock_maximo: 0,
         informacion_adicional: '',
-        frente_id: ''
+        frente_id: '',
+        specialty_id: ''
     });
 
     useEffect(() => {
@@ -48,11 +56,26 @@ const GestionMateriales: React.FC = () => {
 
     useEffect(() => {
         if (selectedFrenteId) {
-            loadMateriales(selectedFrenteId);
+            // Reset specialty filter when Frente changes
+            setSelectedSpecialtyId('');
+            // Load specialties for this Frente
+            getFrontSpecialties(selectedFrenteId).then(setFilterSpecialties);
+
+            // Initial load of materials (without specialty filter initially, or explicitly call with empty)
+            loadMateriales(selectedFrenteId, '');
         } else {
+            setFilterSpecialties([]);
+            setSelectedSpecialtyId('');
             setMateriales([]);
         }
     }, [selectedFrenteId]);
+
+    // Reload when Specialty Filter changes
+    useEffect(() => {
+        if (selectedFrenteId) {
+            loadMateriales(selectedFrenteId, selectedSpecialtyId);
+        }
+    }, [selectedSpecialtyId]);
 
     // Lógica del modal
     useEffect(() => {
@@ -62,6 +85,17 @@ const GestionMateriales: React.FC = () => {
             setModalFrentes([]);
         }
     }, [modalObraId]);
+
+    // Lógica para cargar especialidades cuando cambia el Frente en el modal
+    useEffect(() => {
+        if (newMaterial.frente_id) {
+            getFrontSpecialties(newMaterial.frente_id)
+                .then(setModalSpecialties)
+                .catch(err => console.error("Error loading specialties:", err));
+        } else {
+            setModalSpecialties([]);
+        }
+    }, [newMaterial.frente_id]);
 
     const loadInitialData = async () => {
         await loadObras();
@@ -83,19 +117,17 @@ const GestionMateriales: React.FC = () => {
         if (cats) setCategoriasList(cats);
     };
 
-    const loadMateriales = async (frenteId: string) => {
-        // ¿Necesitamos filtrar por Frente ID en el lado de la API o del cliente?
-        // El servicio `getMateriales` obtiene todos. Vamos a actualizar o filtrar aquí.
-        // Asumiendo que getMateriales actualmente devuelve todos.
-        // Idealmente deberíamos actualizar el servicio para aceptar filtros, pero por ahora consultemos directamente o filtremos.
-        // Usemos consulta directa para eficiencia si el servicio es muy amplio, o sigamos usando el servicio si es simple.
-        // 'getMateriales' probablemente usa 'supabase.from(materiales).select(...)'
-        // Intentemos buscar con filtro usando supabase directamente aquí para "Frente" específico
-        const { data } = await supabase
+    const loadMateriales = async (frenteId: string, specialtyId: string = '') => {
+        let query = supabase
             .from('materiales')
             .select('*, frentes(nombre_frente)')
-            .eq('frente_id', frenteId)
-            .order('descripcion');
+            .eq('frente_id', frenteId);
+
+        if (specialtyId) {
+            query = query.eq('specialty_id', specialtyId);
+        }
+
+        const { data } = await query.order('descripcion');
 
         if (data) setMateriales(data);
     };
@@ -108,17 +140,23 @@ const GestionMateriales: React.FC = () => {
             // Asegurar numérico
             materialToSave.stock_maximo = Number(materialToSave.stock_maximo);
 
+            // Sanitize specialty_id (empty string -> null)
+            if (!materialToSave.specialty_id) {
+                // @ts-ignore
+                materialToSave.specialty_id = null;
+            }
+
             if (editingId) {
                 await updateMaterial(editingId, materialToSave);
             } else {
                 await createMaterial(materialToSave);
             }
             setShowModal(false);
-            setNewMaterial({ categoria: '', descripcion: '', unidad: 'und', stock_maximo: 0, informacion_adicional: '', frente_id: '' });
+            setNewMaterial({ categoria: '', descripcion: '', unidad: 'und', stock_maximo: 0, informacion_adicional: '', frente_id: '', specialty_id: '' });
             setEditingId(null);
             setModalObraId('');
             // Recargar vista actual
-            if (selectedFrenteId) loadMateriales(selectedFrenteId);
+            if (selectedFrenteId) loadMateriales(selectedFrenteId, selectedSpecialtyId);
         } catch (error) {
             console.error(error);
             alert("Error al guardar");
@@ -133,7 +171,6 @@ const GestionMateriales: React.FC = () => {
         // Si estamos editando, probablemente estamos en la vista de esa Obra/Frente.
         // Así que `modalObraId` debería ser `selectedObraId`.
         setModalObraId(selectedObraId);
-        // Espera, si usamos el mismo modal para crear/editar.
 
         setNewMaterial({
             categoria: material.categoria,
@@ -141,15 +178,17 @@ const GestionMateriales: React.FC = () => {
             unidad: material.unidad,
             stock_maximo: material.stock_maximo,
             informacion_adicional: material.informacion_adicional || '',
-            frente_id: material.frente_id
+            frente_id: material.frente_id,
+            specialty_id: material.specialty_id || ''
         });
+        setIsSpecialtyLocked(false); // Always unlock when editing
         setShowModal(true);
     };
 
     const handleDelete = async (id: string) => {
         if (confirm("¿Eliminar este material?")) {
             await deleteMaterial(id);
-            if (selectedFrenteId) loadMateriales(selectedFrenteId);
+            if (selectedFrenteId) loadMateriales(selectedFrenteId, selectedSpecialtyId);
         }
     };
 
@@ -189,11 +228,10 @@ const GestionMateriales: React.FC = () => {
                 const existingCats = await getCategorias() || [];
                 const catMap = new Map(existingCats.map((c: any) => [c.nombre.toUpperCase(), c]));
 
-                // Obtener materiales existentes para esta OBRA (para evitar duplicados entre frentes si es necesario, o solo por frente)
-                // En realidad la restricción suele ser por Frente. 
-                // Optimicemos: ¿obtener todos los materiales para la Obra para verificar duplicados localmente? 
-                // ¿O solo confiar en las restricciones de la base de datos? La unicidad es probable (Frente, Nombre).
-                // Procesemos simplemente.
+                // Pre-fetch specialties
+                const allSpecialties = await getSpecialties();
+                console.log("Loaded specialties for import:", allSpecialties);
+                const specialtyMap = new Map(allSpecialties.map(s => [s.name.toUpperCase(), s.id]));
 
                 // Pre-obtener mapa de búsqueda de frentes
                 const frenteMap = new Map(frentes.map(f => [f.nombre_frente.toUpperCase(), f.id]));
@@ -221,6 +259,22 @@ const GestionMateriales: React.FC = () => {
                         if (foundId) targetFrenteId = foundId;
                     }
 
+                    // Resolución de Especialidad
+                    // Supports 'especialidad', 'specialty', 'discipline', 'disciplina'
+                    const specialtyName = norm.especialidad || norm.specialty || norm.discipline || norm.disciplina || '';
+                    let targetSpecialtyId: string | null = null;
+
+                    if (specialtyName) {
+                        const foundId = specialtyMap.get(specialtyName.toString().trim().toUpperCase());
+                        if (foundId) targetSpecialtyId = foundId;
+                        else console.warn(`Specialty not found: ${specialtyName}`);
+                    }
+
+                    // Fallback to filter if no specialty in row
+                    if (!targetSpecialtyId && selectedSpecialtyId) {
+                        targetSpecialtyId = selectedSpecialtyId;
+                    }
+
                     if (!targetFrenteId) {
                         skippedCount++;
                         continue; // Ningún frente identificado
@@ -229,10 +283,6 @@ const GestionMateriales: React.FC = () => {
                     if (descripcion && categoriaName) {
                         const descUpper = descripcion.toString().toUpperCase();
                         const catUpper = categoriaName.toString().toUpperCase();
-
-                        // ¿Verificar duplicados? (Verificar el estado local 'materiales' es insuficiente si estamos importando para diferentes frentes)
-                        // Idealmente deberíamos verificar contra la BD o solo intentar insertar y capturar el error.
-                        // Por velocidad/simplicidad intentemos insertar.
 
                         if (!catMap.has(catUpper)) {
                             try {
@@ -249,7 +299,8 @@ const GestionMateriales: React.FC = () => {
                                 unidad: unidad,
                                 stock_maximo: stockMax,
                                 informacion_adicional: info,
-                                frente_id: targetFrenteId
+                                frente_id: targetFrenteId,
+                                specialty_id: targetSpecialtyId
                             });
                             count++;
                         } catch (err) {
@@ -261,7 +312,7 @@ const GestionMateriales: React.FC = () => {
                 alert(`Proceso completado.\nAgregados: ${count}\nErrores: ${errorCount}\nOmitidos (sin Frente): ${skippedCount}`);
 
                 // Refrescar lista si se selecciona un frente
-                if (selectedFrenteId) loadMateriales(selectedFrenteId);
+                if (selectedFrenteId) loadMateriales(selectedFrenteId, selectedSpecialtyId);
 
             } catch (error) {
                 console.error("Error importing:", error);
@@ -300,7 +351,20 @@ const GestionMateriales: React.FC = () => {
                                 {frentes.map(f => <option key={f.id} value={f.id}>{f.nombre_frente}</option>)}
                             </Form.Select>
                         </Col>
-                        <Col md={4} className="d-flex align-items-end">
+                        <Col md={4}>
+                            <Form.Label>Especialidad</Form.Label>
+                            <Form.Select
+                                value={selectedSpecialtyId}
+                                onChange={e => setSelectedSpecialtyId(e.target.value)}
+                                disabled={!selectedFrenteId}
+                            >
+                                <option value="">-- Todas las Especialidades --</option>
+                                {filterSpecialties.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                            </Form.Select>
+                        </Col>
+                    </Row>
+                    <Row className="mt-3">
+                        <Col md={12} className="d-flex justify-content-end">
                             <div className="d-flex gap-2 w-100">
                                 <label className={`btn btn-success text-white ${!selectedObraId ? 'disabled' : ''}`}>
                                     Importar Excel
@@ -315,8 +379,10 @@ const GestionMateriales: React.FC = () => {
                                         unidad: 'und',
                                         stock_maximo: 0,
                                         informacion_adicional: '',
-                                        frente_id: selectedFrenteId || '' // Por defecto al filtro actual
+                                        frente_id: selectedFrenteId || '',
+                                        specialty_id: selectedSpecialtyId || '' // Pre-fill from filter
                                     });
+                                    setIsSpecialtyLocked(!!selectedSpecialtyId); // Lock if filtered
                                     setShowModal(true);
                                 }} className="btn-primary flex-grow-1" disabled={!selectedObraId}>+ Nuevo Material</Button>
                             </div>
@@ -347,14 +413,16 @@ const GestionMateriales: React.FC = () => {
                     <tbody>
                         {filteredMaterials.map(m => (
                             <tr key={m.id}>
-                                <td>{m.categoria}</td>
-                                <td>{m.descripcion}</td>
-                                <td>{m.unidad}</td>
-                                <td>{Number(m.stock_maximo).toFixed(2)}</td>
-                                <td>{m.informacion_adicional || '-'}</td>
-                                <td>
-                                    <Button variant="warning" size="sm" className="me-2 text-white" onClick={() => handleEdit(m)}>Editar</Button>
-                                    <Button variant="danger" size="sm" onClick={() => handleDelete(m.id)}>Eliminar</Button>
+                                <td width="15%">{m.categoria}</td>
+                                <td width="35%">{m.descripcion}</td>
+                                <td width="10%">{m.unidad}</td>
+                                <td width="10%">{Number(m.stock_maximo).toFixed(2)}</td>
+                                <td width="20%">{m.informacion_adicional || '-'}</td>
+                                <td width="10%">
+                                    <div className="d-flex gap-2">
+                                        <Button variant="warning" size="sm" className="text-white" onClick={() => handleEdit(m)}>Editar</Button>
+                                        <Button variant="danger" size="sm" onClick={() => handleDelete(m.id)}>Eliminar</Button>
+                                    </div>
                                 </td>
                             </tr>
                         ))}
@@ -396,6 +464,34 @@ const GestionMateriales: React.FC = () => {
                                     <option value="">-- Seleccione Frente --</option>
                                     {modalFrentes.map(f => <option key={f.id} value={f.id}>{f.nombre_frente}</option>)}
                                 </Form.Select>
+                            </Form.Group>
+
+                            <Form.Group className="mb-3">
+                                <Form.Label>Especialidad</Form.Label>
+                                <div className="d-flex gap-2">
+                                    <Form.Select
+                                        value={newMaterial.specialty_id}
+                                        onChange={e => setNewMaterial({ ...newMaterial, specialty_id: e.target.value })}
+                                        disabled={!newMaterial.frente_id || (isSpecialtyLocked && !editingId)}
+                                    >
+                                        <option value="">-- Seleccione Especialidad --</option>
+                                        {modalSpecialties.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                    </Form.Select>
+                                    {isSpecialtyLocked && !editingId && (
+                                        <Button
+                                            variant="outline-secondary"
+                                            size="sm"
+                                            onClick={() => setIsSpecialtyLocked(false)}
+                                        >
+                                            Cambiar
+                                        </Button>
+                                    )}
+                                </div>
+                                {newMaterial.frente_id && modalSpecialties.length === 0 && (
+                                    <Form.Text className="text-muted">
+                                        Este frente no tiene especialidades asignadas.
+                                    </Form.Text>
+                                )}
                             </Form.Group>
 
                             <Form.Group className="mb-3">

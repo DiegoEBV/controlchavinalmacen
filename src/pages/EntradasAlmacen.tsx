@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { Card, Form, Table, Button, Row, Col, Alert } from 'react-bootstrap';
 import { supabase } from '../config/supabaseClient';
 import { getRequerimientos, getMateriales } from '../services/requerimientosService';
-import { registrarEntrada, getMovimientos } from '../services/almacenService';
+import { getMovimientos, registrarEntradaMasiva } from '../services/almacenService';
 import { getSolicitudesCompra, getOrdenesCompra } from '../services/comprasService';
 import { Requerimiento, Material, MovimientoAlmacen, SolicitudCompra, DetalleSC, OrdenCompra } from '../types';
+import { Modal } from 'react-bootstrap';
 import { useAuth } from '../context/AuthContext';
 import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription';
 import { mergeUpdates } from '../utils/stateUpdates';
@@ -21,12 +22,13 @@ const EntradasAlmacen: React.FC = () => {
 
     // Estado de Selección
     const [selectedSC, setSelectedSC] = useState<SolicitudCompra | null>(null);
-    const [selectedDetailSC, setSelectedDetailSC] = useState<DetalleSC | null>(null);
+    // Cambiado a un Map para selección múltiple: ID -> Cantidad a ingresar (inicialmente pendiente)
+    const [selectedItems, setSelectedItems] = useState<Map<string, number>>(new Map());
+    const [showModal, setShowModal] = useState(false);
 
     // Estado del Formulario
     const [loading, setLoading] = useState(false);
     const [successMsg, setSuccessMsg] = useState('');
-    const [cantidadIngreso, setCantidadIngreso] = useState(0);
     const [docReferencia, setDocReferencia] = useState('');
 
     // --- Suscripciones en Tiempo Real Optimizadas ---
@@ -135,67 +137,95 @@ const EntradasAlmacen: React.FC = () => {
     const handleSelectSC = (scId: string) => {
         const sc = solicitudes.find(s => s.id === scId) || null;
         setSelectedSC(sc);
-        setSelectedDetailSC(null);
-        setCantidadIngreso(0);
+        setSelectedItems(new Map());
         setSuccessMsg('');
     };
 
-    const handleRegister = async () => {
-        if (!selectedSC || !selectedDetailSC) return;
-        if (!selectedSC.requerimiento_id) return alert("Error: SC sin requerimiento vinculado");
+    const toggleItemSelection = (detalle: DetalleSC, pending: number) => {
+        const newMap = new Map(selectedItems);
+        if (newMap.has(detalle.id)) {
+            newMap.delete(detalle.id);
+        } else {
+            newMap.set(detalle.id, pending);
+        }
+        setSelectedItems(newMap);
+    };
 
-        // 1. Validación
-        if (cantidadIngreso <= 0) return alert("Cantidad debe ser mayor a 0");
+    const handleSelectAll = (detalles: DetalleSC[]) => {
+        const newMap = new Map();
+        detalles.forEach(d => {
+            // Recalcular pendiente para asegurar consistencia
+            const consumed = historial
+                .filter(h =>
+                    String(h.requerimiento_id) === String(selectedSC?.requerimiento_id) &&
+                    h.material_id === d.material_id &&
+                    new Date(h.created_at || h.fecha) >= new Date(selectedSC?.created_at || '')
+                )
+                .reduce((sum, h) => sum + h.cantidad, 0);
+            const pending = Math.max(0, d.cantidad - consumed);
+            if (pending > 0) newMap.set(d.id, pending);
+        });
+        setSelectedItems(newMap);
+    };
+
+    const handleBatchRegister = async () => {
+        if (!selectedSC) return;
+        if (selectedItems.size === 0) return alert("Seleccione al menos un ítem.");
         if (!docReferencia) return alert("Ingrese Documento de Referencia");
-
-        // 2. Encontrar el ID del Detalle de Requerimiento Original (Crítico para backend legado)
-        // lógica detallada: encontrar req -> encontrar ítem con mismo material/desc
-        const parentReq = allReqs.find(r => r.id === selectedSC.requerimiento_id);
-        if (!parentReq || !parentReq.detalles) return alert("Error: No se encontraron detalles del Requerimiento padre.");
-
-        // Intentar coincidir por ID de Material si está disponible, o recurrir a Descripción
-        // Verificación 1: Validar estrictamente contra Cantidad Aprobada SC
-        // ¿Necesitamos re-calcular 'consumido' aquí para estar seguros, o confiar en que la UI lo pase?
-        // Lo más seguro es re-calcular.
-        const consumed = historial
-            .filter(h =>
-                String(h.requerimiento_id) === String(selectedSC.requerimiento_id) &&
-                h.material_id === selectedDetailSC.material_id &&
-                new Date(h.created_at || h.fecha) >= new Date(selectedSC.created_at)
-            )
-            .reduce((sum, h) => sum + h.cantidad, 0);
-
-        const remainingInSC = selectedDetailSC.cantidad - consumed;
-
-        if (cantidadIngreso > remainingInSC) {
-            return alert(`Error: La cantidad a ingresar (${cantidadIngreso}) supera el pendiente de la SC (${remainingInSC}).`);
-        }
-
-        const targetDetReq = parentReq.detalles.find(d =>
-            d.descripcion === selectedDetailSC.material?.descripcion &&
-            d.material_categoria === selectedDetailSC.material?.categoria
-        );
-
-        if (!targetDetReq) {
-            return alert("Error: No se pudo enlazar con el requerimiento original.");
-        }
 
         setLoading(true);
         try {
-            await registrarEntrada(
-                selectedDetailSC.material_id,
-                cantidadIngreso,
-                selectedSC.requerimiento_id,
-                targetDetReq.id,
+            // Preparar payload
+            const itemsToProcess = [];
+
+            for (const [id, cantidad] of selectedItems.entries()) {
+                const detalle = selectedSC.detalles?.find(d => d.id === id);
+                if (!detalle) continue;
+
+                // Validar cantidad
+                const consumed = historial
+                    .filter(h =>
+                        String(h.requerimiento_id) === String(selectedSC.requerimiento_id) &&
+                        h.material_id === detalle.material_id &&
+                        new Date(h.created_at || h.fecha) >= new Date(selectedSC.created_at)
+                    )
+                    .reduce((sum, h) => sum + h.cantidad, 0);
+
+                const pending = Math.max(0, detalle.cantidad - consumed);
+
+                if (cantidad > pending) {
+                    throw new Error(`La cantidad para ${detalle.material?.descripcion} excede el pendiente.`);
+                }
+
+                // Encontrar Req Detail ID (Lógica mantenida del original)
+                const parentReq = allReqs.find(r => r.id === selectedSC.requerimiento_id);
+                const targetDetReq = parentReq?.detalles?.find(d =>
+                    d.descripcion === detalle.material?.descripcion &&
+                    d.material_categoria === detalle.material?.categoria
+                );
+
+                if (!targetDetReq) throw new Error(`No se encontró detalle de requerimiento para ${detalle.material?.descripcion}`);
+
+                itemsToProcess.push({
+                    material_id: detalle.material_id,
+                    cantidad: cantidad,
+                    req_id: selectedSC.requerimiento_id,
+                    det_req_id: targetDetReq.id,
+                    sc_detail_id: detalle.id // Para validación futura si se implementa en backend
+                });
+            }
+
+            const result = await registrarEntradaMasiva(
+                itemsToProcess,
                 docReferencia,
-                selectedObra!.id
+                selectedSC!.requerimiento?.obra_id || selectedObra!.id
             );
 
-            setSuccessMsg("Entrada registrada correctamente (Vía SC)");
-            setSelectedDetailSC(null);
+            setSuccessMsg(`Entrada Masiva Exitosa! Código VINTAR: ${result.vintar_code}`);
+            setSelectedItems(new Map());
             setDocReferencia('');
-            setCantidadIngreso(0);
-            loadData(selectedSC.id);
+            setShowModal(false);
+            loadData(selectedSC.id); // Recargar
         } catch (error: any) {
             console.error(error);
             alert("Error: " + error.message);
@@ -253,39 +283,51 @@ const EntradasAlmacen: React.FC = () => {
                 <Card className="custom-card">
                     <div className="d-flex justify-content-between align-items-center mb-4">
                         <h5 className="mb-0 text-primary fw-bold">Items de {selectedSC.numero_sc}</h5>
-                        {selectedSC.requerimiento?.frente && <span className="badge bg-secondary">Frente: {selectedSC.requerimiento.frente.nombre_frente}</span>}
+                        <div>
+                            {selectedSC.requerimiento?.frente && <span className="badge bg-secondary me-2">Frente: {selectedSC.requerimiento.frente.nombre_frente}</span>}
+                            <Button
+                                variant="outline-primary"
+                                size="sm"
+                                onClick={() => selectedSC.detalles && handleSelectAll(selectedSC.detalles)}
+                            >
+                                Seleccionar Todo
+                            </Button>
+                        </div>
                     </div>
                     <div className="table-responsive">
                         <Table hover className="table-borderless-custom mb-0">
                             <thead>
                                 <tr>
+                                    <th>Select</th>
                                     <th>Material</th>
                                     <th>Cant. Aprobada</th>
                                     <th>Cant. Pendiente</th>
                                     <th>Unidad</th>
-                                    <th>Acción</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {selectedSC.detalles?.map(d => {
-                                    // Heurística: Verificar si se han realizado suficientes entradas DESPUÉS de que se creó esta SC
                                     const consumed = historial
                                         .filter(h =>
-                                            // Verificar igualdad estricta cuidadosamente, el casting de tipos podría ser necesario si los IDs son números vs cadenas
                                             String(h.requerimiento_id) === String(selectedSC.requerimiento_id) &&
                                             h.material_id === d.material_id &&
                                             new Date(h.created_at || h.fecha) >= new Date(selectedSC.created_at)
                                         )
                                         .reduce((sum, h) => sum + h.cantidad, 0);
 
-                                    // Redondear a 2 decimales para evitar problemas de flotantes
                                     const pending = Math.max(0, d.cantidad - consumed);
 
                                     if (pending <= 0) return null;
 
-                                    const isSelected = selectedDetailSC?.id === d.id;
+                                    const isSelected = selectedItems.has(d.id);
                                     return (
                                         <tr key={d.id} className={isSelected ? 'table-primary' : ''}>
+                                            <td>
+                                                <Form.Check
+                                                    checked={isSelected}
+                                                    onChange={() => toggleItemSelection(d, pending)}
+                                                />
+                                            </td>
                                             <td>
                                                 <strong>{d.material?.descripcion || 'Sin Desc'}</strong>
                                                 <div className="small text-muted">{d.material?.categoria}</div>
@@ -293,19 +335,6 @@ const EntradasAlmacen: React.FC = () => {
                                             <td className="text-muted small">{d.cantidad}</td>
                                             <td className="fw-bold text-success">{pending}</td>
                                             <td>{d.unidad}</td>
-                                            <td>
-                                                <Button
-                                                    size="sm"
-                                                    variant={isSelected ? 'secondary' : 'primary'}
-                                                    onClick={() => {
-                                                        setSelectedDetailSC(d);
-                                                        setCantidadIngreso(pending); // Sugerir cantidad restante
-                                                        setSuccessMsg('');
-                                                    }}
-                                                >
-                                                    Seleccionar
-                                                </Button>
-                                            </td>
                                         </tr>
                                     );
                                 })}
@@ -318,41 +347,106 @@ const EntradasAlmacen: React.FC = () => {
                         </Table>
                     </div>
 
-                    {selectedDetailSC && (
-                        <div className="bg-light p-4 rounded-3 border-0 mt-4 fade-in">
-                            <h6 className="text-primary fw-bold mb-3">Registrar Ingreso: {selectedDetailSC.material?.descripcion}</h6>
-                            <Row className="align-items-end g-3">
-                                <Col xs={12} md={4}>
-                                    <Form.Label>Doc. Referencia</Form.Label>
-                                    <Form.Control
-                                        value={docReferencia}
-                                        onChange={e => setDocReferencia(e.target.value)}
-                                        placeholder="Ej. Guía 001"
-                                    />
-                                </Col>
-                                <Col xs={12} md={4}>
-                                    <Form.Label>Cantidad a Ingresar</Form.Label>
-                                    <Form.Control
-                                        type="number"
-                                        value={cantidadIngreso}
-                                        onChange={e => setCantidadIngreso(parseFloat(e.target.value))}
-                                    />
-                                </Col>
-                                <Col xs={12} md={4}>
-                                    <Button
-                                        variant="success"
-                                        className="w-100 btn-primary"
-                                        onClick={handleRegister}
-                                        disabled={loading}
-                                    >
-                                        {loading ? 'Guardando...' : 'Confirmar Ingreso'}
-                                    </Button>
-                                </Col>
-                            </Row>
-                        </div>
-                    )}
+                    <div className="mt-4 d-flex justify-content-end">
+                        <Button
+                            variant="success"
+                            disabled={selectedItems.size === 0}
+                            onClick={() => setShowModal(true)}
+                        >
+                            Procesar Entrada ({selectedItems.size})
+                        </Button>
+                    </div>
                 </Card>
             )}
+
+            {/* Modal de Confirmación */}
+            <Modal show={showModal} onHide={() => setShowModal(false)} size="lg">
+                <Modal.Header closeButton>
+                    <Modal.Title>Confirmar Entrada Masiva</Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    <Form.Group className="mb-3">
+                        <Form.Label>Documento de Referencia (Guía, Factura, etc.)</Form.Label>
+                        <Form.Control
+                            type="text"
+                            placeholder="Ej. GR-001-2024"
+                            value={docReferencia}
+                            onChange={(e) => setDocReferencia(e.target.value)}
+                        />
+                    </Form.Group>
+
+                    <Table hover className="align-middle mb-0">
+                        <colgroup>
+                            <col style={{ width: '50%' }} />
+                            <col style={{ width: '20%' }} />
+                            <col style={{ width: '30%' }} />
+                        </colgroup>
+                        <thead className="bg-light">
+                            <tr>
+                                <th className="py-2 border-0">Material / Descripción</th>
+                                <th className="py-2 text-center border-0">Pendiente</th>
+                                <th className="py-2 text-center border-0">A Ingresar</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {Array.from(selectedItems.entries()).map(([id, qty]) => {
+                                const detalle = selectedSC?.detalles?.find(d => d.id === id);
+                                if (!detalle) return null;
+
+                                // Recalcular pendiente real (Max)
+                                const consumed = historial
+                                    .filter(h =>
+                                        String(h.requerimiento_id) === String(selectedSC?.requerimiento_id) &&
+                                        h.material_id === detalle.material_id &&
+                                        new Date(h.created_at || h.fecha) >= new Date(selectedSC?.created_at || '')
+                                    )
+                                    .reduce((sum, h) => sum + h.cantidad, 0);
+                                const maxPending = Math.max(0, detalle.cantidad - consumed);
+
+                                return (
+                                    <tr key={id}>
+                                        <td className="border-0">
+                                            <div className="fw-bold text-dark">{detalle.material?.descripcion}</div>
+                                            <div className="small text-muted">{detalle.material?.categoria}</div>
+                                        </td>
+                                        <td className="text-center border-0">
+                                            <span className="badge bg-light text-dark border">
+                                                {maxPending} {detalle.unidad}
+                                            </span>
+                                        </td>
+                                        <td className="border-0">
+                                            <Form.Control
+                                                type="number"
+                                                min="0"
+                                                max={maxPending}
+                                                className="text-center fw-bold text-primary"
+                                                value={qty}
+                                                onChange={(e) => {
+                                                    let val = parseFloat(e.target.value);
+                                                    if (isNaN(val)) val = 0;
+                                                    const newMap = new Map(selectedItems);
+                                                    newMap.set(id, val);
+                                                    setSelectedItems(newMap);
+                                                }}
+                                                isInvalid={qty <= 0 || qty > maxPending}
+                                            />
+                                            {qty > maxPending && <div className="text-danger small mt-1 text-center" style={{ fontSize: '0.8em' }}>Excede máximo</div>}
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </Table>
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="secondary" onClick={() => setShowModal(false)}>
+                        Cancelar
+                    </Button>
+                    <Button variant="primary" onClick={handleBatchRegister} disabled={loading}>
+                        {loading ? 'Procesando...' : 'Generar VINTAR y Guardar'}
+                    </Button>
+                </Modal.Footer>
+            </Modal>
 
             {/* Tabla de Historial */}
             <div className="mt-5">
@@ -363,6 +457,7 @@ const EntradasAlmacen: React.FC = () => {
                             <tr>
                                 <th>Fecha</th>
                                 <th>N° Req.</th>
+                                <th>VINTAR</th>
                                 <th>Doc. Referencia</th>
                                 <th>Material / Descripción</th>
                                 <th>Cantidad</th>
@@ -381,6 +476,9 @@ const EntradasAlmacen: React.FC = () => {
                                         <td>{new Date(h.fecha).toISOString().split('T')[0]}</td>
                                         <td className="fw-bold text-primary">
                                             {reqNum !== '-' ? `#${reqNum}` : '-'}
+                                        </td>
+                                        <td>
+                                            {h.vintar_code ? <span className="badge bg-info text-dark">{h.vintar_code}</span> : '-'}
                                         </td>
                                         <td className="fw-bold">{h.documento_referencia || '-'}</td>
                                         <td>

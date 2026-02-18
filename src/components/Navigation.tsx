@@ -36,7 +36,11 @@ const Navigation: React.FC = () => {
     const canViewSolicitantes = hasRole(['admin', 'coordinador', 'logistica']);
     const canViewCategorias = hasRole(['admin', 'coordinador', 'logistica']);
     const canViewUsuarios = hasRole(['admin']);
-    const showConfigSection = canViewSolicitantes || canViewCategorias || canViewUsuarios;
+    const canViewEquipos = hasRole(['admin', 'coordinador', 'logistica']);
+    const canViewEpps = hasRole(['admin', 'coordinador', 'logistica']);
+    const canViewEspecialidades = hasRole(['admin', 'coordinador', 'logistica']);
+    const canViewTerceros = hasRole(['admin', 'coordinador', 'logistica']);
+    const showConfigSection = canViewSolicitantes || canViewCategorias || canViewUsuarios || canViewEquipos || canViewTerceros || canViewEpps || canViewEspecialidades;
 
     const requestNotificationPermission = async () => {
         const permission = await Notification.requestPermission();
@@ -103,11 +107,6 @@ const Navigation: React.FC = () => {
                             </Nav.Link>
                         )}
 
-                        {canViewMateriales && (
-                            <Nav.Link as={Link} to="/materiales" className={`nav-link ${isActive('/materiales') ? 'active' : ''}`} onClick={closeNav}>
-                                <span className="me-2">🧱</span> Materiales
-                            </Nav.Link>
-                        )}
 
                         {(canViewAlmacen || canEditAlmacen) && <div className="nav-section-title">Almacén</div>}
 
@@ -147,9 +146,29 @@ const Navigation: React.FC = () => {
                             <>
                                 <div className="nav-section-title">Configuración</div>
 
-                                {canViewSolicitantes && (
-                                    <Nav.Link as={Link} to="/solicitantes" className={`nav-link ${isActive('/solicitantes') ? 'active' : ''}`} onClick={closeNav}>
-                                        <span className="me-2">👥</span> Solicitantes
+                                {canViewUsuarios && (
+                                    <>
+                                        <Nav.Link as={Link} to="/obras" className={`nav-link ${isActive('/obras') ? 'active' : ''}`} onClick={closeNav}>
+                                            <span className="me-2">🏗️</span> Obras
+                                        </Nav.Link>
+                                        <Nav.Link as={Link} to="/frentes" className={`nav-link ${isActive('/frentes') ? 'active' : ''}`} onClick={closeNav}>
+                                            <span className="me-2">🚧</span> Frentes
+                                        </Nav.Link>
+                                        <Nav.Link as={Link} to="/usuarios" className={`nav-link ${isActive('/usuarios') ? 'active' : ''}`} onClick={closeNav}>
+                                            <span className="me-2">👤</span> Usuarios
+                                        </Nav.Link>
+                                    </>
+                                )}
+
+                                {canViewTerceros && (
+                                    <Nav.Link as={Link} to="/terceros" className={`nav-link ${isActive('/terceros') ? 'active' : ''}`} onClick={closeNav}>
+                                        <span className="me-2">🤝</span> Terceros
+                                    </Nav.Link>
+                                )}
+
+                                {canViewEspecialidades && (
+                                    <Nav.Link as={Link} to="/especialidades" className={`nav-link ${isActive('/especialidades') ? 'active' : ''}`} onClick={closeNav}>
+                                        <span className="me-2">🏗️</span> Especialidades
                                     </Nav.Link>
                                 )}
 
@@ -159,19 +178,25 @@ const Navigation: React.FC = () => {
                                     </Nav.Link>
                                 )}
 
-                                {canViewUsuarios && (
-                                    <>
-                                        <Nav.Link as={Link} to="/usuarios" className={`nav-link ${isActive('/usuarios') ? 'active' : ''}`} onClick={closeNav}>
-                                            <span className="me-2">👤</span> Usuarios
-                                        </Nav.Link>
-                                        <Nav.Link as={Link} to="/obras" className={`nav-link ${isActive('/obras') ? 'active' : ''}`} onClick={closeNav}>
-                                            <span className="me-2">🏗️</span> Obras
-                                        </Nav.Link>
-                                        <Nav.Link as={Link} to="/frentes" className={`nav-link ${isActive('/frentes') ? 'active' : ''}`} onClick={closeNav}>
-                                            <span className="me-2">🚧</span> Frentes
-                                        </Nav.Link>
-                                    </>
+                                {canViewMateriales && (
+                                    <Nav.Link as={Link} to="/materiales" className={`nav-link ${isActive('/materiales') ? 'active' : ''}`} onClick={closeNav}>
+                                        <span className="me-2">🧱</span> Materiales
+                                    </Nav.Link>
                                 )}
+
+                                {canViewEquipos && (
+                                    <Nav.Link as={Link} to="/equipos" className={`nav-link ${isActive('/equipos') ? 'active' : ''}`} onClick={closeNav}>
+                                        <span className="me-2">🚜</span> Equipos
+                                    </Nav.Link>
+                                )}
+
+                                {canViewEpps && (
+                                    <Nav.Link as={Link} to="/epps" className={`nav-link ${isActive('/epps') ? 'active' : ''}`} onClick={closeNav}>
+                                        <span className="me-2">🦺</span> EPPs-C
+                                    </Nav.Link>
+                                )}
+
+
                             </>
                         )}
 

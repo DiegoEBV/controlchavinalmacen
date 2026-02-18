@@ -58,6 +58,22 @@ export const registrarEntrada = async (
     });
 
     if (error) throw error;
+    if (error) throw error;
+};
+
+export const registrarEntradaMasiva = async (
+    items: any[],
+    docRef: string,
+    obraId: string
+) => {
+    const { data, error } = await supabase.rpc('registrar_entrada_masiva', {
+        p_items: items,
+        p_doc_ref: docRef,
+        p_obra_id: obraId
+    });
+
+    if (error) throw error;
+    return data;
 };
 
 export const registrarSalida = async (
