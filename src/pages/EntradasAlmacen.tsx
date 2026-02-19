@@ -19,6 +19,8 @@ const EntradasAlmacen: React.FC = () => {
     // Mantener reqs sin procesar para encontrar IDs
     const [allReqs, setAllReqs] = useState<Requerimiento[]>([]);
     const [historial, setHistorial] = useState<MovimientoAlmacen[]>([]);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [filterType, setFilterType] = useState('todo');
 
     // Estado de Selección
     const [selectedSC, setSelectedSC] = useState<SolicitudCompra | null>(null);
@@ -512,7 +514,36 @@ const EntradasAlmacen: React.FC = () => {
 
             {/* Tabla de Historial */}
             <div className="mt-5">
-                <h4 className="text-secondary mb-3">Historial de Entradas Recientes</h4>
+                <div className="d-flex justify-content-between align-items-center mb-3">
+                    <h4 className="text-secondary mb-0">Historial de Entradas Recientes</h4>
+                </div>
+
+                <Row className="mb-3">
+                    <Col xs={12} md={4}>
+                        <Form.Group>
+                            <Form.Control
+                                type="text"
+                                placeholder="Buscar..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                            />
+                        </Form.Group>
+                    </Col>
+                    <Col xs={12} md={3}>
+                        <Form.Group>
+                            <Form.Select
+                                value={filterType}
+                                onChange={(e) => setFilterType(e.target.value)}
+                            >
+                                <option value="todo">Todos</option>
+                                <option value="material">Material / Descripción</option>
+                                <option value="doc">Doc. Referencia</option>
+                                <option value="req">N° Requerimiento</option>
+                            </Form.Select>
+                        </Form.Group>
+                    </Col>
+                </Row>
+
                 <Card className="custom-card">
                     <Table hover responsive className="table-borderless-custom mb-0">
                         <thead>
@@ -526,7 +557,34 @@ const EntradasAlmacen: React.FC = () => {
                             </tr>
                         </thead>
                         <tbody>
-                            {historial.map(h => {
+
+                            {historial.filter(h => {
+                                if (!searchTerm) return true;
+                                const term = searchTerm.toLowerCase();
+
+                                const mov = h as any;
+                                let desc = '';
+                                if (mov.material) desc = mov.material.descripcion;
+                                else if (mov.equipo) desc = mov.equipo.nombre;
+                                else if (mov.epp) desc = mov.epp.descripcion;
+
+                                const reqNum = mov.requerimiento ? String(mov.requerimiento.item_correlativo) : '';
+
+                                switch (filterType) {
+                                    case 'material':
+                                        return desc.toLowerCase().includes(term);
+                                    case 'doc':
+                                        return h.documento_referencia?.toLowerCase().includes(term);
+                                    case 'req':
+                                        return reqNum.includes(term);
+                                    default:
+                                        return (
+                                            desc.toLowerCase().includes(term) ||
+                                            h.documento_referencia?.toLowerCase().includes(term) ||
+                                            reqNum.includes(term)
+                                        );
+                                }
+                            }).map(h => {
                                 // Obtener descripción desde el objeto anidado (gracias a update en service)
                                 // OJO: h as any necesario si TS no infiere los includes
                                 const mov = h as any;

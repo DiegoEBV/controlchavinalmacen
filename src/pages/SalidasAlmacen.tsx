@@ -48,6 +48,8 @@ const SalidasAlmacen: React.FC = () => {
 
     // History State
     const [historial, setHistorial] = useState<MovimientoAlmacen[]>([]);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [filterType, setFilterType] = useState('todo');
 
     // --- Realtime Subscriptions ---
     useRealtimeSubscription(async ({ upserts }) => {
@@ -400,7 +402,38 @@ const SalidasAlmacen: React.FC = () => {
                 </Card>
             )}
 
-            <h4 className="mb-4 text-secondary mt-5">Historial Reciente</h4>
+            <div className="d-flex justify-content-between align-items-center mt-5 mb-3">
+                <h4 className="text-secondary mb-0">Historial Reciente</h4>
+            </div>
+
+            <Row className="mb-3">
+                <Col xs={12} md={4}>
+                    <Form.Group>
+                        <Form.Control
+                            type="text"
+                            placeholder="Buscar..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                        />
+                    </Form.Group>
+                </Col>
+                <Col xs={12} md={3}>
+                    <Form.Group>
+                        <Form.Select
+                            value={filterType}
+                            onChange={(e) => setFilterType(e.target.value)}
+                        >
+                            <option value="todo">Todos</option>
+                            <option value="solicitante">Solicitante</option>
+                            <option value="vale">N° Vale</option>
+                            <option value="material">Bien / Material</option>
+                            <option value="encargado">Encargado</option>
+                            <option value="bloque">Bloque</option>
+                            <option value="destino">Destino</option>
+                        </Form.Select>
+                    </Form.Group>
+                </Col>
+            </Row>
             <Card className="custom-card p-0 overflow-hidden">
                 <Table hover responsive className="table-borderless-custom mb-0">
                     <thead>
@@ -408,13 +441,47 @@ const SalidasAlmacen: React.FC = () => {
                             <th>Fecha</th>
                             <th>Vale</th>
                             <th>Solicitante</th>
+                            <th>Encargado</th>
+                            <th>Bloque</th>
                             <th>Bien / Material</th>
                             <th>Cantidad</th>
                             <th>Destino</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {historial.map(h => {
+                        {historial.filter(h => {
+                            if (!searchTerm) return true;
+                            const term = searchTerm.toLowerCase();
+
+                            let desc = '';
+                            if (h.material) desc = h.material.descripcion;
+                            else if ((h as any).equipo) desc = (h as any).equipo.nombre;
+                            else if ((h as any).epp) desc = (h as any).epp.descripcion;
+
+                            switch (filterType) {
+                                case 'solicitante':
+                                    return h.solicitante?.toLowerCase().includes(term);
+                                case 'vale':
+                                    return h.numero_vale?.toLowerCase().includes(term);
+                                case 'material':
+                                    return desc.toLowerCase().includes(term);
+                                case 'encargado':
+                                    return h.encargado?.nombre.toLowerCase().includes(term);
+                                case 'bloque':
+                                    return h.bloque?.nombre_bloque.toLowerCase().includes(term);
+                                case 'destino':
+                                    return h.destino_o_uso?.toLowerCase().includes(term);
+                                default:
+                                    return (
+                                        h.solicitante?.toLowerCase().includes(term) ||
+                                        h.numero_vale?.toLowerCase().includes(term) ||
+                                        desc.toLowerCase().includes(term) ||
+                                        h.encargado?.nombre.toLowerCase().includes(term) ||
+                                        h.bloque?.nombre_bloque.toLowerCase().includes(term) ||
+                                        h.destino_o_uso?.toLowerCase().includes(term)
+                                    );
+                            }
+                        }).map(h => {
                             let desc = '';
                             let unit = '';
                             if (h.material) { desc = h.material.descripcion; unit = h.material.unidad; }
@@ -426,6 +493,8 @@ const SalidasAlmacen: React.FC = () => {
                                     <td>{h.fecha ? new Date(h.fecha).toLocaleDateString() : '-'}</td>
                                     <td>{h.numero_vale}</td>
                                     <td>{h.solicitante}</td>
+                                    <td>{h.encargado?.nombre || '-'}</td>
+                                    <td>{h.bloque?.nombre_bloque || '-'}</td>
                                     <td>{desc}</td>
                                     <td className="fw-bold text-danger">-{h.cantidad} {unit}</td>
                                     <td>{h.destino_o_uso}</td>

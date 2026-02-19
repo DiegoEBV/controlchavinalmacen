@@ -116,6 +116,8 @@ export interface MovimientoAlmacen {
     material?: Material;
     equipo?: Equipo;
     epp?: EppC;
+    encargado?: { nombre: string }; // Joined
+    bloque?: { nombre_bloque: string }; // Joined
 }
 
 export interface SolicitudCompra {
