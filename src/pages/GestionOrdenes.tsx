@@ -111,12 +111,12 @@ const GestionOrdenes: React.FC = () => {
 
             return {
                 detalle_sc_id: d.id,
-                material_desc: d.material?.descripcion,
-                cantidad_sc: d.cantidad, // Agregar este campo
-                cantidad_pendiente: remaining, // Mostrar saldo restante real
-                cantidad_compra: remaining, // Usar nomenclatura consistente
-                precio_unitario: 0, // Nuevo campo
-                selected: remaining > 0 // Solo seleccionar si hay saldo
+                material_desc: d.material?.descripcion || d.equipo?.nombre || d.epp?.descripcion || 'Sin descripción',
+                cantidad_sc: d.cantidad,
+                cantidad_pendiente: remaining,
+                cantidad_compra: remaining,
+                precio_unitario: 0,
+                selected: remaining > 0
             };
         }) || [];
         setItemsToOrder(initialItems);

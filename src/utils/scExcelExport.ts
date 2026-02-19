@@ -74,7 +74,7 @@ export const exportSolicitudCompra = async (sc: SolicitudCompra, customFormatUrl
         const ubicacion = `${frenteNombre} ${bloque ? '- ' + bloque : ''}`.trim();
 
         // D13: Solicitante
-        const solicitante = req.solicitante || 'NO SPECIFIED';
+        const solicitante = `${req.solicitante || ''} - ${req.especialidad || ''}`;
 
         // J5: Número SC
         const numeroSC = sc.numero_sc || 'SC-PENDIENTE';
@@ -151,7 +151,7 @@ export const exportSolicitudCompra = async (sc: SolicitudCompra, customFormatUrl
                 const rowNum = START_ROW + idx;
                 const row = currentSheet.getRow(rowNum);
 
-                const materialDesc = item.material?.descripcion || 'Sin descripción';
+                const materialDesc = item.material?.descripcion || item.equipo?.nombre || item.epp?.descripcion || 'Sin descripción';
                 row.getCell('C').value = materialDesc;
                 row.getCell('H').value = item.unidad || '';
                 row.getCell('I').value = Number(item.cantidad);

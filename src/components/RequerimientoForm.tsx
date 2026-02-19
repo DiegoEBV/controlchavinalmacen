@@ -94,10 +94,12 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
         if (obraId) {
             loadFrentes(obraId);
             loadEquipos(obraId);
+            loadInventory(obraId);
         } else {
             setFrentesList([]);
             setEquiposList([]);
             setBloquesList([]);
+            setStockMap({}); // Reset stock map
             setFrenteId('');
             setBloque('');
             setSelectedBloques([]);
@@ -105,11 +107,10 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
     }, [obraId]);
 
     const loadCatalogs = async () => {
-        const [mats, sols, cats, inv, epps] = await Promise.all([
+        const [mats, sols, cats, epps] = await Promise.all([
             getMateriales(),
             getSolicitantes(),
             getCategorias(),
-            getInventario(),
             getEpps()
         ]);
 
@@ -117,14 +118,6 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
         if (sols) setSolicitantesList(sols);
         if (cats) setCategoriasList(cats);
         if (epps) setEppsList(epps);
-
-        if (inv) {
-            const map: Record<string, number> = {};
-            inv.forEach((i: any) => {
-                map[i.material_id] = i.cantidad_actual;
-            });
-            setStockMap(map);
-        }
     };
 
     const loadFrentes = async (oid: string) => {
@@ -144,6 +137,20 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
     const loadEquipos = async (oid: string) => {
         const data = await getEquipos(oid);
         if (data) setEquiposList(data);
+    };
+
+    const loadInventory = async (oid: string) => {
+        const inv = await getInventario(oid);
+        if (inv) {
+            const map: Record<string, number> = {};
+            inv.forEach((i: any) => {
+                // Map stock for all types
+                if (i.material_id) map[i.material_id] = i.cantidad_actual;
+                if (i.equipo_id) map[i.equipo_id] = i.cantidad_actual;
+                if (i.epp_id) map[i.epp_id] = i.cantidad_actual;
+            });
+            setStockMap(map);
+        }
     };
 
     useEffect(() => {
@@ -615,8 +622,7 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
                                 <SearchableSelect
                                     options={equiposList.map(e => ({
                                         value: e.id,
-                                        label: `${e.nombre} - ${e.marca} (${e.codigo || 'S/C'})`,
-                                        info: `Stock Total: ${e.cantidad}`
+                                        label: `${e.nombre} - ${e.marca} (${e.codigo || 'S/C'})`
                                     }))}
                                     value={newItem.equipo_id || ''}
                                     onChange={(val) => handleEquipoSelect(val as string)}
@@ -626,8 +632,7 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
                                 <SearchableSelect
                                     options={eppsList.map(e => ({
                                         value: e.id,
-                                        label: `${e.descripcion} [${e.codigo || 'S/C'}]`,
-                                        info: `Stock: ${e.stock_actual} ${e.unidad}`
+                                        label: `${e.descripcion} [${e.codigo || 'S/C'}]`
                                     }))}
                                     value={newItem.epp_id || ''}
                                     onChange={(val) => handleEppSelect(val as string)}
@@ -656,16 +661,42 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
                                 <Form.Control type="number" value={newItem.cantidad_solicitada} onChange={e => setNewItem({ ...newItem, cantidad_solicitada: parseFloat(e.target.value) })} />
                                 <Button variant="success" className="ms-1" onClick={handleAddItem}>+</Button>
                             </div>
-                            {newItem.descripcion && newItem.tipo === 'Material' && (
+                            {newItem.descripcion && (
                                 <div className="mt-1">
                                     {(() => {
-                                        const selectedMat = materialesList.find(m => m.id === selectedMaterialId);
-                                        const stock = selectedMat ? (stockMap[selectedMat.id] || 0) : 0;
-                                        return (
-                                            <small className={stock > 0 ? "text-success fw-bold" : "text-danger fw-bold"}>
-                                                Stock: {stock} {newItem.unidad}
-                                            </small>
-                                        );
+                                        let stock = 0;
+                                        let showStock = false;
+                                        let unit = newItem.unidad;
+
+                                        if (newItem.tipo === 'Material' && selectedMaterialId) {
+                                            const selectedMat = materialesList.find(m => m.id === selectedMaterialId);
+                                            if (selectedMat) {
+                                                stock = stockMap[selectedMat.id] || 0;
+                                                showStock = true;
+                                            }
+                                        } else if (newItem.tipo === 'Equipo' && newItem.equipo_id) {
+                                            const selectedEq = equiposList.find(e => e.id === newItem.equipo_id);
+                                            if (selectedEq) {
+                                                stock = stockMap[selectedEq.id] || 0;
+                                                showStock = true;
+                                                // Ensure unit is correct if needed, but equipment is usually 'und'
+                                            }
+                                        } else if (newItem.tipo === 'EPP' && newItem.epp_id) {
+                                            const selectedEpp = eppsList.find(e => e.id === newItem.epp_id);
+                                            if (selectedEpp) {
+                                                stock = stockMap[selectedEpp.id] || 0;
+                                                showStock = true;
+                                            }
+                                        }
+
+                                        if (showStock) {
+                                            return (
+                                                <small className={stock > 0 ? "text-success fw-bold" : "text-danger fw-bold"}>
+                                                    Stock: {stock} {unit}
+                                                </small>
+                                            );
+                                        }
+                                        return null;
                                     })()}
                                 </div>
                             )}

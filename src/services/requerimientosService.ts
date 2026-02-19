@@ -7,7 +7,7 @@ export const getRequerimientos = async (obraId?: string) => {
             .from('requerimientos')
             .select(`
                 *,
-                detalles:detalles_requerimiento(*),
+                detalles:detalles_requerimiento(*, epp:epps_c(*), equipo:equipos(*)),
                 frente:frentes(*),
                 specialty:specialties(*)
             `)
@@ -33,7 +33,7 @@ export const getRequerimientoById = async (id: string) => {
             .from('requerimientos')
             .select(`
                  *,
-                 detalles:detalles_requerimiento(*),
+                 detalles:detalles_requerimiento(*, epp:epps_c(*), equipo:equipos(*)),
                  frente:frentes(*),
                  specialty:specialties(*)
              `)
@@ -60,7 +60,9 @@ export const createRequerimiento = async (
             material_categoria: d.material_categoria,
             descripcion: d.descripcion,
             unidad: d.unidad,
-            cantidad_solicitada: d.cantidad_solicitada
+            cantidad_solicitada: d.cantidad_solicitada,
+            equipo_id: d.equipo_id || null, // Asegurar envío de IDs
+            epp_id: d.epp_id || null
         }));
 
         const { data, error } = await supabase.rpc('crear_requerimiento_completo', {

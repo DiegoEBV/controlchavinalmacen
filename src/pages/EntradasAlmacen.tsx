@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Card, Form, Table, Button, Row, Col, Alert } from 'react-bootstrap';
 import { supabase } from '../config/supabaseClient';
 import { getRequerimientos, getMateriales } from '../services/requerimientosService';
@@ -15,7 +15,7 @@ const EntradasAlmacen: React.FC = () => {
     // Fuentes de Datos
     const [solicitudes, setSolicitudes] = useState<SolicitudCompra[]>([]);
     const [ordenes, setOrdenes] = useState<OrdenCompra[]>([]);
-    const [materialesList, setMaterialesList] = useState<Material[]>([]);
+    const [materialesList, setMaterialesList] = useState<Material[]>([]); // Keep purely for potential future usage or refactor
     // Mantener reqs sin procesar para encontrar IDs
     const [allReqs, setAllReqs] = useState<Requerimiento[]>([]);
     const [historial, setHistorial] = useState<MovimientoAlmacen[]>([]);
@@ -158,7 +158,11 @@ const EntradasAlmacen: React.FC = () => {
             const consumed = historial
                 .filter(h =>
                     String(h.requerimiento_id) === String(selectedSC?.requerimiento_id) &&
-                    h.material_id === d.material_id &&
+                    (
+                        (d.material_id && h.material_id === d.material_id) ||
+                        (d.equipo_id && h.equipo_id === d.equipo_id) ||
+                        (d.epp_id && h.epp_id === d.epp_id)
+                    ) &&
                     new Date(h.created_at || h.fecha) >= new Date(selectedSC?.created_at || '')
                 )
                 .reduce((sum, h) => sum + h.cantidad, 0);
@@ -186,7 +190,11 @@ const EntradasAlmacen: React.FC = () => {
                 const consumed = historial
                     .filter(h =>
                         String(h.requerimiento_id) === String(selectedSC.requerimiento_id) &&
-                        h.material_id === detalle.material_id &&
+                        (
+                            (detalle.material_id && h.material_id === detalle.material_id) ||
+                            (detalle.equipo_id && h.equipo_id === detalle.equipo_id) ||
+                            (detalle.epp_id && h.epp_id === detalle.epp_id)
+                        ) &&
                         new Date(h.created_at || h.fecha) >= new Date(selectedSC.created_at)
                     )
                     .reduce((sum, h) => sum + h.cantidad, 0);
@@ -194,24 +202,29 @@ const EntradasAlmacen: React.FC = () => {
                 const pending = Math.max(0, detalle.cantidad - consumed);
 
                 if (cantidad > pending) {
-                    throw new Error(`La cantidad para ${detalle.material?.descripcion} excede el pendiente.`);
+                    throw new Error(`La cantidad para ${detalle.material?.descripcion || detalle.equipo?.nombre || detalle.epp?.descripcion} excede el pendiente.`);
                 }
 
-                // Encontrar Req Detail ID (Lógica mantenida del original)
+                // Encontrar Req Detail ID
+                // Usar match de IDs preferentemente, o fallback a descripción (riesgoso pero legacy support)
                 const parentReq = allReqs.find(r => r.id === selectedSC.requerimiento_id);
-                const targetDetReq = parentReq?.detalles?.find(d =>
-                    d.descripcion === detalle.material?.descripcion &&
-                    d.material_categoria === detalle.material?.categoria
-                );
+                const targetDetReq = parentReq?.detalles?.find(d => {
+                    if (detalle.material_id && d.material_categoria === detalle.material?.categoria && d.descripcion === detalle.material?.descripcion) return true;
+                    if (detalle.equipo_id && d.equipo_id === detalle.equipo_id) return true;
+                    if (detalle.epp_id && d.epp_id === detalle.epp_id) return true;
+                    return false;
+                });
 
-                if (!targetDetReq) throw new Error(`No se encontró detalle de requerimiento para ${detalle.material?.descripcion}`);
+                if (!targetDetReq) throw new Error(`No se encontró detalle de requerimiento para el ítem seleccionado.`);
 
                 itemsToProcess.push({
-                    material_id: detalle.material_id,
+                    material_id: detalle.material_id || null,
+                    equipo_id: detalle.equipo_id || null,
+                    epp_id: detalle.epp_id || null,
                     cantidad: cantidad,
                     req_id: selectedSC.requerimiento_id,
                     det_req_id: targetDetReq.id,
-                    sc_detail_id: detalle.id // Para validación futura si se implementa en backend
+                    sc_detail_id: detalle.id
                 });
             }
 
@@ -234,25 +247,47 @@ const EntradasAlmacen: React.FC = () => {
     };
 
     // Filtrar SCs completamente completadas Y aquellas sin OC
-    const activeSolicitudes = solicitudes.filter(sc => {
-        if (!sc.detalles) return false;
+    const activeSolicitudes = useMemo(() => {
+        return solicitudes.filter(sc => {
+            if (!sc.detalles) return false;
 
-        // 1. Debe tener una Orden de Compra asociada (activa/emitida)
-        const hasOC = ordenes.some(o => o.sc_id === sc.id && o.estado !== 'Anulada');
-        if (!hasOC) return false;
+            // 1. Debe tener una Orden de Compra asociada (activa/emitida)
+            const hasOC = ordenes.some(o => o.sc_id === sc.id && o.estado !== 'Anulada');
+            if (!hasOC) return false;
 
-        // 2. Verificar si ALGÚN ítem todavía tiene cantidad pendiente
-        return sc.detalles.some(d => {
-            const consumed = historial
-                .filter(h =>
-                    String(h.requerimiento_id) === String(sc.requerimiento_id) &&
-                    h.material_id === d.material_id &&
-                    new Date(h.created_at || h.fecha) >= new Date(sc.created_at)
-                )
-                .reduce((sum, h) => sum + h.cantidad, 0);
-            return consumed < d.cantidad;
+            // 2. Verificar si ALGÚN ítem todavía tiene cantidad pendiente
+            return sc.detalles.some(d => {
+                const consumed = historial
+                    .filter(h =>
+                        String(h.requerimiento_id) === String(sc.requerimiento_id) &&
+                        (
+                            (d.material_id && h.material_id === d.material_id) ||
+                            (d.equipo_id && h.equipo_id === d.equipo_id) ||
+                            (d.epp_id && h.epp_id === d.epp_id)
+                        ) &&
+                        new Date(h.created_at || h.fecha) >= new Date(sc.created_at)
+                    )
+                    .reduce((sum, h) => sum + h.cantidad, 0);
+                return consumed < d.cantidad;
+            });
         });
-    });
+    }, [solicitudes, ordenes, historial]);
+
+    // Auto-clearing effect when selectedSC becomes fully attended
+    useEffect(() => {
+        if (selectedSC && activeSolicitudes.length > 0) {
+            const isStillActive = activeSolicitudes.find(s => s.id === selectedSC.id);
+            // Si ya no está en la lista de activos, limpiarlo
+            if (!isStillActive) {
+                // Pequeño delay para que el usuario vea el éxito si acaba de registrar
+                // O limpiar inmediatamente.
+                setSelectedSC(null);
+            }
+        } else if (selectedSC && activeSolicitudes.length === 0) {
+            // Si no quedo ninguna activa
+            setSelectedSC(null);
+        }
+    }, [activeSolicitudes, selectedSC]);
 
     return (
         <div className="fade-in">
@@ -310,7 +345,11 @@ const EntradasAlmacen: React.FC = () => {
                                     const consumed = historial
                                         .filter(h =>
                                             String(h.requerimiento_id) === String(selectedSC.requerimiento_id) &&
-                                            h.material_id === d.material_id &&
+                                            (
+                                                (d.material_id && h.material_id === d.material_id) ||
+                                                (d.equipo_id && h.equipo_id === d.equipo_id) ||
+                                                (d.epp_id && h.epp_id === d.epp_id)
+                                            ) &&
                                             new Date(h.created_at || h.fecha) >= new Date(selectedSC.created_at)
                                         )
                                         .reduce((sum, h) => sum + h.cantidad, 0);
@@ -320,6 +359,20 @@ const EntradasAlmacen: React.FC = () => {
                                     if (pending <= 0) return null;
 
                                     const isSelected = selectedItems.has(d.id);
+                                    // Determinar descripción y categoría basado en tipo
+                                    let desc = 'Sin Desc';
+                                    let cat = '';
+                                    if (d.material) {
+                                        desc = d.material.descripcion;
+                                        cat = d.material.categoria;
+                                    } else if (d.equipo) {
+                                        desc = d.equipo.nombre;
+                                        cat = 'Equipo';
+                                    } else if (d.epp) {
+                                        desc = d.epp.descripcion;
+                                        cat = 'EPP';
+                                    }
+
                                     return (
                                         <tr key={d.id} className={isSelected ? 'table-primary' : ''}>
                                             <td>
@@ -329,8 +382,8 @@ const EntradasAlmacen: React.FC = () => {
                                                 />
                                             </td>
                                             <td>
-                                                <strong>{d.material?.descripcion || 'Sin Desc'}</strong>
-                                                <div className="small text-muted">{d.material?.categoria}</div>
+                                                <strong>{desc}</strong>
+                                                <div className="small text-muted">{cat}</div>
                                             </td>
                                             <td className="text-muted small">{d.cantidad}</td>
                                             <td className="fw-bold text-success">{pending}</td>
@@ -397,17 +450,26 @@ const EntradasAlmacen: React.FC = () => {
                                 const consumed = historial
                                     .filter(h =>
                                         String(h.requerimiento_id) === String(selectedSC?.requerimiento_id) &&
-                                        h.material_id === detalle.material_id &&
+                                        (
+                                            (h.material_id && h.material_id === detalle.material_id) ||
+                                            (h.equipo_id && h.equipo_id === detalle.equipo_id) ||
+                                            (h.epp_id && h.epp_id === detalle.epp_id)
+                                        ) &&
                                         new Date(h.created_at || h.fecha) >= new Date(selectedSC?.created_at || '')
                                     )
                                     .reduce((sum, h) => sum + h.cantidad, 0);
                                 const maxPending = Math.max(0, detalle.cantidad - consumed);
 
+                                let desc = 'Sin Desc';
+                                if (detalle.material) desc = detalle.material.descripcion;
+                                else if (detalle.equipo) desc = detalle.equipo.nombre;
+                                else if (detalle.epp) desc = detalle.epp.descripcion;
+
                                 return (
                                     <tr key={id}>
                                         <td className="border-0">
-                                            <div className="fw-bold text-dark">{detalle.material?.descripcion}</div>
-                                            <div className="small text-muted">{detalle.material?.categoria}</div>
+                                            <div className="fw-bold text-dark">{desc}</div>
+                                            <div className="small text-muted">{detalle.material?.categoria || (detalle.equipo ? 'Equipo' : 'EPP')}</div>
                                         </td>
                                         <td className="text-center border-0">
                                             <span className="badge bg-light text-dark border">
@@ -465,10 +527,28 @@ const EntradasAlmacen: React.FC = () => {
                         </thead>
                         <tbody>
                             {historial.map(h => {
-                                // Encontrar detalles del material en lista cargada
-                                const mat = materialesList.find(m => m.id === h.material_id);
-                                // Castear a any para acceder a la propiedad 'requerimiento' unida, aún no en tipos estrictos
-                                const reqNum = (h as any).requerimiento ? (h as any).requerimiento.item_correlativo : '-';
+                                // Obtener descripción desde el objeto anidado (gracias a update en service)
+                                // OJO: h as any necesario si TS no infiere los includes
+                                const mov = h as any;
+                                let desc = 'Desconocido';
+                                let cat = '';
+                                let unidad = '';
+
+                                if (mov.material) {
+                                    desc = mov.material.descripcion;
+                                    cat = mov.material.categoria;
+                                    unidad = mov.material.unidad;
+                                } else if (mov.equipo) {
+                                    desc = mov.equipo.nombre;
+                                    cat = 'Equipo';
+                                    unidad = 'und';
+                                } else if (mov.epp) {
+                                    desc = mov.epp.descripcion;
+                                    cat = 'EPP';
+                                    unidad = mov.epp.unidad;
+                                }
+
+                                const reqNum = mov.requerimiento ? mov.requerimiento.item_correlativo : '-';
 
                                 return (
                                     <tr key={h.id}>
@@ -478,11 +558,11 @@ const EntradasAlmacen: React.FC = () => {
                                         </td>
                                         <td className="fw-bold">{h.documento_referencia || '-'}</td>
                                         <td>
-                                            <div>{mat?.descripcion || 'Material Desconocido'}</div>
-                                            <small className="text-muted">{mat?.categoria}</small>
+                                            <div>{desc}</div>
+                                            <small className="text-muted">{cat}</small>
                                         </td>
                                         <td>{h.cantidad}</td>
-                                        <td>{mat?.unidad || ''}</td>
+                                        <td>{unidad}</td>
                                     </tr>
                                 );
                             })}

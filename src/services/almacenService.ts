@@ -6,7 +6,9 @@ export const getInventario = async (obraId?: string) => {
         .from('inventario_obra')
         .select(`
             *,
-            material:materiales(*, frente:frentes(nombre_frente))
+            material:materiales(*, frente:frentes(nombre_frente)),
+            equipo:equipos(*),
+            epp:epps_c(*)
         `)
         .order('id', { ascending: true });
 
@@ -41,15 +43,18 @@ export const getInventarioById = async (id: string) => {
 };
 
 export const registrarEntrada = async (
-    materialId: string,
+    materialId: string | null,
     cantidad: number,
     reqId: string,
     detReqId: string,
     docRef: string,
-    obraId: string
+    obraId: string,
+    extra?: { equipoId?: string; eppId?: string }
 ) => {
     const { error } = await supabase.rpc('registrar_entrada_almacen', {
-        p_material_id: materialId,
+        p_material_id: materialId || null,
+        p_equipo_id: extra?.equipoId || null,
+        p_epp_id: extra?.eppId || null,
         p_cantidad: cantidad,
         p_req_id: reqId,
         p_det_req_id: detReqId,
@@ -58,7 +63,6 @@ export const registrarEntrada = async (
     });
 
     if (error) throw error;
-    if (error) throw error;
 };
 
 export const registrarEntradaMasiva = async (
@@ -66,7 +70,7 @@ export const registrarEntradaMasiva = async (
     docRef: string,
     obraId: string
 ) => {
-    const { data, error } = await supabase.rpc('registrar_entrada_masiva', {
+    const { data, error } = await supabase.rpc('registrar_entrada_masiva_v2', {
         p_items: items,
         p_doc_ref: docRef,
         p_obra_id: obraId
@@ -116,6 +120,8 @@ export const getMovimientos = async (obraId?: string) => {
         .select(`
             *,
             material:materiales(descripcion, categoria, unidad),
+            equipo:equipos(nombre, marca, codigo),
+            epp:epps_c(descripcion, codigo, unidad),
             requerimiento:requerimientos(item_correlativo)
         `)
         .order('created_at', { ascending: false })

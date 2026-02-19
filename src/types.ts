@@ -78,8 +78,12 @@ export interface Material {
 export interface Inventario {
     id: string;
     obra_id: string;
-    material_id: string;
-    material?: Material; // Unido
+    material_id?: string; // Ahora opcional
+    equipo_id?: string;   // Nuevo
+    epp_id?: string;      // Nuevo
+    material?: Material;
+    equipo?: Equipo;      // Nuevo
+    epp?: EppC;           // Nuevo
     cantidad_actual: number;
     ultimo_ingreso?: string;
     updated_at: string;
@@ -107,6 +111,11 @@ export interface MovimientoAlmacen {
     numero_vale?: string;
 
     created_at: string;
+
+    // Joined relations
+    material?: Material;
+    equipo?: Equipo;
+    epp?: EppC;
 }
 
 export interface SolicitudCompra {
@@ -124,7 +133,11 @@ export interface DetalleSC {
     id: string;
     sc_id: string;
     material_id: string;
+    equipo_id?: string;
+    epp_id?: string;
     material?: Material;
+    equipo?: Equipo;
+    epp?: EppC;
     cantidad: number;
     unidad: string;
     estado: 'Pendiente' | 'En Orden';
@@ -160,7 +173,6 @@ export interface Equipo {
     nombre: string;
     codigo: string;
     marca: string;
-    cantidad: number;
     created_at?: string;
 }
 
@@ -170,7 +182,6 @@ export interface EppC {
     descripcion: string;
     unidad: string;
     tipo: 'Personal' | 'Colectivo';
-    stock_actual: number;
     activo: boolean;
     created_at?: string;
 }
@@ -212,3 +223,8 @@ export interface UserProfile {
     nombre: string;
     created_at: string;
 }
+
+export type StockItem =
+    | { type: 'MATERIAL'; data: Inventario & { material: Material } }
+    | { type: 'EQUIPO'; data: Inventario & { equipo: Equipo } }
+    | { type: 'EPP'; data: Inventario & { epp: EppC } };

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Container, Row, Col, Table, Button, Form, Modal, Badge, InputGroup } from 'react-bootstrap';
 import { FaPlus, FaEdit, FaSearch, FaArchive, FaBoxOpen } from 'react-icons/fa';
 import { EppC } from '../types';
-import { getEpps, createEpp, updateEpp, toggleEppStatus, getNextEppCode } from '../services/eppsService';
+import { getEpps, createEpp, updateEpp, toggleEppStatus, getNextEppCode, createEppsBatch } from '../services/eppsService';
 import { useAuth } from '../context/AuthContext';
 
 const GestionEPPs: React.FC = () => {
@@ -19,7 +19,6 @@ const GestionEPPs: React.FC = () => {
         descripcion: '',
         unidad: 'und',
         tipo: 'Personal',
-        stock_actual: 0,
         activo: true
     });
     const [isEditing, setIsEditing] = useState(false);
@@ -62,7 +61,6 @@ const GestionEPPs: React.FC = () => {
                 descripcion: '',
                 unidad: 'und',
                 tipo: 'Personal',
-                stock_actual: 0,
                 activo: true
             });
             setIsEditing(false);
@@ -101,6 +99,97 @@ const GestionEPPs: React.FC = () => {
         }
     };
 
+    const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        try {
+            const XLSX = await import('xlsx');
+            const reader = new FileReader();
+
+            reader.onload = async (evt) => {
+                const bstr = evt.target?.result;
+                const wb = XLSX.read(bstr, { type: 'binary' });
+                const wsname = wb.SheetNames[0];
+                const ws = wb.Sheets[wsname];
+                const data = XLSX.utils.sheet_to_json(ws);
+
+                if (data.length === 0) {
+                    alert("El archivo está vacío");
+                    return;
+                }
+
+                // 1. Get initial next codes from DB
+                const nextMetaPersonal = await getNextEppCode('Personal');
+                const nextMetaColectivo = await getNextEppCode('Colectivo');
+
+                let pCounter = parseInt(nextMetaPersonal.split('-')[1]);
+                let cCounter = parseInt(nextMetaColectivo.split('-')[1]);
+
+                const batchToInsert: any[] = [];
+                let skipped = 0;
+
+                for (const row of data as any[]) {
+                    // Normalize keys
+                    const norm: any = {};
+                    Object.keys(row).forEach(k => {
+                        norm[k.toLowerCase().trim()] = row[k];
+                    });
+
+                    const descripcion = norm.descripcion || norm.nombre || norm.item;
+                    const tipoRaw = norm.tipo || 'Personal'; // Default
+                    const unidad = norm.unidad || 'und';
+                    // Stock removed from UI/Import as requested.
+
+                    if (!descripcion) {
+                        skipped++;
+                        continue;
+                    }
+
+                    // Determine Type
+                    const tipo = tipoRaw.toString().toLowerCase().includes('colectivo') ? 'Colectivo' : 'Personal';
+
+                    // Generate Code
+                    let code = '';
+                    if (tipo === 'Personal') {
+                        code = `EPP-${String(pCounter).padStart(4, '0')}`;
+                        pCounter++;
+                    } else {
+                        code = `EPC-${String(cCounter).padStart(4, '0')}`;
+                        cCounter++;
+                    }
+
+                    batchToInsert.push({
+                        codigo: code,
+                        descripcion: descripcion,
+                        tipo: tipo,
+                        unidad: unidad,
+                        activo: true
+                    });
+                }
+
+                if (batchToInsert.length > 0) {
+                    try {
+                        await createEppsBatch(batchToInsert);
+                        alert(`Importación exitosa.\nRegistros agregados: ${batchToInsert.length}\nOmitidos: ${skipped}`);
+                        loadEpps();
+                    } catch (err) {
+                        console.error(err);
+                        alert("Error al guardar en base de datos. Verifique consola.");
+                    }
+                } else {
+                    alert("No se encontraron datos válidos para importar.");
+                }
+            };
+            reader.readAsBinaryString(file);
+        } catch (error) {
+            console.error("Error importing:", error);
+            alert("Error al procesar el archivo.");
+        } finally {
+            e.target.value = ''; // Reset input
+        }
+    };
+
     const filteredEpps = epps.filter(e =>
         e.descripcion.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (e.codigo && e.codigo.toLowerCase().includes(searchTerm.toLowerCase()))
@@ -111,9 +200,15 @@ const GestionEPPs: React.FC = () => {
             <div className="d-flex justify-content-between align-items-center mb-4 fade-in">
                 <h2 className="mb-0 fw-bold text-dark">Gestión de EPPs y Colectivos</h2>
                 {canEdit && (
-                    <Button variant="primary" onClick={() => handleOpenModal()} className="shadow-sm">
-                        <FaPlus className="me-2" /> Nuevo Ítem
-                    </Button>
+                    <div className="d-flex gap-2">
+                        <label className="btn btn-success text-white shadow-sm">
+                            <FaEdit className="me-2" /> Importar Excel
+                            <input type="file" hidden accept=".xlsx, .xls" onChange={handleImport} />
+                        </label>
+                        <Button variant="primary" onClick={() => handleOpenModal()} className="shadow-sm">
+                            <FaPlus className="me-2" /> Nuevo Ítem
+                        </Button>
+                    </div>
                 )}
             </div>
 
@@ -156,7 +251,6 @@ const GestionEPPs: React.FC = () => {
                                     <th>Descripción</th>
                                     <th>Tipo</th>
                                     <th>Unidad</th>
-                                    <th>Stock</th>
                                     <th>Estado</th>
                                     {canEdit && <th className="text-end pe-4">Acciones</th>}
                                 </tr>
@@ -172,7 +266,6 @@ const GestionEPPs: React.FC = () => {
                                             </Badge>
                                         </td>
                                         <td>{epp.unidad}</td>
-                                        <td>{epp.stock_actual}</td>
                                         <td>
                                             {epp.activo ? <Badge bg="success">Activo</Badge> : <Badge bg="secondary">Archivado</Badge>}
                                         </td>

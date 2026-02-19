@@ -79,3 +79,13 @@ export const getNextEppCode = async (tipo: 'Personal' | 'Colectivo'): Promise<st
 
     return prefix + '0001';
 };
+
+export const createEppsBatch = async (epps: Omit<EppC, 'id' | 'created_at'>[]): Promise<EppC[]> => {
+    const { data, error } = await supabase
+        .from('epps_c')
+        .insert(epps)
+        .select();
+
+    if (error) throw error;
+    return data || [];
+};
