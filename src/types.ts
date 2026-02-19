@@ -63,27 +63,32 @@ export interface Obra {
 
 export interface Material {
     id: string;
-    frente_id?: string; // Nuevo campo
-    frente?: Frente;    // Unión
     categoria: string;
     descripcion: string;
     unidad: string;
-    stock_maximo: number;
     informacion_adicional?: string;
-    specialty_id?: string;
-    specialty?: Specialty;
+    created_at?: string;
+}
+
+export interface ListInsumoEspecialidad {
+    id: string;
+    front_specialty_id: string;
+    material_id: string;
+    material?: Material;
+    cantidad_presupuestada: number;
+    cantidad_utilizada: number;
     created_at?: string;
 }
 
 export interface Inventario {
     id: string;
     obra_id: string;
-    material_id?: string; // Ahora opcional
-    equipo_id?: string;   // Nuevo
-    epp_id?: string;      // Nuevo
+    material_id?: string;
+    equipo_id?: string;
+    epp_id?: string;
     material?: Material;
-    equipo?: Equipo;      // Nuevo
-    epp?: EppC;           // Nuevo
+    equipo?: Equipo;
+    epp?: EppC;
     cantidad_actual: number;
     ultimo_ingreso?: string;
     updated_at: string;
@@ -93,9 +98,9 @@ export interface MovimientoAlmacen {
     id: string;
     obra_id: string;
     tipo: 'ENTRADA' | 'SALIDA';
-    material_id?: string; // Ahora opcional
-    equipo_id?: string;   // Nuevo
-    epp_id?: string;      // Nuevo
+    material_id?: string;
+    equipo_id?: string;
+    epp_id?: string;
     cantidad: number;
     fecha: string;
     documento_referencia?: string;

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Modal, Button, Form, Table, Row, Col, InputGroup, Spinner, Dropdown } from 'react-bootstrap';
 import SearchableSelect from './SearchableSelect';
 import { Requerimiento, DetalleRequerimiento, Obra, Material, Equipo, EppC } from '../types';
-import { getMateriales, getSolicitantes, getCategorias } from '../services/requerimientosService';
+import { getSolicitantes, getCategorias, getBudgetedMaterials } from '../services/requerimientosService';
 import { getEquipos } from '../services/equiposService';
 import { getBloques } from '../services/frentesService';
 import { getInventario } from '../services/almacenService';
@@ -12,7 +12,7 @@ import { getEpps } from '../services/eppsService';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../config/supabaseClient';
 import { getFrontSpecialties } from '../services/specialtiesService';
-import { Specialty } from '../types';
+import { Specialty, ListInsumoEspecialidad } from '../types';
 
 interface RequerimientoFormProps {
     show: boolean;
@@ -46,6 +46,8 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
 
     const [categoriasList, setCategoriasList] = useState<any[]>([]);
     const [stockMap, setStockMap] = useState<Record<string, number>>({});
+    const [budgetItems, setBudgetItems] = useState<ListInsumoEspecialidad[]>([]);
+
 
     // Especialidades (Cascada)
     const [specialtiesList, setSpecialtiesList] = useState<Specialty[]>([]);
@@ -66,25 +68,19 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
     const [selectedMaterialId, setSelectedMaterialId] = useState('');
 
     // Optimization: Filter materials with useMemo
-    // Filtrar materiales basados en categoría seleccionada Y frente seleccionado Y especialidad seleccionada
+    // Filtrar materiales basados en categoría seleccionada (ya vienen filtrados por frente/especialidad de la DB)
     const filteredMaterials = React.useMemo(() => {
         return materialesList.filter(m => {
-            const matchesFrente = m.frente_id === frenteId;
-            const matchesSpecialty = selectedSpecialtyId ? m.specialty_id === selectedSpecialtyId : true;
             const matchesCategory = newItem.material_categoria === 'General' || m.categoria === newItem.material_categoria;
-            return matchesFrente && matchesSpecialty && matchesCategory;
+            return matchesCategory;
         });
-    }, [materialesList, frenteId, selectedSpecialtyId, newItem.material_categoria]);
+    }, [materialesList, newItem.material_categoria]);
 
     // Derived: Available categories based on filtered materials (ignoring current category selection)
     const availableCategories = React.useMemo(() => {
-        const relevantMaterials = materialesList.filter(m =>
-            m.frente_id === frenteId &&
-            (selectedSpecialtyId ? m.specialty_id === selectedSpecialtyId : true)
-        );
-        const cats = new Set(relevantMaterials.map(m => m.categoria));
+        const cats = new Set(materialesList.map(m => m.categoria));
         return categoriasList.filter((c: any) => cats.has(c.nombre));
-    }, [materialesList, frenteId, selectedSpecialtyId, categoriasList]);
+    }, [materialesList, categoriasList]);
 
     useEffect(() => {
         loadCatalogs();
@@ -107,14 +103,14 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
     }, [obraId]);
 
     const loadCatalogs = async () => {
-        const [mats, sols, cats, epps] = await Promise.all([
-            getMateriales(),
+        const [sols, cats, epps] = await Promise.all([
+            // getMateriales(), // No cargar materiales al inicio, se cargan por especialidad
             getSolicitantes(),
             getCategorias(),
             getEpps()
         ]);
 
-        if (mats) setMaterialesList(mats);
+        // if (mats) setMaterialesList(mats);
         if (sols) setSolicitantesList(sols);
         if (cats) setCategoriasList(cats);
         if (epps) setEppsList(epps);
@@ -202,6 +198,25 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
         }
     }, [show, initialData, selectedObra]);
 
+    // Load Budgeted Materials when Frente + Specialty changes
+    useEffect(() => {
+        if (frenteId && selectedSpecialtyId) {
+            setMaterialesList([]); // Clear previous
+            setBudgetItems([]);
+            getBudgetedMaterials(frenteId, selectedSpecialtyId).then((data: any[]) => {
+                const items = data || [];
+                setBudgetItems(items as ListInsumoEspecialidad[]);
+                // Extract unique materials
+                const mats = items.map((i: any) => i.material).filter(Boolean);
+                const uniqueMats = Array.from(new Map(mats.map((m: any) => [m.id, m])).values());
+                setMaterialesList(uniqueMats as Material[]);
+            });
+        } else {
+            setMaterialesList([]);
+            setBudgetItems([]);
+        }
+    }, [frenteId, selectedSpecialtyId]);
+
     const handleLoadTemplate = async () => {
         if (!obraId) {
             alert("Seleccione una Obra primero.");
@@ -280,11 +295,48 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
             alert("Complete descripción y cantidad > 0");
             return;
         }
+
+        // Budget Validation (Non-blocking)
+        if (newItem.tipo === 'Material' && selectedMaterialId) {
+            const budgetItem = budgetItems.find(b => b.material_id === selectedMaterialId);
+            if (budgetItem) {
+                const currentUsage = budgetItem.cantidad_utilizada || 0;
+                const budgetLimit = budgetItem.cantidad_presupuestada || 0;
+
+                // Calculate pending in form (excluding current item if updating)
+                const pendingInForm = items.reduce((sum, i) => {
+                    if (i.tipo === 'Material' && i.descripcion === newItem.descripcion) return sum + (i.cantidad_solicitada || 0);
+                    return sum;
+                }, 0);
+
+                const projectedUsage = currentUsage + pendingInForm + (newItem.cantidad_solicitada || 0);
+
+                if (projectedUsage > budgetLimit) {
+                    const over = projectedUsage - budgetLimit;
+                    // ALERT if exceeded, but allow to proceed if confirmed
+                    if (!confirm(`⚠️ PRECAUCIÓN: Estás excediendo el presupuesto.\n\nPresupuesto: ${budgetLimit}\nUtilizado + Pendiente: ${projectedUsage}\nExceso: ${over.toFixed(2)}\n\n¿Deseas agregar el ítem de todos modos?`)) {
+                        return;
+                    }
+                } else {
+                    // Alert if getting close (>= 90%)
+                    const percent = budgetLimit > 0 ? (projectedUsage / budgetLimit) * 100 : 0;
+                    if (percent >= 90) {
+                        alert(`⚠️ ATENCIÓN: Con este pedido llegarás al ${percent.toFixed(1)}% del presupuesto.`);
+                    }
+                }
+            } else {
+                // Material without budget logic... (keep as is or warn?)
+                if (!confirm("Este material NO tiene presupuesto asignado en este frente/especialidad.\n¿Deseas agregarlo de todos modos?")) {
+                    return;
+                }
+            }
+        }
+
         // Verificar si ya existe
         const existingIndex = items.findIndex(i =>
             i.tipo === newItem.tipo &&
             i.descripcion === newItem.descripcion &&
-            i.material_categoria === newItem.material_categoria // Opcional, para mayor precisión
+            i.material_categoria === newItem.material_categoria
         );
 
         if (existingIndex >= 0) {
@@ -608,15 +660,19 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
                             {/* Si se selecciona categoría, mostrar dropdown de materiales. Si no, mostrar input de texto (o select vacío) */}
                             {newItem.tipo === 'Material' && newItem.material_categoria ? (
                                 <SearchableSelect
-                                    options={filteredMaterials.map(m => ({
-                                        value: m.id,
-                                        label: m.descripcion,
-                                        info: m.informacion_adicional
-                                    }))}
+                                    options={filteredMaterials.map(m => {
+                                        const budgetItem = budgetItems.find(b => b.material_id === m.id);
+                                        const saldo = budgetItem ? budgetItem.cantidad_presupuestada - budgetItem.cantidad_utilizada : 0;
+                                        return {
+                                            value: m.id,
+                                            label: `${m.descripcion} (Saldo: ${saldo.toFixed(2)})`,
+                                            info: m.informacion_adicional
+                                        };
+                                    })}
                                     value={selectedMaterialId}
                                     onChange={(val) => handleMaterialSelect(val as string)}
-                                    disabled={!frenteId}
-                                    placeholder={frenteId ? 'Seleccione Material...' : 'Seleccione Frente Primero'}
+                                    disabled={!frenteId || !selectedSpecialtyId}
+                                    placeholder={(!frenteId || !selectedSpecialtyId) ? 'Seleccione Especialidad Primero' : 'Seleccione Material...'}
                                 />
                             ) : newItem.tipo === 'Equipo' ? (
                                 <SearchableSelect

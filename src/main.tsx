@@ -16,6 +16,7 @@ import ReactDOM from 'react-dom/client';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import GestionRequerimientos from './pages/GestionRequerimientos';
 import GestionMateriales from './pages/GestionMateriales';
+import GestionPresupuesto from './pages/GestionPresupuesto';
 import EntradasAlmacen from './pages/EntradasAlmacen';
 import SalidasAlmacen from './pages/SalidasAlmacen';
 import StockAlmacen from './pages/StockAlmacen';
@@ -92,6 +93,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
 
                                 <Route element={<ProtectedRoute allowedRoles={['produccion', 'coordinador']} />}>
                                     <Route path="/requerimientos" element={<GestionRequerimientos />} />
+                                    <Route path="/presupuesto" element={<GestionPresupuesto />} />
                                 </Route>
 
                                 <Route element={<ProtectedRoute allowedRoles={['coordinador']} />}>

@@ -90,9 +90,11 @@ const Navigation: React.FC = () => {
                         <div className="nav-section-title">Principal</div>
 
                         {canViewRequerimientos && (
-                            <Nav.Link as={Link} to="/requerimientos" className={`nav-link ${isActive('/requerimientos') ? 'active' : ''}`} onClick={closeNav}>
-                                <span className="me-2">📋</span> Requerimientos
-                            </Nav.Link>
+                            <>
+                                <Nav.Link as={Link} to="/requerimientos" className={`nav-link ${isActive('/requerimientos') ? 'active' : ''}`} onClick={closeNav}>
+                                    <span className="me-2">📋</span> Requerimientos
+                                </Nav.Link>
+                            </>
                         )}
 
                         {canViewSolicitudes && (
@@ -156,6 +158,9 @@ const Navigation: React.FC = () => {
                                         </Nav.Link>
                                         <Nav.Link as={Link} to="/usuarios" className={`nav-link ${isActive('/usuarios') ? 'active' : ''}`} onClick={closeNav}>
                                             <span className="me-2">👤</span> Usuarios
+                                        </Nav.Link>
+                                        <Nav.Link as={Link} to="/presupuesto" className={`nav-link ${isActive('/presupuesto') ? 'active' : ''}`} onClick={closeNav}>
+                                            <span className="me-2">💰</span> Lista Insumos
                                         </Nav.Link>
                                     </>
                                 )}

@@ -305,3 +305,35 @@ export const deleteCategoria = async (id: string) => {
         .eq('id', id);
     if (error) throw error;
 };
+
+export const getBudgetedMaterials = async (frontId: string, specialtyId: string) => {
+    try {
+        // 1. Get FrontSpecialty ID
+        const { data: fsData, error: fsError } = await supabase
+            .from('front_specialties')
+            .select('id')
+            .eq('front_id', frontId)
+            .eq('specialty_id', specialtyId)
+            .single();
+
+        if (fsError || !fsData) {
+            console.warn("FrontSpecialty not found for", frontId, specialtyId);
+            return [];
+        }
+
+        // 2. Fetch materials in budget
+        const { data, error } = await supabase
+            .from('listinsumo_especialidad')
+            .select(`
+                *,
+                material:materiales(*)
+            `)
+            .eq('front_specialty_id', fsData.id);
+
+        if (error) throw error;
+        return data || [];
+    } catch (error) {
+        console.error("Error fetching budgeted materials:", error);
+        return [];
+    }
+};

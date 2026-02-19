@@ -88,8 +88,7 @@ const StockAlmacen: React.FC = () => {
                 if (!mat) return false;
                 matchesSearch =
                     mat.descripcion.toLowerCase().includes(term) ||
-                    mat.categoria.toLowerCase().includes(term) ||
-                    (mat.frente?.nombre_frente || '').toLowerCase().includes(term);
+                    mat.categoria.toLowerCase().includes(term);
                 itemCategory = mat.categoria;
             } else if (item.type === 'EQUIPO') {
                 const eq = (item.data as any).equipo;
@@ -183,7 +182,7 @@ const StockAlmacen: React.FC = () => {
                                 if (item.type === 'MATERIAL') {
                                     const d = item.data as Inventario;
                                     typeLabel = 'Material';
-                                    col2 = d.material?.frente?.nombre_frente || '-';
+                                    col2 = '-';
                                     description = d.material?.descripcion || '';
                                     category = d.material?.categoria || '';
                                     unit = d.material?.unidad || '';

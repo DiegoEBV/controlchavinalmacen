@@ -6,7 +6,7 @@ export const getInventario = async (obraId?: string) => {
         .from('inventario_obra')
         .select(`
             *,
-            material:materiales(*, frente:frentes(nombre_frente)),
+            material:materiales(*),
             equipo:equipos(*),
             epp:epps_c(*)
         `)
@@ -30,7 +30,7 @@ export const getInventarioById = async (id: string) => {
         .from('inventario_obra')
         .select(`
             *,
-            material:materiales(*, frente:frentes(nombre_frente))
+            material:materiales(*)
         `)
         .eq('id', id)
         .single();
@@ -146,10 +146,10 @@ export const getMovimientoById = async (id: string) => {
     const { data, error } = await supabase
         .from('movimientos_almacen')
         .select(`
-             *,
-             material:materiales(descripcion, categoria, unidad),
-             requerimiento:requerimientos(item_correlativo)
-         `)
+            *,
+            material:materiales(descripcion, categoria, unidad),
+            requerimiento:requerimientos(item_correlativo)
+        `)
         .eq('id', id)
         .single();
 
