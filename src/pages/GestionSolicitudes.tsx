@@ -64,7 +64,7 @@ const GestionSolicitudes: React.FC = () => {
 
     const loadData = async () => {
         const [reqs, scs, mats, movs, ocs] = await Promise.all([
-            getRequerimientos(),
+            getRequerimientos(undefined, true), // Excluir servicios
             getSolicitudesCompra(),
             getMateriales(),
             getMovimientos(),

@@ -23,6 +23,7 @@ import StockAlmacen from './pages/StockAlmacen';
 import GestionCategorias from './pages/GestionCategorias';
 import GestionUsuarios from './pages/GestionUsuarios';
 import GestionSolicitudes from './pages/GestionSolicitudes';
+import GestionServicios from './pages/GestionServicios';
 import GestionOrdenes from './pages/GestionOrdenes';
 import ReporteMateriales from './pages/ReporteMateriales';
 import EstadisticasMateriales from './pages/EstadisticasMateriales';
@@ -98,6 +99,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
 
                                 <Route element={<ProtectedRoute allowedRoles={['coordinador']} />}>
                                     <Route path="/solicitudes" element={<GestionSolicitudes />} />
+                                    <Route path="/servicios" element={<GestionServicios />} />
                                 </Route>
 
                                 <Route element={<ProtectedRoute allowedRoles={['logistica']} />}>

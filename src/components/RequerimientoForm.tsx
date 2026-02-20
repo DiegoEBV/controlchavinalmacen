@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Button, Form, Table, Row, Col, InputGroup, Spinner, Dropdown } from 'react-bootstrap';
+import { Modal, Button, Form, Table, Row, Col, InputGroup, Spinner, Dropdown, Tooltip, OverlayTrigger, Badge } from 'react-bootstrap';
 import SearchableSelect from './SearchableSelect';
 import { Requerimiento, DetalleRequerimiento, Obra, Material, Equipo, EppC } from '../types';
 import { getSolicitantes, getCategorias, getBudgetedMaterials } from '../services/requerimientosService';
@@ -62,7 +62,9 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
         material_categoria: 'General',
         descripcion: '',
         unidad: 'und',
-        cantidad_solicitada: 0
+        cantidad_solicitada: 0,
+        material_id: undefined,
+        listinsumo_id: undefined
     });
 
     const [selectedMaterialId, setSelectedMaterialId] = useState('');
@@ -175,6 +177,17 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
                         setSelectedSpecialtyId(initialData.specialty_id);
                     }
                 }
+
+                // Reset newItem to default when opening to edit
+                setNewItem({
+                    tipo: 'Material',
+                    material_categoria: 'General',
+                    descripcion: '',
+                    unidad: 'und',
+                    cantidad_solicitada: 0,
+                    material_id: undefined,
+                    listinsumo_id: undefined
+                });
             } else {
                 setObraId(selectedObra?.id || '');
                 setFrenteId('');
@@ -192,7 +205,9 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
                     material_categoria: 'General',
                     descripcion: '',
                     unidad: 'und',
-                    cantidad_solicitada: 0
+                    cantidad_solicitada: 0,
+                    material_id: undefined,
+                    listinsumo_id: undefined
                 });
             }
         }
@@ -276,6 +291,10 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
                     descripcion: d.descripcion,
                     unidad: d.unidad,
                     cantidad_solicitada: d.cantidad_solicitada, // Mantener cantidad original pero editable
+                    material_id: d.material_id,
+                    listinsumo_id: d.listinsumo_id,
+                    equipo_id: d.equipo_id,
+                    epp_id: d.epp_id,
                     // Reiniciar estados de atención
                     cantidad_atendida: 0,
                     estado: 'Pendiente' as const
@@ -358,7 +377,11 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
             material_categoria: prev.tipo === 'Material' ? 'General' : '',
             descripcion: '',
             unidad: 'und',
-            cantidad_solicitada: 0
+            cantidad_solicitada: 0,
+            equipo_id: undefined,
+            epp_id: undefined,
+            material_id: undefined,
+            listinsumo_id: undefined
         }));
         setSelectedMaterialId('');
     };
@@ -407,12 +430,15 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
         setSelectedMaterialId(id);
         const selectedMat = materialesList.find(m => m.id === id);
         if (selectedMat) {
+            const budgetItem = budgetItems.find(b => b.material_id === id);
             setNewItem(prev => ({
                 ...prev,
                 descripcion: selectedMat.descripcion,
                 // Si estamos en General, actualizamos a la categoría real del material para consistencia de datos y stock
                 material_categoria: selectedMat.categoria,
-                unidad: selectedMat.unidad
+                unidad: selectedMat.unidad,
+                material_id: id,
+                listinsumo_id: budgetItem ? budgetItem.id : undefined
             }));
         }
     };
@@ -489,7 +515,9 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
                                             material_categoria: newItem.tipo === 'Material' ? 'General' : '',
                                             descripcion: '',
                                             unidad: newItem.tipo === 'Equipo' ? 'und' : 'und',
-                                            cantidad_solicitada: 0
+                                            cantidad_solicitada: 0,
+                                            material_id: undefined,
+                                            listinsumo_id: undefined
                                         });
                                         setSelectedMaterialId('');
 
@@ -619,25 +647,40 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
                     <Row className="mb-3 g-2 bg-light p-2 rounded">
                         <Col md={2}>
                             <Form.Label>Tipo</Form.Label>
-                            <Form.Select
-                                value={newItem.tipo}
-                                onChange={e => {
-                                    const newType = e.target.value as any;
-                                    setNewItem({
-                                        ...newItem,
-                                        tipo: newType,
-                                        material_categoria: newType === 'Material' ? 'General' : '',
-                                        descripcion: '',
-                                        unidad: (newType === 'Equipo' || newType === 'EPP') ? 'und' : newItem.unidad // Reset unit
-                                    });
-                                    setSelectedMaterialId('');
-                                }}
+                            <OverlayTrigger
+                                placement="top"
+                                overlay={
+                                    <Tooltip id="tooltip-tipo">
+                                        No se pueden mezclar Servicios con Materiales, Equipos o EPPs en un mismo requerimiento.
+                                    </Tooltip>
+                                }
                             >
-                                <option value="Material">Material</option>
-                                <option value="Servicio">Servicio</option>
-                                <option value="Equipo">Equipo</option>
-                                <option value="EPP">EPP</option>
-                            </Form.Select>
+                                <div>
+                                    <Form.Select
+                                        value={newItem.tipo}
+                                        onChange={e => {
+                                            const newType = e.target.value as any;
+                                            setNewItem({
+                                                ...newItem,
+                                                tipo: newType,
+                                                material_categoria: newType === 'Material' ? 'General' : '',
+                                                descripcion: '',
+                                                unidad: (newType === 'Equipo' || newType === 'EPP') ? 'und' : newItem.unidad, // Reset unit
+                                                equipo_id: undefined,
+                                                epp_id: undefined,
+                                                material_id: undefined,
+                                                listinsumo_id: undefined
+                                            });
+                                            setSelectedMaterialId('');
+                                        }}
+                                    >
+                                        <option value="Material" disabled={items.some(i => i.tipo === 'Servicio')}>Material</option>
+                                        <option value="Servicio" disabled={items.some(i => i.tipo !== 'Servicio')}>Servicio</option>
+                                        <option value="Equipo" disabled={items.some(i => i.tipo === 'Servicio')}>Equipo</option>
+                                        <option value="EPP" disabled={items.some(i => i.tipo === 'Servicio')}>EPP</option>
+                                    </Form.Select>
+                                </div>
+                            </OverlayTrigger>
                         </Col>
                         <Col md={2}>
                             <Form.Label>Categoría</Form.Label>
@@ -773,7 +816,12 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
                             {items.map((it, idx) => (
                                 <tr key={idx}>
                                     <td>{it.tipo}</td>
-                                    <td>{it.descripcion}</td>
+                                    <td>
+                                        {it.descripcion}
+                                        {it.tipo === 'Material' && !it.listinsumo_id && (
+                                            <Badge bg="warning" text="dark" className="ms-2">Extra-presupuestal</Badge>
+                                        )}
+                                    </td>
                                     <td>{it.unidad}</td>
                                     <td style={{ width: '150px' }}>
                                         <Form.Control
