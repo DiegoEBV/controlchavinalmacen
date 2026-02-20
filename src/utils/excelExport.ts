@@ -198,7 +198,7 @@ export const exportRequerimiento = async (req: Requerimiento, customFormatUrl?: 
 
 const fillHeader = (sheet: ExcelJS.Worksheet, req: Requerimiento) => {
     // B10: Solicitante (Row 10, Col 2)
-    sheet.getCell(10, 2).value = req.solicitante || '';
+    sheet.getCell(10, 2).value = `${req.solicitante || ''} - ${req.especialidad || ''}`;
 
     // B6: Frente - Bloque (Row 6, Col 2)
     const frenteNombre = req.frente?.nombre_frente || '';

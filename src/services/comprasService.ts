@@ -9,7 +9,7 @@ export const getSolicitudesCompra = async (obraId?: string) => {
         .select(`
             *,
             requerimiento:requerimientos!inner(id, obra_id, item_correlativo, solicitante, bloque, frente:frentes(nombre_frente)),
-            detalles:detalles_sc(*, material:materiales(*))
+            detalles:detalles_sc(*, material:materiales(*), equipo:equipos(*), epp:epps_c(*))
         `)
         .order('created_at', { ascending: false });
 
@@ -32,7 +32,7 @@ export const getSolicitudCompraById = async (id: string) => {
         .select(`
              *,
              requerimiento:requerimientos!inner(id, obra_id, item_correlativo, solicitante, frente:frentes(*)),
-             detalles:detalles_sc(*, material:materiales(*))
+             detalles:detalles_sc(*, material:materiales(*), equipo:equipos(*), epp:epps_c(*))
          `)
         .eq('id', id)
         .single();
@@ -60,7 +60,9 @@ export const createSolicitudCompra = async (
     // 2. Crear Detalles
     const detalles = items.map(item => ({
         sc_id: sc.id,
-        material_id: item.material_id, // Debe asegurarse de mapear correctamente desde la UI
+        material_id: item.material_id,
+        equipo_id: item.equipo_id,
+        epp_id: item.epp_id,
         cantidad: item.cantidad,
         unidad: item.unidad,
         estado: 'Pendiente',

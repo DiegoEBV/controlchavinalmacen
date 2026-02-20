@@ -291,10 +291,17 @@ const GestionRequerimientos: React.FC = () => {
                                             {req.detalles?.map(d => {
                                                 // Encontrar ítem SC relacionado
                                                 const relatedSC = solicitudes.find(s => s.requerimiento_id === req.id);
-                                                const relatedSCItem = relatedSC?.detalles?.find(sd =>
-                                                    sd.material?.descripcion === d.descripcion &&
-                                                    sd.material?.categoria === d.material_categoria
-                                                );
+                                                const relatedSCItem = relatedSC?.detalles?.find(sd => {
+                                                    if (d.tipo === 'Material') {
+                                                        return sd.material?.descripcion === d.descripcion &&
+                                                            sd.material?.categoria === d.material_categoria;
+                                                    } else if (d.tipo === 'Equipo') {
+                                                        return sd.equipo_id === d.equipo_id;
+                                                    } else if (d.tipo === 'EPP') {
+                                                        return sd.epp_id === d.epp_id;
+                                                    }
+                                                    return false;
+                                                });
 
                                                 return (
                                                     <tr key={d.id}>

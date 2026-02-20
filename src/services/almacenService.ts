@@ -6,7 +6,9 @@ export const getInventario = async (obraId?: string) => {
         .from('inventario_obra')
         .select(`
             *,
-            material:materiales(*, frente:frentes(nombre_frente))
+            material:materiales(*),
+            equipo:equipos(*),
+            epp:epps_c(*)
         `)
         .order('id', { ascending: true });
 
@@ -28,7 +30,7 @@ export const getInventarioById = async (id: string) => {
         .from('inventario_obra')
         .select(`
             *,
-            material:materiales(*, frente:frentes(nombre_frente))
+            material:materiales(*)
         `)
         .eq('id', id)
         .single();
@@ -41,15 +43,18 @@ export const getInventarioById = async (id: string) => {
 };
 
 export const registrarEntrada = async (
-    materialId: string,
+    materialId: string | null,
     cantidad: number,
     reqId: string,
     detReqId: string,
     docRef: string,
-    obraId: string
+    obraId: string,
+    extra?: { equipoId?: string; eppId?: string }
 ) => {
     const { error } = await supabase.rpc('registrar_entrada_almacen', {
-        p_material_id: materialId,
+        p_material_id: materialId || null,
+        p_equipo_id: extra?.equipoId || null,
+        p_epp_id: extra?.eppId || null,
         p_cantidad: cantidad,
         p_req_id: reqId,
         p_det_req_id: detReqId,
@@ -60,20 +65,51 @@ export const registrarEntrada = async (
     if (error) throw error;
 };
 
+export const registrarEntradaMasiva = async (
+    items: any[],
+    docRef: string,
+    obraId: string
+) => {
+    const { data, error } = await supabase.rpc('registrar_entrada_masiva_v2', {
+        p_items: items,
+        p_doc_ref: docRef,
+        p_obra_id: obraId
+    });
+
+    if (error) throw error;
+    return data;
+};
+
 export const registrarSalida = async (
-    materialId: string,
+    tipoItem: 'MATERIAL' | 'EQUIPO' | 'EPP',
+    itemId: string,
     cantidad: number,
     destino: string,
     solicitante: string,
-    obraId: string
+    obraId: string,
+    extraData: {
+        terceroId?: string | null,
+        encargadoId?: string | null,
+        bloqueId?: string | null,
+        numeroVale?: string
+    }
 ) => {
-    const { error } = await supabase.rpc('registrar_salida_almacen', {
-        p_material_id: materialId,
+    // Mapear el ID al campo correcto según el tipo
+    const params = {
+        p_material_id: tipoItem === 'MATERIAL' ? itemId : null,
+        p_equipo_id: tipoItem === 'EQUIPO' ? itemId : null,
+        p_epp_id: tipoItem === 'EPP' ? itemId : null,
         p_cantidad: cantidad,
         p_destino: destino,
         p_solicitante: solicitante,
-        p_obra_id: obraId
-    });
+        p_obra_id: obraId,
+        p_tercero_id: extraData.terceroId || null,
+        p_encargado_id: extraData.encargadoId || null,
+        p_bloque_id: extraData.bloqueId || null,
+        p_numero_vale: extraData.numeroVale || null
+    };
+
+    const { error } = await supabase.rpc('registrar_salida_almacen', params);
 
     if (error) throw error;
 };
@@ -84,6 +120,8 @@ export const getMovimientos = async (obraId?: string) => {
         .select(`
             *,
             material:materiales(descripcion, categoria, unidad),
+            equipo:equipos(nombre, marca, codigo),
+            epp:epps_c(descripcion, codigo, unidad),
             requerimiento:requerimientos(item_correlativo)
         `)
         .order('created_at', { ascending: false })
@@ -108,10 +146,10 @@ export const getMovimientoById = async (id: string) => {
     const { data, error } = await supabase
         .from('movimientos_almacen')
         .select(`
-             *,
-             material:materiales(descripcion, categoria, unidad),
-             requerimiento:requerimientos(item_correlativo)
-         `)
+            *,
+            material:materiales(descripcion, categoria, unidad),
+            requerimiento:requerimientos(item_correlativo)
+        `)
         .eq('id', id)
         .single();
 

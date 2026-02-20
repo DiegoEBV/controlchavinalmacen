@@ -115,16 +115,18 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
         }
     };
 
-    // Helper to highlight text
     const getHighlightedText = (text: string, highlight: string) => {
-        const parts = text.split(new RegExp(`(${highlight})`, 'gi'));
+        if (!highlight) return <span>{text}</span>;
+        // Escape special regex characters to prevent "Invalid regular expression" errors
+        const escapedHighlight = highlight.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const parts = text.split(new RegExp(`(${escapedHighlight})`, 'gi'));
         return (
             <span>
                 {parts.map((part, i) =>
                     part.toLowerCase() === highlight.toLowerCase() ? (
                         <strong key={i}>{part}</strong>
                     ) : (
-                        part
+                        <span key={i}>{part}</span>
                     )
                 )}
             </span>
