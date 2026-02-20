@@ -216,7 +216,7 @@ const fillHeader = (sheet: ExcelJS.Worksheet, req: Requerimiento) => {
 
 const fillItems = (sheet: ExcelJS.Worksheet, items: any[], invMap: InventoryCache['items'], startIndex: number) => {
     const START_ROW = 17;
-    // B=2, C=3, D=4, E=5, G=7
+    // E=5, F=6, G=7, I=9
 
     items.forEach((item, index) => {
         const rowNum = START_ROW + index;
@@ -228,10 +228,10 @@ const fillItems = (sheet: ExcelJS.Worksheet, items: any[], invMap: InventoryCach
         // B: Descripción (Col 2)
         row.getCell(2).value = item.descripcion;
 
-        // C: Unidad (Col 3)
+        // E: Unidad (Col 3)
         row.getCell(3).value = item.unidad;
 
-        // D: Cantidad Solicitada (Col 4)
+        // F: Cantidad Solicitada (Col 4)
         row.getCell(4).value = Number(item.cantidad_solicitada);
 
         // Buscar datos de inventario
@@ -239,9 +239,9 @@ const fillItems = (sheet: ExcelJS.Worksheet, items: any[], invMap: InventoryCach
         const invData = invMap[key];
 
         if (invData) {
-            // E: Stock (Col 5)
+            // G: Stock (Col 5)
             row.getCell(5).value = invData.stock;
-            // G: Último Ingreso (Col 7)
+            // I: Último Ingreso (Col 7)
             row.getCell(7).value = invData.lastIngreso;
         } else {
             // Si no hay dato, dejar vacío o guión

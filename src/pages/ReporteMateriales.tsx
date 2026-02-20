@@ -3,12 +3,9 @@ import { Card, Form, Table, Button, Row, Col, Badge, Alert, Tab, Tabs } from 're
 import { getRequerimientos, getMateriales } from '../services/requerimientosService';
 import { getEquipos } from '../services/equiposService';
 import { getEpps } from '../services/eppsService';
+import { supabase } from '../config/supabaseClient';
 import { Requerimiento, Material, Equipo, EppC } from '../types';
 import { useAuth } from '../context/AuthContext';
-import type * as XLSX from 'xlsx';
-import type jsPDF from 'jspdf';
-// import autoTable from 'jspdf-autotable';
-// import { saveAs } from 'file-saver';
 
 // Clave de Almacenamiento Local
 const HISTORY_KEY = 'reporte_materiales_history';
@@ -21,8 +18,10 @@ interface ReportHistoryItem {
         tipo: string;
         categoria: string;
         materialId: string;
-        solicitante: string;
+        frente: string;
         especialidad: string;
+        bloque: string;
+        solicitante: string;
         estado: string;
         fechaInicio: string;
         fechaFin: string;
@@ -34,19 +33,22 @@ const ReporteMateriales: React.FC = () => {
     // Datos
     const [reqs, setReqs] = useState<Requerimiento[]>([]);
     const [materials, setMaterials] = useState<Material[]>([]);
-    const [equipos, setEquipos] = useState<Equipo[]>([]); // Nuevo
-    const [epps, setEpps] = useState<EppC[]>([]); // Nuevo
+    const [equipos, setEquipos] = useState<Equipo[]>([]);
+    const [epps, setEpps] = useState<EppC[]>([]);
     const [solicitantes, setSolicitantes] = useState<string[]>([]);
     const [categorias, setCategorias] = useState<string[]>([]);
-    const [especialidades, setEspecialidades] = useState<string[]>([]);
+    const [frentes, setFrentes] = useState<string[]>([]);
+    // Especialidades and Bloques are derived dynamically from `reqs` based on `frente`.
 
     // Filtros
     const [fechaInicio, setFechaInicio] = useState('');
     const [fechaFin, setFechaFin] = useState('');
-    const [tipo, setTipo] = useState(''); // Nuevo filtro Tipo
+    const [tipo, setTipo] = useState('');
     const [categoria, setCategoria] = useState('');
     const [materialId, setMaterialId] = useState('');
+    const [frente, setFrente] = useState('');
     const [especialidad, setEspecialidad] = useState('');
+    const [bloque, setBloque] = useState('');
 
     const [solicitante, setSolicitante] = useState('');
     const [estado, setEstado] = useState('');
@@ -55,6 +57,7 @@ const ReporteMateriales: React.FC = () => {
     const [reportData, setReportData] = useState<any[]>([]);
     const [summaryData, setSummaryData] = useState<any[]>([]);
     const [generated, setGenerated] = useState(false);
+    const [isGenerating, setIsGenerating] = useState(false);
 
     // Historial
     const [history, setHistory] = useState<ReportHistoryItem[]>([]);
@@ -98,9 +101,9 @@ const ReporteMateriales: React.FC = () => {
                 const uniqueSols = Array.from(new Set(filteredReqs.map((r: Requerimiento) => r.solicitante).filter(Boolean)));
                 setSolicitantes(uniqueSols as string[]);
 
-                // Extraer especialidades únicas
-                const uniqueEsps = Array.from(new Set(filteredReqs.map((r: Requerimiento) => r.especialidad).filter(Boolean)));
-                setEspecialidades(uniqueEsps as string[]);
+                // Extraer frentes únicos
+                const uniqueFrentes = Array.from(new Set(filteredReqs.map((r: Requerimiento) => r.frente?.nombre_frente).filter(Boolean)));
+                setFrentes(uniqueFrentes as string[]);
             }
 
             if (mData) {
@@ -137,7 +140,7 @@ const ReporteMateriales: React.FC = () => {
         const newItem: ReportHistoryItem = {
             id: crypto.randomUUID(),
             generatedAt: new Date().toISOString(),
-            filters: { tipo, categoria, materialId, solicitante, estado, fechaInicio, fechaFin, especialidad },
+            filters: { tipo, categoria, materialId, frente, especialidad, bloque, solicitante, estado, fechaInicio, fechaFin },
             resultCount: count
         };
         const newHistory = [newItem, ...history];
@@ -145,104 +148,152 @@ const ReporteMateriales: React.FC = () => {
         localStorage.setItem(HISTORY_KEY, JSON.stringify(newHistory));
     };
 
-    const handleGenerate = () => {
-        // Aplanar Requerimientos -> Detalles
-        let flattened: any[] = [];
+    const handleGenerate = async () => {
+        setIsGenerating(true);
+        try {
+            // Aplanar Requerimientos -> Detalles
+            let flattened: any[] = [];
 
-        reqs.forEach(r => {
-            // Filtro de Fecha
-            if (fechaInicio && new Date(r.fecha_solicitud) < new Date(fechaInicio)) return;
-            if (fechaFin && new Date(r.fecha_solicitud) > new Date(fechaFin)) return;
-            // Filtro de Solicitante
-            if (solicitante && r.solicitante !== solicitante) return;
-            // Filtro de Especialidad
-            if (especialidad && r.especialidad !== especialidad) return;
+            // Para optimizar DB calls, recogemos todos los (frente_id, specialty_id, material_id) necesarios antes.
+            // En el nuevo modelo, los materiales se ligan al presupuesto (listinsumo_especialidad)
+            // que depende del frente y la especialidad.
+            const budgetCache = new Map<string, number>();
 
-            r.detalles?.forEach(d => {
-                // Filtro de Estado
-                if (estado && d.estado !== estado) return;
+            // Extraemos los requerimientos y armamos los parámetros de búsqueda de presupuestos
+            for (const r of reqs) {
+                if (fechaInicio && new Date(r.fecha_solicitud) < new Date(fechaInicio)) continue;
+                if (fechaFin && new Date(r.fecha_solicitud) > new Date(fechaFin)) continue;
+                if (solicitante && r.solicitante !== solicitante) continue;
+                if (frente && r.frente?.nombre_frente !== frente) continue;
+                if (especialidad && r.especialidad !== especialidad) continue;
+                if (bloque && !r.bloque?.split(',').map((b: string) => b.trim()).includes(bloque)) continue;
 
-                // Filtro de Tipo
-                if (tipo && d.tipo !== tipo) return;
+                if (!r.detalles) continue;
 
-                // Información Adicional basada en el tipo (para stock max y otros datos)
-                let itemStockMax = 0;
-                let itemMatch = false;
+                for (const d of r.detalles) {
+                    if (estado && d.estado !== estado) continue;
+                    if (tipo && d.tipo !== tipo) continue;
 
-                if (d.tipo === 'Material') {
-                    // Lógica existente para Materiales
-                    if (categoria && d.material_categoria !== categoria) return;
+                    let itemMatch = false;
 
-                    const matInfo = materials.find(m => m.descripcion === d.descripcion && m.categoria === d.material_categoria);
-                    itemStockMax = matInfo?.stock_maximo || 0;
-
-                    if (materialId) {
-                        // Coincidencia por ID si existe en detalle (idealmente) o por matching
-                        if (matInfo?.id === materialId) itemMatch = true;
-                    } else {
-                        itemMatch = true;
+                    // Matchers
+                    if (d.tipo === 'Material') {
+                        if (categoria && d.material_categoria !== categoria) continue;
+                        if (materialId) {
+                            if (d.material_id === materialId) itemMatch = true;
+                            else continue; // optimization
+                        } else {
+                            itemMatch = true;
+                        }
+                    } else if (d.tipo === 'Equipo') {
+                        if (materialId) {
+                            if (d.equipo_id === materialId) itemMatch = true;
+                        } else itemMatch = true;
+                    } else if (d.tipo === 'EPP') {
+                        if (materialId) {
+                            if (d.epp_id === materialId) itemMatch = true;
+                        } else itemMatch = true;
+                    } else if (d.tipo === 'Servicio') {
+                        if (materialId) {
+                            if (d.descripcion === materialId) itemMatch = true;
+                        } else itemMatch = true;
                     }
-                } else if (d.tipo === 'Equipo') {
-                    if (materialId) {
-                        if (d.equipo_id === materialId) itemMatch = true;
-                    } else {
-                        itemMatch = true;
+
+                    if (!itemMatch) continue;
+
+                    let itemStockMax = 0;
+
+                    // Si se seleccionó Material, necesitamos consultar `listinsumo_especialidad` para saber
+                    // el presupuesto máximo de *este* material en *esta* especialidad y frente.
+                    if (d.tipo === 'Material' && d.material_id && r.frente_id && r.specialty_id) {
+                        const cacheKey = `${r.frente_id}_${r.specialty_id}_${d.material_id}`;
+                        if (budgetCache.has(cacheKey)) {
+                            itemStockMax = budgetCache.get(cacheKey) || 0;
+                        } else {
+                            // Buscar en base de datos el presupuesto límite
+                            const { data: fsData } = await supabase
+                                .from('front_specialties')
+                                .select('id')
+                                .eq('front_id', r.frente_id)
+                                .eq('specialty_id', r.specialty_id)
+                                .single();
+
+                            if (fsData) {
+                                const { data: listData } = await supabase
+                                    .from('listinsumo_especialidad')
+                                    .select('cantidad_presupuestada')
+                                    .eq('front_specialty_id', fsData.id)
+                                    .eq('material_id', d.material_id)
+                                    .single();
+
+                                itemStockMax = listData?.cantidad_presupuestada || 0;
+                            }
+                            budgetCache.set(cacheKey, itemStockMax);
+                        }
                     }
-                } else if (d.tipo === 'EPP') {
-                    if (materialId) {
-                        if (d.epp_id === materialId) itemMatch = true;
-                    } else {
-                        itemMatch = true;
-                    }
-                } else if (d.tipo === 'Servicio') {
-                    // Servicios no tienen ID catálogo usualmente, usamos descripción
-                    if (materialId) {
-                        if (d.descripcion === materialId) itemMatch = true; // Usaremos descripción como ID para servicios
-                    } else {
-                        itemMatch = true;
-                    }
+
+                    flattened.push({
+                        fecha: r.fecha_solicitud,
+                        solicitante: r.solicitante,
+                        req_numero: r.item_correlativo,
+                        especialidad: r.especialidad,
+                        frente: r.frente?.nombre_frente || '-',
+                        material: d.descripcion,
+                        categoria: d.material_categoria || d.tipo, // Usar Tipo si no hay categoría
+                        unidad: d.unidad,
+                        cant_solicitada: d.cantidad_solicitada,
+                        cant_atendida: d.cantidad_atendida,
+                        stock_max: itemStockMax, // Representa "Cantidad Presupuestada" ahora
+                        estado: d.estado
+                    });
                 }
-
-                if (!itemMatch) return;
-
-                flattened.push({
-                    fecha: r.fecha_solicitud,
-                    solicitante: r.solicitante,
-                    req_numero: r.item_correlativo,
-                    especialidad: r.especialidad,
-                    material: d.descripcion,
-                    categoria: d.material_categoria || d.tipo, // Usar Tipo si no hay categoría
-                    unidad: d.unidad,
-                    cant_solicitada: d.cantidad_solicitada,
-                    cant_atendida: d.cantidad_atendida,
-                    stock_max: itemStockMax,
-                    estado: d.estado
-                });
-            });
-        });
-
-        // Agrupación de Resumen
-        const summaryMap = new Map<string, any>();
-        flattened.forEach(item => {
-            const key = item.material + '|' + item.categoria;
-            if (!summaryMap.has(key)) {
-                summaryMap.set(key, {
-                    material: item.material,
-                    categoria: item.categoria,
-                    total_atendida: 0,
-                    stock_max: item.stock_max
-                });
             }
-            const current = summaryMap.get(key);
-            current.total_atendida += item.cant_atendida;
-        });
 
-        const summaryList = Array.from(summaryMap.values());
+            // Agrupación de Resumen
+            const summaryMap = new Map<string, any>();
+            flattened.forEach(item => {
+                // Para el resumen, en lugar de sumar en global ciegamente, sumamos por frente/especialidad/material...
+                // Pero un resumen simplificado podría ser agrupando por material/categoría sumando el cant atendida 
+                // vs el stock max global (o promedio/suma de los max).
+                // Dado que ahora el "stock_max" depende del frente/especialidad, sumar los maximos por material 
+                // globalmente podría dar repetidos. Para simplificar mantendremos la suma de totales atendidos.
+                const key = item.material + '|' + item.categoria;
+                if (!summaryMap.has(key)) {
+                    summaryMap.set(key, {
+                        material: item.material,
+                        categoria: item.categoria,
+                        total_atendida: 0,
+                        // Stock max para resumen global: es engañoso ahora. Tomaremos el máximo individual 
+                        // encontrado, O idealmente, sumaríamos el listinsumo de todos los frentes.
+                        // Mantendremos un tracking de los presupuestos únicos agregados.
+                        unique_budgets: new Set<string>(),
+                        stock_max: 0
+                    });
+                }
+                const current = summaryMap.get(key);
+                current.total_atendida += item.cant_atendida;
 
-        setReportData(flattened);
-        setSummaryData(summaryList);
-        setGenerated(true);
-        saveToHistory(flattened.length);
+                // Hack para sumar presupuestos únicos en el resumen si aplica.
+                const budgetId = `${item.frente}_${item.especialidad}`;
+                if (!current.unique_budgets.has(budgetId)) {
+                    current.unique_budgets.add(budgetId);
+                    current.stock_max += item.stock_max;
+                }
+            });
+
+            const summaryList = Array.from(summaryMap.values());
+
+            setReportData(flattened);
+            setSummaryData(summaryList);
+            setGenerated(true);
+            saveToHistory(flattened.length);
+
+        } catch (error) {
+            console.error("Error generating report", error);
+            alert("Error al generar reporte: " + (error as any).message);
+        } finally {
+            setIsGenerating(false);
+        }
     };
 
     const handleClear = () => {
@@ -251,9 +302,10 @@ const ReporteMateriales: React.FC = () => {
         setCategoria('');
         setTipo('');
         setMaterialId('');
-        setSolicitante('');
-        setEstado('');
+        setFrente('');
         setEspecialidad('');
+        setBloque('');
+        setSolicitante('');
         setReportData([]);
         setSummaryData([]);
         setGenerated(false);
@@ -273,7 +325,12 @@ const ReporteMateriales: React.FC = () => {
             XLSX.utils.book_append_sheet(wb, wsDetalle, "Detalle");
 
             // Hoja 2: Resumen
-            const wsResumen = XLSX.utils.json_to_sheet(summaryData);
+            const wsResumen = XLSX.utils.json_to_sheet(summaryData.map(s => ({
+                Material: s.material,
+                Categoría: s.categoria,
+                "Total Atendido": s.total_atendida,
+                "Presupuesto Consolidado": s.stock_max
+            })));
             XLSX.utils.book_append_sheet(wb, wsResumen, "Resumen");
 
             const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
@@ -296,15 +353,15 @@ const ReporteMateriales: React.FC = () => {
 
             const doc = new jsPDF();
 
-            doc.text("Reporte de Materiales", 14, 15);
+            doc.text("Reporte de Trumbull | Materiales", 14, 15);
             doc.setFontSize(10);
             doc.text(`Generado: ${new Date().toLocaleString()}`, 14, 22);
 
             // Tabla de Resumen
-            doc.text("Resumen de Atención vs Stock Máximo", 14, 30);
+            doc.text("Resumen de Atención vs Presupuesto Consolidado", 14, 30);
             autoTable(doc, {
                 startY: 35,
-                head: [['Material', 'Categoría', 'Total Atendido', 'Stock Máx']],
+                head: [['Material', 'Categoría', 'Atendido', 'Presupuestado']],
                 body: summaryData.map(s => [s.material, s.categoria, s.total_atendida, s.stock_max]),
             });
 
@@ -314,16 +371,18 @@ const ReporteMateriales: React.FC = () => {
 
             autoTable(doc, {
                 startY: finalY + 15,
-                head: [['Fecha', 'Solicitante', 'Especialidad', 'Material', 'Solicitada', 'Atendida', 'Estado']],
+                head: [['Fecha', 'Solic', 'Frente/Esp.', 'Req#', 'Material', 'Soli', 'Aten', 'Est']],
                 body: reportData.map(r => [
                     r.fecha ? new Date(r.fecha).toISOString().split('T')[0] : '-',
-                    r.solicitante,
-                    r.especialidad || '-',
-                    r.material,
-                    Number(r.cant_solicitada).toFixed(2),
-                    Number(r.cant_atendida).toFixed(2),
+                    r.solicitante.substring(0, 10), // Truncate to fit PDF
+                    `${r.frente}/${r.especialidad}`,
+                    r.req_numero,
+                    r.material.substring(0, 15),
+                    Number(r.cant_solicitada).toFixed(1),
+                    Number(r.cant_atendida).toFixed(1),
                     r.estado
                 ]),
+                styles: { fontSize: 7 } // Smaller font strictly for PDF Details
             });
 
             doc.save(`Reporte_Materiales_${new Date().toISOString().split('T')[0]}.pdf`);
@@ -333,10 +392,24 @@ const ReporteMateriales: React.FC = () => {
         }
     };
 
+    const availableEspecialidades = frente
+        ? Array.from(new Set(reqs.filter(r => r.frente?.nombre_frente === frente).map(r => r.especialidad).filter(Boolean)))
+        : Array.from(new Set(reqs.map(r => r.especialidad).filter(Boolean)));
+
+    const extractUniqueBloques = (reqsList: Requerimiento[]) => {
+        const allBloquesStr = reqsList.map(r => r.bloque).filter(Boolean) as string[];
+        const splitBloques = allBloquesStr.flatMap(bStr => bStr.split(',').map(b => b.trim()).filter(Boolean));
+        return Array.from(new Set(splitBloques));
+    };
+
+    const availableBloques = frente
+        ? extractUniqueBloques(reqs.filter(r => r.frente?.nombre_frente === frente))
+        : extractUniqueBloques(reqs);
+
     return (
         <div className="fade-in container-fluid">
             <div className="page-header d-flex flex-column flex-md-row justify-content-between align-items-center mb-4 gap-2">
-                <h2 className="mb-0 text-center text-md-start">Generador de Reportes de Materiales</h2>
+                <h2 className="mb-0 text-center text-md-start">Generador de Reportes de Materiales/Insumos</h2>
                 <div className="d-flex gap-2">
                     {generated && (
                         <>
@@ -372,6 +445,32 @@ const ReporteMateriales: React.FC = () => {
                                 <option value="Servicio">Servicio</option>
                             </Form.Select>
                         </Col>
+                        <Col xs={12} sm={6} md={3}>
+                            <Form.Label>Frente</Form.Label>
+                            <Form.Select value={frente} onChange={e => {
+                                setFrente(e.target.value);
+                                setEspecialidad(''); // Reset descendent filter
+                                setBloque(''); // Reset descendent filter
+                            }}>
+                                <option value="">Todos</option>
+                                {frentes.map(f => <option key={f} value={f}>{f}</option>)}
+                            </Form.Select>
+                        </Col>
+
+                        <Col xs={12} sm={6} md={3}>
+                            <Form.Label>Especialidad</Form.Label>
+                            <Form.Select value={especialidad} onChange={e => setEspecialidad(e.target.value)}>
+                                <option value="">Todas</option>
+                                {availableEspecialidades.map(e => <option key={e as string} value={e as string}>{e as string}</option>)}
+                            </Form.Select>
+                        </Col>
+                        <Col xs={12} sm={6} md={3}>
+                            <Form.Label>Bloque</Form.Label>
+                            <Form.Select value={bloque} onChange={e => setBloque(e.target.value)}>
+                                <option value="">Todos</option>
+                                {availableBloques.map(b => <option key={b as string} value={b as string}>{b as string}</option>)}
+                            </Form.Select>
+                        </Col>
                         {tipo === 'Material' && (
                             <Col xs={12} sm={6} md={3}>
                                 <Form.Label>Categoría</Form.Label>
@@ -381,13 +480,6 @@ const ReporteMateriales: React.FC = () => {
                                 </Form.Select>
                             </Col>
                         )}
-                        <Col xs={12} sm={6} md={3}>
-                            <Form.Label>Especialidad</Form.Label>
-                            <Form.Select value={especialidad} onChange={e => setEspecialidad(e.target.value)}>
-                                <option value="">Todas</option>
-                                {especialidades.map(e => <option key={e} value={e}>{e}</option>)}
-                            </Form.Select>
-                        </Col>
                         <Col xs={12} sm={6} md={3}>
                             <Form.Label>{tipo === 'Equipo' ? 'Equipo' : tipo === 'EPP' ? 'EPP' : tipo === 'Servicio' ? 'Servicio' : 'Material'}</Form.Label>
                             <Form.Select value={materialId} onChange={e => setMaterialId(e.target.value)}>
@@ -435,9 +527,11 @@ const ReporteMateriales: React.FC = () => {
                                 <option value="Cancelado">Cancelado</option>
                             </Form.Select>
                         </Col>
-                        <Col xs={12} md={3} className="d-flex align-items-end mt-3 mt-md-0">
-                            <Button variant="primary" className="w-100 me-2" onClick={handleGenerate}>Generar Reporte</Button>
-                            <Button variant="secondary" onClick={handleClear}>Limpiar</Button>
+                        <Col xs={12} md={6} className="d-flex align-items-end mt-3 mt-md-0">
+                            <Button variant="primary" className="w-100 me-2" onClick={handleGenerate} disabled={isGenerating}>
+                                {isGenerating ? 'Generando...' : 'Generar Reporte'}
+                            </Button>
+                            <Button variant="secondary" className="w-50" onClick={handleClear} disabled={isGenerating}>Limpiar</Button>
                         </Col>
                     </Row>
                 </Card.Body>
@@ -447,15 +541,15 @@ const ReporteMateriales: React.FC = () => {
                 <Tab eventKey="reporte" title="Reporte Actual">
                     {generated ? (
                         <>
-                            <h5 className="text-secondary mt-4">Cuadro Resumen (Atendido vs Stock Máx)</h5>
+                            <h5 className="text-secondary mt-4">Cuadro Resumen (Atendido vs Presupuestado)</h5>
                             <Card className="custom-card mb-4">
                                 <Table responsive hover>
                                     <thead>
                                         <tr>
-                                            <th>Material</th>
+                                            <th>Material/Insumo</th>
                                             <th>Categoría</th>
-                                            <th>Total Atendido</th>
-                                            <th>Stock Máximo Configurado</th>
+                                            <th className="text-center">Total Atendido</th>
+                                            <th className="text-center">Presupuesto<br /><small>(Suma de Frentes Aplicados)</small></th>
                                             <th>Estado</th>
                                         </tr>
                                     </thead>
@@ -464,16 +558,18 @@ const ReporteMateriales: React.FC = () => {
                                             <tr key={idx}>
                                                 <td className="fw-bold">{s.material}</td>
                                                 <td>{s.categoria}</td>
-                                                <td className="text-center">{Number(s.total_atendida).toFixed(2)}</td>
-                                                <td className="text-center">{Number(s.stock_max).toFixed(2)}</td>
+                                                <td className="text-center fw-bold text-primary">{Number(s.total_atendida).toFixed(2)}</td>
+                                                <td className="text-center">{s.stock_max > 0 ? Number(s.stock_max).toFixed(2) : '-'}</td>
                                                 <td>
-                                                    {s.total_atendida > s.stock_max ?
-                                                        <Badge bg="warning" text="dark">Sobrepasa Stock Máx</Badge> :
-                                                        <Badge bg="success">Dentro de Límites</Badge>
+                                                    {s.stock_max > 0 && s.total_atendida > s.stock_max ?
+                                                        <Badge bg="warning" text="dark">Sobrepasa Presupuesto</Badge> :
+                                                        s.stock_max > 0 ? <Badge bg="success">Dentro de Presupuesto</Badge> :
+                                                            <Badge bg="secondary">No Definido</Badge>
                                                     }
                                                 </td>
                                             </tr>
                                         ))}
+                                        {summaryData.length === 0 && <tr><td colSpan={5} className="text-center">No hay resumen que mostrar.</td></tr>}
                                     </tbody>
                                 </Table>
                             </Card>
@@ -485,11 +581,12 @@ const ReporteMateriales: React.FC = () => {
                                         <tr>
                                             <th>Fecha</th>
                                             <th>Solicitante</th>
-                                            <th>Especialidad</th>
+                                            <th>Frente/Especialidad</th>
                                             <th>Req #</th>
-                                            <th>Material</th>
+                                            <th>Material/Insumo</th>
                                             <th>Cant. Solicitada</th>
                                             <th>Cant. Atendida</th>
+                                            <th>Presupuesto (Límite Individual)</th>
                                             <th>Estado</th>
                                         </tr>
                                     </thead>
@@ -498,15 +595,16 @@ const ReporteMateriales: React.FC = () => {
                                             <tr key={idx}>
                                                 <td>{r.fecha ? new Date(r.fecha).toISOString().split('T')[0] : '-'}</td>
                                                 <td>{r.solicitante}</td>
-                                                <td>{r.especialidad || '-'}</td>
+                                                <td>{r.frente} / {r.especialidad || '-'}</td>
                                                 <td>{r.req_numero}</td>
                                                 <td>{r.material}</td>
                                                 <td>{Number(r.cant_solicitada).toFixed(2)}</td>
                                                 <td className="fw-bold text-primary">{Number(r.cant_atendida).toFixed(2)}</td>
+                                                <td>{r.stock_max > 0 ? Number(r.stock_max).toFixed(2) : '-'}</td>
                                                 <td><Badge bg="secondary">{r.estado}</Badge></td>
                                             </tr>
                                         ))}
-                                        {reportData.length === 0 && <tr><td colSpan={8} className="text-center">No se encontraron datos.</td></tr>}
+                                        {reportData.length === 0 && <tr><td colSpan={9} className="text-center">No se encontraron datos.</td></tr>}
                                     </tbody>
                                 </Table>
                             </Card>
@@ -535,8 +633,11 @@ const ReporteMateriales: React.FC = () => {
                                             <small>
                                                 {h.filters.tipo ? `Tipo: ${h.filters.tipo}, ` : ''}
                                                 {h.filters.categoria ? `Cat: ${h.filters.categoria}, ` : ''}
+                                                {h.filters.frente ? `Fte: ${h.filters.frente}, ` : ''}
                                                 {h.filters.especialidad ? `Esp: ${h.filters.especialidad}, ` : ''}
+                                                {h.filters.bloque ? `Blq: ${h.filters.bloque}, ` : ''}
                                                 {h.filters.solicitante ? `Sol: ${h.filters.solicitante}, ` : ''}
+
                                                 {h.filters.estado ? `Est: ${h.filters.estado}, ` : ''}
                                                 {h.filters.fechaInicio ? `Desde: ${h.filters.fechaInicio} ` : ''}
                                             </small>

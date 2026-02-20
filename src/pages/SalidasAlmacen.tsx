@@ -136,7 +136,7 @@ const SalidasAlmacen: React.FC = () => {
                 .from('movimientos_almacen')
                 .select(`
                     *,
-                    material:materiales(descripcion, unidad, frente:frentes(nombre_frente), categoria),
+                    material:materiales(descripcion, unidad, categoria),
                     equipo:equipos(nombre, marca, codigo),
                     epp:epps_c(descripcion, codigo, unidad),
                     tercero:terceros(nombre_completo),

@@ -20,6 +20,8 @@ export interface DetalleRequerimiento {
     descripcion: string;
     unidad: string;
     cantidad_solicitada: number;
+    material_id?: string;
+    listinsumo_id?: string;
     equipo_id?: string; // Nuevo campo referencial
     equipo?: Equipo; // Unión
     epp_id?: string;
