@@ -98,9 +98,14 @@ const Navigation: React.FC = () => {
                         )}
 
                         {canViewSolicitudes && (
-                            <Nav.Link as={Link} to="/solicitudes" className={`nav-link ${isActive('/solicitudes') ? 'active' : ''}`} onClick={closeNav}>
-                                <span className="me-2">📑</span> Solicitudes Compra
-                            </Nav.Link>
+                            <>
+                                <Nav.Link as={Link} to="/solicitudes" className={`nav-link ${isActive('/solicitudes') ? 'active' : ''}`} onClick={closeNav}>
+                                    <span className="me-2">📑</span> Solicitudes Compra
+                                </Nav.Link>
+                                <Nav.Link as={Link} to="/servicios" className={`nav-link ${isActive('/servicios') ? 'active' : ''}`} onClick={closeNav}>
+                                    <span className="me-2">🛠️</span> Servicios
+                                </Nav.Link>
+                            </>
                         )}
 
                         {canViewOrdenes && (

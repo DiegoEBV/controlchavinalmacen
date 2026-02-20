@@ -1,13 +1,13 @@
 import { supabase } from '../config/supabaseClient';
 import { Requerimiento, DetalleRequerimiento } from '../types';
 
-export const getRequerimientos = async (obraId?: string) => {
+export const getRequerimientos = async (obraId?: string, excludeServices: boolean = false) => {
     try {
         let query = supabase
             .from('requerimientos')
             .select(`
                 *,
-                detalles:detalles_requerimiento(*, epp:epps_c(*), equipo:equipos(*)),
+                detalles:detalles_requerimiento${excludeServices ? '!inner' : ''}(*, epp:epps_c(*), equipo:equipos(*)),
                 frente:frentes(*),
                 specialty:specialties(*)
             `)
@@ -15,6 +15,11 @@ export const getRequerimientos = async (obraId?: string) => {
 
         if (obraId) {
             query = query.eq('obra_id', obraId);
+        }
+
+        if (excludeServices) {
+            // Only fetch requirements that have at least one detail that is NOT a 'Servicio'
+            query = query.neq('detalles.tipo', 'Servicio');
         }
 
         const { data, error } = await query;
@@ -54,13 +59,14 @@ export const createRequerimiento = async (
 ): Promise<{ data: any; error: any }> => {
     // Función auxiliar para intentar la creación via RPC
     const attemptCreate = async () => {
-        // Mapear los detalles para asegurar que coincidan con lo que espera JSONB
         const detallesPayload = detalles.map(d => ({
             tipo: d.tipo,
             material_categoria: d.material_categoria,
             descripcion: d.descripcion,
             unidad: d.unidad,
             cantidad_solicitada: d.cantidad_solicitada,
+            material_id: d.material_id || null, // New traceability field
+            listinsumo_id: d.listinsumo_id || null, // New traceability field
             equipo_id: d.equipo_id || null, // Asegurar envío de IDs
             epp_id: d.epp_id || null
         }));
@@ -335,5 +341,32 @@ export const getBudgetedMaterials = async (frontId: string, specialtyId: string)
     } catch (error) {
         console.error("Error fetching budgeted materials:", error);
         return [];
+    }
+};
+
+export const getRequerimientosServicios = async (obraId?: string) => {
+    try {
+        let query = supabase
+            .from('requerimientos')
+            .select(`
+                *,
+                detalles:detalles_requerimiento!inner(*, epp:epps_c(*), equipo:equipos(*)),
+                frente:frentes(*),
+                specialty:specialties(*)
+            `)
+            .eq('detalles.tipo', 'Servicio')
+            .order('created_at', { ascending: false });
+
+        if (obraId) {
+            query = query.eq('obra_id', obraId);
+        }
+
+        const { data, error } = await query;
+
+        if (error) throw error;
+        return { data: data as Requerimiento[], error: null };
+    } catch (error: any) {
+        console.error('Error fetching requerimientos de servicios:', error);
+        return { data: null, error: error.message };
     }
 };

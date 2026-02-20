@@ -1,0 +1,210 @@
+-- 1. Modificar tabla detalles_requerimiento
+ALTER TABLE public.detalles_requerimiento 
+ADD COLUMN IF NOT EXISTS material_id uuid REFERENCES public.materiales(id) ON DELETE SET NULL,
+ADD COLUMN IF NOT EXISTS listinsumo_id uuid REFERENCES public.listinsumo_especialidad(id) ON DELETE SET NULL;
+
+-- 2. Trigger para uso de presupuesto
+CREATE OR REPLACE FUNCTION public.update_material_budget_usage()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_listinsumo_id UUID;
+BEGIN
+    -- Obtenemos el listinsumo_id desde el detalle del requerimiento
+    SELECT listinsumo_id INTO v_listinsumo_id
+    FROM public.detalles_requerimiento
+    WHERE id = NEW.detalle_requerimiento_id;
+
+    -- Solo actualizamos si el material estaba vinculado a una línea de presupuesto (listinsumo_id IS NOT NULL)
+    IF v_listinsumo_id IS NOT NULL THEN
+        IF (TG_OP = 'INSERT') THEN
+            UPDATE public.listinsumo_especialidad
+            SET cantidad_utilizada = cantidad_utilizada + NEW.cantidad
+            WHERE id = v_listinsumo_id;
+        ELSIF (TG_OP = 'DELETE') THEN
+            UPDATE public.listinsumo_especialidad
+            SET cantidad_utilizada = cantidad_utilizada - OLD.cantidad
+            WHERE id = v_listinsumo_id;
+        END IF;
+    END IF;
+    
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 3. Actualizar función RPC para Crear Requerimiento, incluyendo todos los IDs (material_id, listinsumo_id, equipo_id, epp_id)
+CREATE OR REPLACE FUNCTION crear_requerimiento_completo(
+    p_cabecera JSONB,
+    p_detalles JSONB
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_req_id UUID;
+    v_correlativo INT;
+    v_item JSONB;
+BEGIN
+    -- 1. Calcular Correlativo para la Obra
+    SELECT COALESCE(MAX(item_correlativo), 0) + 1 
+    INTO v_correlativo 
+    FROM requerimientos 
+    WHERE obra_id = (p_cabecera->>'obra_id')::UUID;
+
+    -- 2. Insertar Cabecera
+    INSERT INTO requerimientos (
+        obra_id,
+        frente_id,
+        bloque,
+        especialidad,
+        specialty_id,
+        solicitante,
+        fecha_solicitud,
+        item_correlativo
+    ) VALUES (
+        (p_cabecera->>'obra_id')::UUID,
+        (p_cabecera->>'frente_id')::UUID,
+        p_cabecera->>'bloque',
+        p_cabecera->>'especialidad',
+        (p_cabecera->>'specialty_id')::UUID,
+        p_cabecera->>'solicitante',
+        (p_cabecera->>'fecha_solicitud')::DATE,
+        v_correlativo
+    ) RETURNING id INTO v_req_id;
+
+    -- 3. Insertar Detalles
+    FOR v_item IN SELECT * FROM jsonb_array_elements(p_detalles)
+    LOOP
+        INSERT INTO detalles_requerimiento (
+            requerimiento_id,
+            tipo,
+            material_categoria,
+            descripcion,
+            unidad,
+            cantidad_solicitada,
+            cantidad_atendida,
+            estado,
+            material_id,
+            listinsumo_id,
+            equipo_id,
+            epp_id
+        ) VALUES (
+            v_req_id,
+            v_item->>'tipo',
+            v_item->>'material_categoria',
+            v_item->>'descripcion',
+            v_item->>'unidad',
+            (v_item->>'cantidad_solicitada')::NUMERIC,
+            0, -- Inicializar atendida
+            'Pendiente', -- Inicializar estado
+            NULLIF(v_item->>'material_id', '')::UUID,
+            NULLIF(v_item->>'listinsumo_id', '')::UUID,
+            NULLIF(v_item->>'equipo_id', '')::UUID,
+            NULLIF(v_item->>'epp_id', '')::UUID
+        );
+    END LOOP;
+
+    RETURN jsonb_build_object('id', v_req_id, 'correlativo', v_correlativo);
+END;
+$$;
+
+
+-- 4. Actualizar función RPC para Actualizar Requerimiento, incluyendo todos los IDs
+CREATE OR REPLACE FUNCTION actualizar_requerimiento_completo(
+    p_req_id UUID,
+    p_cabecera JSONB,
+    p_detalles JSONB
+)
+RETURNS VOID
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_item JSONB;
+    v_current_ids UUID[];
+    v_new_ids UUID[];
+BEGIN
+    -- 1. VALIDACIÓN: Verificar si ya existe una Solicitud de Compra (SC)
+    IF EXISTS (SELECT 1 FROM solicitudes_compra WHERE requerimiento_id = p_req_id) THEN
+        RAISE EXCEPTION 'No se puede editar un requerimiento que ya tiene una Solicitud de Compra generada.';
+    END IF;
+
+    -- 2. ACTUALIZAR CABECERA
+    UPDATE requerimientos
+    SET
+        frente_id = (p_cabecera->>'frente_id')::UUID,
+        bloque = p_cabecera->>'bloque',
+        especialidad = p_cabecera->>'especialidad',
+        specialty_id = (p_cabecera->>'specialty_id')::UUID,
+        solicitante = p_cabecera->>'solicitante'
+    WHERE id = p_req_id;
+
+    -- 3. GESTIÓN DE DETALLES (ÍTEMS)
+
+    -- Obtener IDs actuales en la base de datos para este requerimiento
+    SELECT ARRAY_AGG(id) INTO v_current_ids
+    FROM detalles_requerimiento
+    WHERE requerimiento_id = p_req_id;
+
+    -- Obtener IDs que vienen en el payload (solo los que no son null)
+    SELECT ARRAY_AGG((item->>'id')::UUID) INTO v_new_ids
+    FROM jsonb_array_elements(p_detalles) AS item
+    WHERE item->>'id' IS NOT NULL AND (item->>'id') != '';
+
+    -- 3.1. ELIMINAR Ítems que están en DB pero NO en el payload
+    IF v_current_ids IS NOT NULL THEN
+        DELETE FROM detalles_requerimiento
+        WHERE requerimiento_id = p_req_id
+        AND id = ANY(v_current_ids)
+        AND (v_new_ids IS NULL OR id != ALL(v_new_ids));
+    END IF;
+
+    -- 3.2. UPSERT (Insertar o Actualizar) Ítems
+    FOR v_item IN SELECT * FROM jsonb_array_elements(p_detalles)
+    LOOP
+        IF (v_item->>'id') IS NOT NULL AND (v_item->>'id') != '' THEN
+            -- UPDATE existente
+            UPDATE detalles_requerimiento
+            SET
+                tipo = v_item->>'tipo',
+                material_categoria = v_item->>'material_categoria',
+                descripcion = v_item->>'descripcion',
+                unidad = v_item->>'unidad',
+                cantidad_solicitada = (v_item->>'cantidad_solicitada')::NUMERIC,
+                material_id = NULLIF(v_item->>'material_id', '')::UUID,
+                listinsumo_id = NULLIF(v_item->>'listinsumo_id', '')::UUID,
+                equipo_id = NULLIF(v_item->>'equipo_id', '')::UUID,
+                epp_id = NULLIF(v_item->>'epp_id', '')::UUID
+            WHERE id = (v_item->>'id')::UUID;
+        ELSE
+            -- INSERT nuevo
+            INSERT INTO detalles_requerimiento (
+                requerimiento_id,
+                tipo,
+                material_categoria,
+                descripcion,
+                unidad,
+                cantidad_solicitada,
+                cantidad_atendida,
+                estado,
+                material_id,
+                listinsumo_id,
+                equipo_id,
+                epp_id
+            ) VALUES (
+                p_req_id,
+                v_item->>'tipo',
+                v_item->>'material_categoria',
+                v_item->>'descripcion',
+                v_item->>'unidad',
+                (v_item->>'cantidad_solicitada')::NUMERIC,
+                0, -- Inicializar atentida
+                'Pendiente', -- Inicializar estado
+                NULLIF(v_item->>'material_id', '')::UUID,
+                NULLIF(v_item->>'listinsumo_id', '')::UUID,
+                NULLIF(v_item->>'equipo_id', '')::UUID,
+                NULLIF(v_item->>'epp_id', '')::UUID
+            );
+        END IF;
+    END LOOP;
+
+END;
+$$;
