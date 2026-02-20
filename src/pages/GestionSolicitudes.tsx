@@ -87,24 +87,40 @@ const GestionSolicitudes: React.FC = () => {
     const handleOpenCreate = (req: Requerimiento) => {
         setSelectedReq(req);
 
-        // Auto-emparejar ítems con materiales
+        // Auto-emparejar ítems con catálogo
         const initialItems = req.detalles?.map(d => {
-            if (d.tipo !== 'Material') return null;
-
-            // Intentar encontrar ID de material
-            const mat = materiales.find(m =>
-                m.descripcion === d.descripcion &&
-                m.categoria === d.material_categoria
-            );
-
-            if (!mat) return null; // Omitir si no se encuentra en catálogo
-
-            return {
-                material_id: mat.id,
+            let item: any = {
                 descripcion: d.descripcion,
                 unidad: d.unidad,
                 cantidad: d.cantidad_solicitada - d.cantidad_atendida,
+                comentario: '',
+                material_id: null,
+                equipo_id: null,
+                epp_id: null
             };
+
+            if (d.tipo === 'Material') {
+                // Lógica legacy: Buscar por nombre/categoría
+                const mat = materiales.find(m =>
+                    m.descripcion === d.descripcion &&
+                    m.categoria === d.material_categoria
+                );
+                if (!mat) return null;
+                item.material_id = mat.id;
+                item.descripcion = mat.descripcion;
+            } else if (d.tipo === 'Equipo') {
+                if (!d.equipo_id) return null;
+                item.equipo_id = d.equipo_id;
+                item.descripcion = d.equipo?.nombre || d.descripcion;
+            } else if (d.tipo === 'EPP') {
+                if (!d.epp_id) return null;
+                item.epp_id = d.epp_id;
+                item.descripcion = d.epp?.descripcion || d.descripcion;
+            } else {
+                return null;
+            }
+
+            return item;
         }).filter(Boolean) || [];
 
         setItems(initialItems);
@@ -186,7 +202,11 @@ const GestionSolicitudes: React.FC = () => {
                                 const consumed = historial
                                     .filter(h =>
                                         String(h.requerimiento_id) === String(sc.requerimiento_id) &&
-                                        h.material_id === d.material_id &&
+                                        (
+                                            (d.material_id && h.material_id === d.material_id) ||
+                                            (d.equipo_id && h.equipo_id === d.equipo_id) ||
+                                            (d.epp_id && h.epp_id === d.epp_id)
+                                        ) &&
                                         new Date(h.created_at || h.fecha) >= new Date(sc.created_at)
                                     )
                                     .reduce((sum, h) => sum + h.cantidad, 0);
@@ -276,7 +296,9 @@ const GestionSolicitudes: React.FC = () => {
 
                                                     return (
                                                         <tr key={d.id}>
-                                                            <td>{d.material?.descripcion || 'Desconocido'}</td>
+                                                            <td>
+                                                                {d.material?.descripcion || d.equipo?.nombre || d.epp?.descripcion || 'Sin descripción'}
+                                                            </td>
                                                             <td><small className="text-muted">{d.comentario || '-'}</small></td>
                                                             <td className="text-muted small">{d.material?.categoria}</td>
                                                             <td className="fw-bold text-primary">{d.cantidad}</td>

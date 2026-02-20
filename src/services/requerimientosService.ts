@@ -7,8 +7,9 @@ export const getRequerimientos = async (obraId?: string) => {
             .from('requerimientos')
             .select(`
                 *,
-                detalles:detalles_requerimiento(*),
-                frente:frentes(*)
+                detalles:detalles_requerimiento(*, epp:epps_c(*), equipo:equipos(*)),
+                frente:frentes(*),
+                specialty:specialties(*)
             `)
             .order('created_at', { ascending: false });
 
@@ -32,8 +33,9 @@ export const getRequerimientoById = async (id: string) => {
             .from('requerimientos')
             .select(`
                  *,
-                 detalles:detalles_requerimiento(*),
-                 frente:frentes(*)
+                 detalles:detalles_requerimiento(*, epp:epps_c(*), equipo:equipos(*)),
+                 frente:frentes(*),
+                 specialty:specialties(*)
              `)
             .eq('id', id)
             .single();
@@ -58,7 +60,9 @@ export const createRequerimiento = async (
             material_categoria: d.material_categoria,
             descripcion: d.descripcion,
             unidad: d.unidad,
-            cantidad_solicitada: d.cantidad_solicitada
+            cantidad_solicitada: d.cantidad_solicitada,
+            equipo_id: d.equipo_id || null, // Asegurar envío de IDs
+            epp_id: d.epp_id || null
         }));
 
         const { data, error } = await supabase.rpc('crear_requerimiento_completo', {
@@ -300,4 +304,36 @@ export const deleteCategoria = async (id: string) => {
         .delete()
         .eq('id', id);
     if (error) throw error;
+};
+
+export const getBudgetedMaterials = async (frontId: string, specialtyId: string) => {
+    try {
+        // 1. Get FrontSpecialty ID
+        const { data: fsData, error: fsError } = await supabase
+            .from('front_specialties')
+            .select('id')
+            .eq('front_id', frontId)
+            .eq('specialty_id', specialtyId)
+            .single();
+
+        if (fsError || !fsData) {
+            console.warn("FrontSpecialty not found for", frontId, specialtyId);
+            return [];
+        }
+
+        // 2. Fetch materials in budget
+        const { data, error } = await supabase
+            .from('listinsumo_especialidad')
+            .select(`
+                *,
+                material:materiales(*)
+            `)
+            .eq('front_specialty_id', fsData.id);
+
+        if (error) throw error;
+        return data || [];
+    } catch (error) {
+        console.error("Error fetching budgeted materials:", error);
+        return [];
+    }
 };

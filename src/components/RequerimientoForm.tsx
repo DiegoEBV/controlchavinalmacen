@@ -1,11 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Button, Form, Table, Row, Col, InputGroup, Spinner } from 'react-bootstrap';
+import { Modal, Button, Form, Table, Row, Col, InputGroup, Spinner, Dropdown } from 'react-bootstrap';
 import SearchableSelect from './SearchableSelect';
-import { Requerimiento, DetalleRequerimiento, Obra, Material } from '../types';
-import { getMateriales, getSolicitantes, getCategorias } from '../services/requerimientosService';
+import { Requerimiento, DetalleRequerimiento, Obra, Material, Equipo, EppC } from '../types';
+import { getSolicitantes, getCategorias, getBudgetedMaterials } from '../services/requerimientosService';
+import { getEquipos } from '../services/equiposService';
+import { getBloques } from '../services/frentesService';
 import { getInventario } from '../services/almacenService';
-import { supabase } from '../config/supabaseClient';
+import { getEpps } from '../services/eppsService';
+
+
 import { useAuth } from '../context/AuthContext';
+import { supabase } from '../config/supabaseClient';
+import { getFrontSpecialties } from '../services/specialtiesService';
+import { Specialty, ListInsumoEspecialidad } from '../types';
 
 interface RequerimientoFormProps {
     show: boolean;
@@ -30,10 +37,21 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
 
     // Fuentes de Datos
     const [materialesList, setMaterialesList] = useState<Material[]>([]);
+    const [equiposList, setEquiposList] = useState<Equipo[]>([]);
+    const [eppsList, setEppsList] = useState<EppC[]>([]);
     const [frentesList, setFrentesList] = useState<any[]>([]); // Frentes de la obra seleccionada
+    const [bloquesList, setBloquesList] = useState<any[]>([]);
+    const [selectedBloques, setSelectedBloques] = useState<string[]>([]);
     const [solicitantesList, setSolicitantesList] = useState<any[]>([]);
+
     const [categoriasList, setCategoriasList] = useState<any[]>([]);
     const [stockMap, setStockMap] = useState<Record<string, number>>({});
+    const [budgetItems, setBudgetItems] = useState<ListInsumoEspecialidad[]>([]);
+
+
+    // Especialidades (Cascada)
+    const [specialtiesList, setSpecialtiesList] = useState<Specialty[]>([]);
+    const [selectedSpecialtyId, setSelectedSpecialtyId] = useState('');
 
     // Ítems
     const [items, setItems] = useState<Partial<DetalleRequerimiento>[]>([]);
@@ -41,13 +59,28 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
     // Nuevo Ítem
     const [newItem, setNewItem] = useState<Partial<DetalleRequerimiento>>({
         tipo: 'Material',
-        material_categoria: '',
+        material_categoria: 'General',
         descripcion: '',
         unidad: 'und',
         cantidad_solicitada: 0
     });
 
     const [selectedMaterialId, setSelectedMaterialId] = useState('');
+
+    // Optimization: Filter materials with useMemo
+    // Filtrar materiales basados en categoría seleccionada (ya vienen filtrados por frente/especialidad de la DB)
+    const filteredMaterials = React.useMemo(() => {
+        return materialesList.filter(m => {
+            const matchesCategory = newItem.material_categoria === 'General' || m.categoria === newItem.material_categoria;
+            return matchesCategory;
+        });
+    }, [materialesList, newItem.material_categoria]);
+
+    // Derived: Available categories based on filtered materials (ignoring current category selection)
+    const availableCategories = React.useMemo(() => {
+        const cats = new Set(materialesList.map(m => m.categoria));
+        return categoriasList.filter((c: any) => cats.has(c.nombre));
+    }, [materialesList, categoriasList]);
 
     useEffect(() => {
         loadCatalogs();
@@ -56,36 +89,64 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
     useEffect(() => {
         if (obraId) {
             loadFrentes(obraId);
+            loadEquipos(obraId);
+            loadInventory(obraId);
         } else {
             setFrentesList([]);
+            setEquiposList([]);
+            setBloquesList([]);
+            setStockMap({}); // Reset stock map
             setFrenteId('');
+            setBloque('');
+            setSelectedBloques([]);
         }
     }, [obraId]);
 
     const loadCatalogs = async () => {
-        const [mats, sols, cats, inv] = await Promise.all([
-            getMateriales(),
+        const [sols, cats, epps] = await Promise.all([
+            // getMateriales(), // No cargar materiales al inicio, se cargan por especialidad
             getSolicitantes(),
             getCategorias(),
-            getInventario()
+            getEpps()
         ]);
 
-        if (mats) setMaterialesList(mats);
+        // if (mats) setMaterialesList(mats);
         if (sols) setSolicitantesList(sols);
         if (cats) setCategoriasList(cats);
-
-        if (inv) {
-            const map: Record<string, number> = {};
-            inv.forEach(i => {
-                map[i.material_id] = i.cantidad_actual;
-            });
-            setStockMap(map);
-        }
+        if (epps) setEppsList(epps);
     };
 
     const loadFrentes = async (oid: string) => {
         const { data } = await supabase.from('frentes').select('*').eq('obra_id', oid).order('nombre_frente');
         if (data) setFrentesList(data);
+    };
+
+    const loadBloques = async (fid: string) => {
+        if (!fid) {
+            setBloquesList([]);
+            return;
+        }
+        const data = await getBloques(fid);
+        setBloquesList(data || []);
+    };
+
+    const loadEquipos = async (oid: string) => {
+        const data = await getEquipos(oid);
+        if (data) setEquiposList(data);
+    };
+
+    const loadInventory = async (oid: string) => {
+        const inv = await getInventario(oid);
+        if (inv) {
+            const map: Record<string, number> = {};
+            inv.forEach((i: any) => {
+                // Map stock for all types
+                if (i.material_id) map[i.material_id] = i.cantidad_actual;
+                if (i.equipo_id) map[i.equipo_id] = i.cantidad_actual;
+                if (i.epp_id) map[i.epp_id] = i.cantidad_actual;
+            });
+            setStockMap(map);
+        }
     };
 
     useEffect(() => {
@@ -97,16 +158,64 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
                 setEspecialidad(initialData.especialidad);
                 setSolicitante(initialData.solicitante);
                 setItems(initialData.detalles || []);
+
+                // Parsear bloques si existen
+                if (initialData.frente_id) {
+                    loadBloques(initialData.frente_id);
+                }
+
+                if (initialData.bloque) {
+                    const blqs = initialData.bloque.split(',').map(s => s.trim());
+                    setSelectedBloques(blqs);
+                }
+
+                if (initialData.frente_id) {
+                    getFrontSpecialties(initialData.frente_id).then(setSpecialtiesList);
+                    if (initialData.specialty_id) {
+                        setSelectedSpecialtyId(initialData.specialty_id);
+                    }
+                }
             } else {
                 setObraId(selectedObra?.id || '');
                 setFrenteId('');
+
                 setBloque('');
+                setBloquesList([]);
+                setSelectedBloques([]);
+
                 setEspecialidad('');
                 setSolicitante(profile?.nombre || '');
                 setItems([]);
+                // Reset newItem to default when opening fresh
+                setNewItem({
+                    tipo: 'Material',
+                    material_categoria: 'General',
+                    descripcion: '',
+                    unidad: 'und',
+                    cantidad_solicitada: 0
+                });
             }
         }
     }, [show, initialData, selectedObra]);
+
+    // Load Budgeted Materials when Frente + Specialty changes
+    useEffect(() => {
+        if (frenteId && selectedSpecialtyId) {
+            setMaterialesList([]); // Clear previous
+            setBudgetItems([]);
+            getBudgetedMaterials(frenteId, selectedSpecialtyId).then((data: any[]) => {
+                const items = data || [];
+                setBudgetItems(items as ListInsumoEspecialidad[]);
+                // Extract unique materials
+                const mats = items.map((i: any) => i.material).filter(Boolean);
+                const uniqueMats = Array.from(new Map(mats.map((m: any) => [m.id, m])).values());
+                setMaterialesList(uniqueMats as Material[]);
+            });
+        } else {
+            setMaterialesList([]);
+            setBudgetItems([]);
+        }
+    }, [frenteId, selectedSpecialtyId]);
 
     const handleLoadTemplate = async () => {
         if (!obraId) {
@@ -161,7 +270,7 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
                 console.error("Error fetching template details:", detError);
                 alert("Error al cargar detalles de la plantilla.");
             } else if (detallesData) {
-                const newItems = detallesData.map(d => ({
+                const newItems = detallesData.map((d: any) => ({
                     tipo: d.tipo,
                     material_categoria: d.material_categoria,
                     descripcion: d.descripcion,
@@ -186,9 +295,67 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
             alert("Complete descripción y cantidad > 0");
             return;
         }
-        setItems([...items, { ...newItem }]);
+
+        // Budget Validation (Non-blocking)
+        if (newItem.tipo === 'Material' && selectedMaterialId) {
+            const budgetItem = budgetItems.find(b => b.material_id === selectedMaterialId);
+            if (budgetItem) {
+                const currentUsage = budgetItem.cantidad_utilizada || 0;
+                const budgetLimit = budgetItem.cantidad_presupuestada || 0;
+
+                // Calculate pending in form (excluding current item if updating)
+                const pendingInForm = items.reduce((sum, i) => {
+                    if (i.tipo === 'Material' && i.descripcion === newItem.descripcion) return sum + (i.cantidad_solicitada || 0);
+                    return sum;
+                }, 0);
+
+                const projectedUsage = currentUsage + pendingInForm + (newItem.cantidad_solicitada || 0);
+
+                if (projectedUsage > budgetLimit) {
+                    const over = projectedUsage - budgetLimit;
+                    // ALERT if exceeded, but allow to proceed if confirmed
+                    if (!confirm(`⚠️ PRECAUCIÓN: Estás excediendo el presupuesto.\n\nPresupuesto: ${budgetLimit}\nUtilizado + Pendiente: ${projectedUsage}\nExceso: ${over.toFixed(2)}\n\n¿Deseas agregar el ítem de todos modos?`)) {
+                        return;
+                    }
+                } else {
+                    // Alert if getting close (>= 90%)
+                    const percent = budgetLimit > 0 ? (projectedUsage / budgetLimit) * 100 : 0;
+                    if (percent >= 90) {
+                        alert(`⚠️ ATENCIÓN: Con este pedido llegarás al ${percent.toFixed(1)}% del presupuesto.`);
+                    }
+                }
+            } else {
+                // Material without budget logic... (keep as is or warn?)
+                if (!confirm("Este material NO tiene presupuesto asignado en este frente/especialidad.\n¿Deseas agregarlo de todos modos?")) {
+                    return;
+                }
+            }
+        }
+
+        // Verificar si ya existe
+        const existingIndex = items.findIndex(i =>
+            i.tipo === newItem.tipo &&
+            i.descripcion === newItem.descripcion &&
+            i.material_categoria === newItem.material_categoria
+        );
+
+        if (existingIndex >= 0) {
+            // Actualizar cantidad
+            const updatedItems = [...items];
+            const currentQty = updatedItems[existingIndex].cantidad_solicitada || 0;
+            updatedItems[existingIndex] = {
+                ...updatedItems[existingIndex],
+                cantidad_solicitada: currentQty + (newItem.cantidad_solicitada || 0)
+            };
+            setItems(updatedItems);
+        } else {
+            // Agregar nuevo
+            setItems([...items, { ...newItem }]);
+        }
+
         setNewItem(prev => ({
             ...prev,
+            material_categoria: prev.tipo === 'Material' ? 'General' : '',
             descripcion: '',
             unidad: 'und',
             cantidad_solicitada: 0
@@ -218,6 +385,7 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
             frente_id: frenteId,
             bloque,
             especialidad,
+            specialty_id: selectedSpecialtyId || null,
             solicitante,
             fecha_solicitud: new Date().toISOString().split('T')[0]
         };
@@ -232,10 +400,7 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
     };
 
     // Filtrar materiales basados en categoría seleccionada Y frente seleccionado
-    const filteredMaterials = materialesList.filter(m =>
-        (newItem.material_categoria === 'General' || m.categoria === newItem.material_categoria) &&
-        m.frente_id === frenteId
-    );
+
 
     // Manejar selección de material para auto-rellenar unidad
     const handleMaterialSelect = (id: string) => {
@@ -252,6 +417,31 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
         }
     };
 
+    const handleEppSelect = (id: string) => {
+        const selectedEpp = eppsList.find(e => e.id === id);
+        if (selectedEpp) {
+            setNewItem(prev => ({
+                ...prev,
+                descripcion: selectedEpp.descripcion,
+                unidad: selectedEpp.unidad,
+                epp_id: selectedEpp.id,
+                // Si es EPP, no usamos Categoria por ahora o podríamos mapearlo
+            }));
+        }
+    };
+
+    const handleEquipoSelect = (id: string) => {
+        const selectedEq = equiposList.find(e => e.id === id);
+        if (selectedEq) {
+            setNewItem(prev => ({
+                ...prev,
+                descripcion: `${selectedEq.nombre} - ${selectedEq.marca}`,
+                unidad: 'und', // Default unit for equipment
+                equipo_id: selectedEq.id
+            }));
+        }
+    };
+
     return (
         <Modal show={show} onHide={handleClose} size="xl" backdrop="static">
             <Modal.Header closeButton>
@@ -264,7 +454,17 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
                         <Col md={3}>
                             <Form.Group>
                                 <Form.Label>Obra/Proyecto</Form.Label>
-                                <Form.Select value={obraId} onChange={e => setObraId(e.target.value)}>
+                                <Form.Select
+                                    value={obraId}
+                                    onChange={e => {
+                                        setObraId(e.target.value);
+                                        // Resetear frentes y bloques si cambia la obra
+                                        setFrenteId('');
+                                        setBloquesList([]);
+                                        setSelectedBloques([]);
+                                        setBloque('');
+                                    }}
+                                >
                                     <option value="">Seleccione...</option>
                                     {obras.map(o => <option key={o.id} value={o.id}>{o.nombre_obra}</option>)}
                                 </Form.Select>
@@ -277,11 +477,33 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
                                     value={frenteId}
                                     onChange={e => {
                                         setFrenteId(e.target.value);
+                                        loadBloques(e.target.value); // Cargar bloques
+                                        setBloquesList([]); // Limpiar previo
+                                        setSelectedBloques([]); // Limpiar selección
+                                        setBloque('');
+
                                         // Resetear item y selección de material al cambiar de frente
-                                        setNewItem({ ...newItem, material_categoria: '', descripcion: '', unidad: 'und', cantidad_solicitada: 0, tipo: newItem.tipo });
+                                        setNewItem({
+                                            ...newItem,
+                                            // Si es Material, mantener General. Si no, vacío.
+                                            material_categoria: newItem.tipo === 'Material' ? 'General' : '',
+                                            descripcion: '',
+                                            unidad: newItem.tipo === 'Equipo' ? 'und' : 'und',
+                                            cantidad_solicitada: 0
+                                        });
                                         setSelectedMaterialId('');
+
+                                        // Reset Specialty
+                                        setSpecialtiesList([]);
+                                        setSelectedSpecialtyId('');
+                                        setEspecialidad('');
+
+                                        // Load Specialties for new Frente
+                                        if (e.target.value) {
+                                            getFrontSpecialties(e.target.value).then(setSpecialtiesList);
+                                        }
                                     }}
-                                    disabled={!obraId}
+                                    disabled={!obraId || !!initialData}
                                 >
                                     <option value="">Seleccione...</option>
                                     {frentesList.map(f => <option key={f.id} value={f.id}>{f.nombre_frente}</option>)}
@@ -291,20 +513,67 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
                         <Col md={2}>
                             <Form.Group>
                                 <Form.Label>Bloque</Form.Label>
-                                <Form.Control value={bloque} onChange={e => setBloque(e.target.value)} placeholder="Ej. Torre A" />
+                                <Dropdown autoClose="outside">
+                                    <Dropdown.Toggle
+                                        variant=""
+                                        className="form-select text-start d-flex align-items-center justify-content-between text-truncate"
+                                        style={{ height: 'auto' }} // Ensure height adjusts if necessary
+                                    >
+                                        <span className="text-truncate" style={{ maxWidth: '90%' }}>
+                                            {selectedBloques.length > 0 ? selectedBloques.join(', ') : 'Seleccione...'}
+                                        </span>
+                                    </Dropdown.Toggle>
+
+                                    <Dropdown.Menu className="w-100 p-2" style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                                        {bloquesList.length > 0 ? (
+                                            bloquesList.map(b => (
+                                                <Form.Check
+                                                    key={b.id}
+                                                    type="checkbox"
+                                                    id={`bloque-${b.id}`}
+                                                    label={b.nombre_bloque}
+                                                    checked={selectedBloques.includes(b.nombre_bloque)}
+                                                    onChange={() => {
+                                                        const nombre = b.nombre_bloque;
+                                                        const newSelection = selectedBloques.includes(nombre)
+                                                            ? selectedBloques.filter(s => s !== nombre)
+                                                            : [...selectedBloques, nombre];
+                                                        setSelectedBloques(newSelection);
+                                                        setBloque(newSelection.join(', '));
+                                                    }}
+                                                    className="mb-2"
+                                                />
+                                            ))
+                                        ) : (
+                                            <div className="text-muted small text-center">No hay bloques registrados en este frente.</div>
+                                        )}
+                                        {/* Opción de "Otro" para escribir manual si fuera necesario, 
+                                            pero por ahora restringimos a la lista para forzar uso de Gestion de Frentes */}
+                                    </Dropdown.Menu>
+                                </Dropdown>
                             </Form.Group>
                         </Col>
                         <Col md={2}>
                             <Form.Group>
                                 <Form.Label>Especialidad</Form.Label>
-                                <Form.Select value={especialidad} onChange={e => setEspecialidad(e.target.value)}>
+                                <Form.Select
+                                    value={selectedSpecialtyId}
+                                    onChange={e => {
+                                        const id = e.target.value;
+                                        setSelectedSpecialtyId(id);
+                                        const spec = specialtiesList.find(s => s.id === id);
+                                        setEspecialidad(spec ? spec.name : '');
+
+                                        // Reset material selection logic when specialty changes
+                                        setNewItem(prev => ({ ...prev, material_categoria: 'General', descripcion: '' }));
+                                        setSelectedMaterialId('');
+                                    }}
+                                    disabled={!frenteId || !!initialData}
+                                >
                                     <option value="">Seleccione...</option>
-                                    <option value="Arquitectura">Arquitectura</option>
-                                    <option value="Estructura">Estructura</option>
-                                    <option value="IISS">IISS</option>
-                                    <option value="IIEE">IIEE</option>
-                                    <option value="Comunicaciones">Comunicaciones</option>
-                                    <option value="Mecanicas">Mecanicas</option>
+                                    {specialtiesList.map(s => (
+                                        <option key={s.id} value={s.id}>{s.name}</option>
+                                    ))}
                                 </Form.Select>
                             </Form.Group>
                         </Col>
@@ -350,10 +619,24 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
                     <Row className="mb-3 g-2 bg-light p-2 rounded">
                         <Col md={2}>
                             <Form.Label>Tipo</Form.Label>
-                            <Form.Select value={newItem.tipo} onChange={e => setNewItem({ ...newItem, tipo: e.target.value as any })}>
+                            <Form.Select
+                                value={newItem.tipo}
+                                onChange={e => {
+                                    const newType = e.target.value as any;
+                                    setNewItem({
+                                        ...newItem,
+                                        tipo: newType,
+                                        material_categoria: newType === 'Material' ? 'General' : '',
+                                        descripcion: '',
+                                        unidad: (newType === 'Equipo' || newType === 'EPP') ? 'und' : newItem.unidad // Reset unit
+                                    });
+                                    setSelectedMaterialId('');
+                                }}
+                            >
                                 <option value="Material">Material</option>
                                 <option value="Servicio">Servicio</option>
                                 <option value="Equipo">Equipo</option>
+                                <option value="EPP">EPP</option>
                             </Form.Select>
                         </Col>
                         <Col md={2}>
@@ -364,32 +647,58 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
                                     setNewItem({ ...newItem, material_categoria: e.target.value, descripcion: '' });
                                     setSelectedMaterialId('');
                                 }}
+                                disabled={newItem.tipo !== 'Material'}
                             >
                                 <option value="">Seleccione...</option>
                                 <option value="General">General</option>
-                                {categoriasList.map(c => <option key={c.id} value={c.nombre}>{c.nombre}</option>)}
+
+                                {availableCategories.map((c: any) => <option key={c.id} value={c.nombre}>{c.nombre}</option>)}
                             </Form.Select>
                         </Col>
                         <Col md={4}>
                             <Form.Label>Descripción *</Form.Label>
                             {/* Si se selecciona categoría, mostrar dropdown de materiales. Si no, mostrar input de texto (o select vacío) */}
-                            {newItem.material_categoria && newItem.tipo === 'Material' ? (
+                            {newItem.tipo === 'Material' && newItem.material_categoria ? (
                                 <SearchableSelect
-                                    options={filteredMaterials.map(m => ({
-                                        value: m.id,
-                                        label: m.descripcion,
-                                        info: m.informacion_adicional
-                                    }))}
+                                    options={filteredMaterials.map(m => {
+                                        const budgetItem = budgetItems.find(b => b.material_id === m.id);
+                                        const saldo = budgetItem ? budgetItem.cantidad_presupuestada - budgetItem.cantidad_utilizada : 0;
+                                        return {
+                                            value: m.id,
+                                            label: `${m.descripcion} (Saldo: ${saldo.toFixed(2)})`,
+                                            info: m.informacion_adicional
+                                        };
+                                    })}
                                     value={selectedMaterialId}
                                     onChange={(val) => handleMaterialSelect(val as string)}
-                                    disabled={!frenteId}
-                                    placeholder={frenteId ? 'Seleccione Material...' : 'Seleccione Frente Primero'}
+                                    disabled={!frenteId || !selectedSpecialtyId}
+                                    placeholder={(!frenteId || !selectedSpecialtyId) ? 'Seleccione Especialidad Primero' : 'Seleccione Material...'}
+                                />
+                            ) : newItem.tipo === 'Equipo' ? (
+                                <SearchableSelect
+                                    options={equiposList.map(e => ({
+                                        value: e.id,
+                                        label: `${e.nombre} - ${e.marca} (${e.codigo || 'S/C'})`
+                                    }))}
+                                    value={newItem.equipo_id || ''}
+                                    onChange={(val) => handleEquipoSelect(val as string)}
+                                    placeholder="Buscar Equipo..."
+                                />
+                            ) : newItem.tipo === 'EPP' ? (
+                                <SearchableSelect
+                                    options={eppsList.map(e => ({
+                                        value: e.id,
+                                        label: `${e.descripcion} [${e.codigo || 'S/C'}]`
+                                    }))}
+                                    value={newItem.epp_id || ''}
+                                    onChange={(val) => handleEppSelect(val as string)}
+                                    placeholder="Buscar EPP..."
                                 />
                             ) : (
                                 <Form.Control
                                     value={newItem.descripcion}
                                     onChange={e => setNewItem({ ...newItem, descripcion: e.target.value })}
-                                    placeholder={newItem.tipo === 'Servicio' || newItem.tipo === 'Equipo' ? `Descripción del ${newItem.tipo.toLowerCase()}` : "Seleccione categoría primero"}
+                                    placeholder={newItem.tipo === 'Servicio' ? "Descripción del servicio" : "Seleccione categoría primero"}
                                 />
                             )}
                         </Col>
@@ -398,7 +707,7 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
                             <Form.Control
                                 value={newItem.unidad}
                                 onChange={e => setNewItem({ ...newItem, unidad: e.target.value })}
-                                readOnly={newItem.tipo === 'Material' && !!newItem.material_categoria} // Solo lectura si se auto-rellena del material
+                                readOnly={(newItem.tipo === 'Material' && !!newItem.material_categoria) || newItem.tipo === 'EPP'} // Solo lectura si se auto-rellena
                             />
                         </Col>
                         <Col md={2}>
@@ -408,16 +717,42 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
                                 <Form.Control type="number" value={newItem.cantidad_solicitada} onChange={e => setNewItem({ ...newItem, cantidad_solicitada: parseFloat(e.target.value) })} />
                                 <Button variant="success" className="ms-1" onClick={handleAddItem}>+</Button>
                             </div>
-                            {newItem.descripcion && newItem.tipo === 'Material' && (
+                            {newItem.descripcion && (
                                 <div className="mt-1">
                                     {(() => {
-                                        const selectedMat = materialesList.find(m => m.id === selectedMaterialId);
-                                        const stock = selectedMat ? (stockMap[selectedMat.id] || 0) : 0;
-                                        return (
-                                            <small className={stock > 0 ? "text-success fw-bold" : "text-danger fw-bold"}>
-                                                Stock: {stock} {newItem.unidad}
-                                            </small>
-                                        );
+                                        let stock = 0;
+                                        let showStock = false;
+                                        let unit = newItem.unidad;
+
+                                        if (newItem.tipo === 'Material' && selectedMaterialId) {
+                                            const selectedMat = materialesList.find(m => m.id === selectedMaterialId);
+                                            if (selectedMat) {
+                                                stock = stockMap[selectedMat.id] || 0;
+                                                showStock = true;
+                                            }
+                                        } else if (newItem.tipo === 'Equipo' && newItem.equipo_id) {
+                                            const selectedEq = equiposList.find(e => e.id === newItem.equipo_id);
+                                            if (selectedEq) {
+                                                stock = stockMap[selectedEq.id] || 0;
+                                                showStock = true;
+                                                // Ensure unit is correct if needed, but equipment is usually 'und'
+                                            }
+                                        } else if (newItem.tipo === 'EPP' && newItem.epp_id) {
+                                            const selectedEpp = eppsList.find(e => e.id === newItem.epp_id);
+                                            if (selectedEpp) {
+                                                stock = stockMap[selectedEpp.id] || 0;
+                                                showStock = true;
+                                            }
+                                        }
+
+                                        if (showStock) {
+                                            return (
+                                                <small className={stock > 0 ? "text-success fw-bold" : "text-danger fw-bold"}>
+                                                    Stock: {stock} {unit}
+                                                </small>
+                                            );
+                                        }
+                                        return null;
                                     })()}
                                 </div>
                             )}

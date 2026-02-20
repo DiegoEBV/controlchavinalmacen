@@ -275,40 +275,54 @@ const GestionObras = () => {
             {error && <Alert variant="danger">{error}</Alert>}
             {successMessage && <Alert variant="success">{successMessage}</Alert>}
 
-            <div className="table-responsive shadow-sm">
-                <Table hover className="align-middle bg-white">
+            <div className="table-responsive shadow-sm rounded-3 overflow-hidden">
+                <Table hover className="align-middle mb-0 bg-white">
                     <thead className="bg-light">
                         <tr>
-                            <th>Nombre de Obra</th>
-                            <th>Ubicación</th>
-                            <th>ID</th>
-                            <th>Acciones</th>
+                            <th className="py-3 ps-4 text-secondary text-uppercase x-small opacity-75 border-0">Nombre de Obra</th>
+                            <th className="py-3 text-secondary text-uppercase x-small opacity-75 border-0">Ubicación</th>
+                            <th className="py-3 text-secondary text-uppercase x-small opacity-75 border-0" style={{ width: '100px' }}>ID</th>
+                            <th className="py-3 pe-4 text-end text-secondary text-uppercase x-small opacity-75 border-0">Acciones</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody className="border-top-0">
                         {loading ? (
                             <tr>
-                                <td colSpan={4} className="text-center py-4">
-                                    <Spinner animation="border" size="sm" /> Cargando obras...
+                                <td colSpan={4} className="text-center py-5 text-muted">
+                                    <Spinner animation="border" size="sm" className="me-2" /> Cargando obras...
                                 </td>
                             </tr>
                         ) : obras.length === 0 ? (
                             <tr>
-                                <td colSpan={4} className="text-center py-4">No hay obras registradas.</td>
+                                <td colSpan={4} className="text-center py-5 text-muted">
+                                    <div className="mb-2">📭</div>
+                                    No hay obras registradas.
+                                </td>
                             </tr>
                         ) : (
                             obras.map((obra) => (
-                                <tr key={obra.id}>
-                                    <td className="fw-bold">{obra.nombre_obra}</td>
-                                    <td>{obra.ubicacion || '-'}</td>
-                                    <td className="text-muted small">{obra.id}</td>
-                                    <td>
+                                <tr key={obra.id} className="border-bottom">
+                                    <td className="ps-4 py-3 fw-bold text-dark">{obra.nombre_obra}</td>
+                                    <td className="py-3 text-muted small">
+                                        {obra.ubicacion ? (
+                                            <span className="d-inline-block text-truncate" style={{ maxWidth: '250px' }} title={obra.ubicacion}>
+                                                <i className="bi bi-geo-alt me-1"></i>{obra.ubicacion}
+                                            </span>
+                                        ) : '-'}
+                                    </td>
+                                    <td className="py-3">
+                                        <code className="text-muted bg-light px-2 py-1 rounded small" title={obra.id}>
+                                            {obra.id.substring(0, 8)}...
+                                        </code>
+                                    </td>
+                                    <td className="pe-4 py-3 text-end">
                                         <Button
                                             variant="outline-primary"
                                             size="sm"
                                             onClick={() => handleEditClick(obra)}
+                                            className="rounded-pill px-3 d-inline-flex align-items-center gap-2"
                                         >
-                                            <i className="bi bi-pencil"></i> Editar
+                                            <i className="bi bi-pencil-fill"></i> Editar
                                         </Button>
                                     </td>
                                 </tr>

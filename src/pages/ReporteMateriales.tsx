@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Form, Table, Button, Row, Col, Badge, Alert, Tab, Tabs } from 'react-bootstrap';
 import { getRequerimientos, getMateriales } from '../services/requerimientosService';
-import { Requerimiento, Material } from '../types';
+import { getEquipos } from '../services/equiposService';
+import { getEpps } from '../services/eppsService';
+import { Requerimiento, Material, Equipo, EppC } from '../types';
 import { useAuth } from '../context/AuthContext';
 import type * as XLSX from 'xlsx';
 import type jsPDF from 'jspdf';
@@ -16,6 +18,7 @@ interface ReportHistoryItem {
     id: string;
     generatedAt: string;
     filters: {
+        tipo: string;
         categoria: string;
         materialId: string;
         solicitante: string;
@@ -31,6 +34,8 @@ const ReporteMateriales: React.FC = () => {
     // Datos
     const [reqs, setReqs] = useState<Requerimiento[]>([]);
     const [materials, setMaterials] = useState<Material[]>([]);
+    const [equipos, setEquipos] = useState<Equipo[]>([]); // Nuevo
+    const [epps, setEpps] = useState<EppC[]>([]); // Nuevo
     const [solicitantes, setSolicitantes] = useState<string[]>([]);
     const [categorias, setCategorias] = useState<string[]>([]);
     const [especialidades, setEspecialidades] = useState<string[]>([]);
@@ -38,6 +43,7 @@ const ReporteMateriales: React.FC = () => {
     // Filtros
     const [fechaInicio, setFechaInicio] = useState('');
     const [fechaFin, setFechaFin] = useState('');
+    const [tipo, setTipo] = useState(''); // Nuevo filtro Tipo
     const [categoria, setCategoria] = useState('');
     const [materialId, setMaterialId] = useState('');
     const [especialidad, setEspecialidad] = useState('');
@@ -53,33 +59,47 @@ const ReporteMateriales: React.FC = () => {
     // Historial
     const [history, setHistory] = useState<ReportHistoryItem[]>([]);
 
-    const { selectedObra } = useAuth();
+    const { selectedObra, profile } = useAuth();
+
+    // Roles permitidos para ver todo
+    const isPrivileged = ['admin', 'coordinador', 'almacenero', 'logistica'].includes(profile?.role || '');
 
     useEffect(() => {
-        if (selectedObra) {
+        if (selectedObra && profile) {
             loadInitialData();
         } else {
             setReqs([]);
         }
         loadHistory();
-    }, [selectedObra]);
+    }, [selectedObra, profile]);
 
     const loadInitialData = async () => {
         if (!selectedObra) return;
         try {
-            const [rData, mData] = await Promise.all([
+            const [rData, mData, eData, eppData] = await Promise.all([
                 getRequerimientos(selectedObra.id),
-                getMateriales()
+                getMateriales(),
+                getEquipos(selectedObra.id),
+                getEpps()
             ]);
 
             if (rData.data) {
-                setReqs(rData.data);
+                let filteredReqs = rData.data;
+
+                // Filtrar si no es privilegiado
+                if (!isPrivileged && profile?.nombre) {
+                    filteredReqs = filteredReqs.filter((r: Requerimiento) => r.solicitante === profile.nombre);
+                    // Pre-seleccionar solicitante
+                    setSolicitante(profile.nombre);
+                }
+
+                setReqs(filteredReqs);
                 // Extraer solicitantes únicos
-                const uniqueSols = Array.from(new Set(rData.data.map((r: Requerimiento) => r.solicitante).filter(Boolean)));
+                const uniqueSols = Array.from(new Set(filteredReqs.map((r: Requerimiento) => r.solicitante).filter(Boolean)));
                 setSolicitantes(uniqueSols as string[]);
 
                 // Extraer especialidades únicas
-                const uniqueEsps = Array.from(new Set(rData.data.map((r: Requerimiento) => r.especialidad).filter(Boolean)));
+                const uniqueEsps = Array.from(new Set(filteredReqs.map((r: Requerimiento) => r.especialidad).filter(Boolean)));
                 setEspecialidades(uniqueEsps as string[]);
             }
 
@@ -88,6 +108,9 @@ const ReporteMateriales: React.FC = () => {
                 const uniqueCats = Array.from(new Set(mData.map((m: Material) => m.categoria).filter(Boolean)));
                 setCategorias(uniqueCats as string[]);
             }
+
+            if (eData) setEquipos(eData);
+            if (eppData) setEpps(eppData);
         } catch (error) {
             console.error("Error loading data", error);
         }
@@ -114,7 +137,7 @@ const ReporteMateriales: React.FC = () => {
         const newItem: ReportHistoryItem = {
             id: crypto.randomUUID(),
             generatedAt: new Date().toISOString(),
-            filters: { categoria, materialId, solicitante, estado, fechaInicio, fechaFin, especialidad },
+            filters: { tipo, categoria, materialId, solicitante, estado, fechaInicio, fechaFin, especialidad },
             resultCount: count
         };
         const newHistory = [newItem, ...history];
@@ -138,19 +161,49 @@ const ReporteMateriales: React.FC = () => {
             r.detalles?.forEach(d => {
                 // Filtro de Estado
                 if (estado && d.estado !== estado) return;
-                // Vincular info Material
-                const matInfo = materials.find(m => m.descripcion === d.descripcion && m.categoria === d.material_categoria);
 
-                // Filtro Material/Categoría
-                if (categoria && d.material_categoria !== categoria) return;
-                // Si materialId está seleccionado, necesitamos coincidirlo. d no siempre tiene material_id directamente si es estructura vieja, 
-                // pero usualmente confiamos en descripción+cat o si tenemos material_id en detalle (verificar interfaces).
-                // Interfaz 'DetalleRequerimiento' no tiene estrictamente material_id, ¿confía mayormente en texto? 
-                // Asumamos coincidencia estricta en Descripción + Categoría si falta ID, o verificar si podemos coincidir ID desde 'matInfo'.
+                // Filtro de Tipo
+                if (tipo && d.tipo !== tipo) return;
 
-                if (materialId) {
-                    if (matInfo?.id !== materialId) return;
+                // Información Adicional basada en el tipo (para stock max y otros datos)
+                let itemStockMax = 0;
+                let itemMatch = false;
+
+                if (d.tipo === 'Material') {
+                    // Lógica existente para Materiales
+                    if (categoria && d.material_categoria !== categoria) return;
+
+                    const matInfo = materials.find(m => m.descripcion === d.descripcion && m.categoria === d.material_categoria);
+                    itemStockMax = matInfo?.stock_maximo || 0;
+
+                    if (materialId) {
+                        // Coincidencia por ID si existe en detalle (idealmente) o por matching
+                        if (matInfo?.id === materialId) itemMatch = true;
+                    } else {
+                        itemMatch = true;
+                    }
+                } else if (d.tipo === 'Equipo') {
+                    if (materialId) {
+                        if (d.equipo_id === materialId) itemMatch = true;
+                    } else {
+                        itemMatch = true;
+                    }
+                } else if (d.tipo === 'EPP') {
+                    if (materialId) {
+                        if (d.epp_id === materialId) itemMatch = true;
+                    } else {
+                        itemMatch = true;
+                    }
+                } else if (d.tipo === 'Servicio') {
+                    // Servicios no tienen ID catálogo usualmente, usamos descripción
+                    if (materialId) {
+                        if (d.descripcion === materialId) itemMatch = true; // Usaremos descripción como ID para servicios
+                    } else {
+                        itemMatch = true;
+                    }
                 }
+
+                if (!itemMatch) return;
 
                 flattened.push({
                     fecha: r.fecha_solicitud,
@@ -158,11 +211,11 @@ const ReporteMateriales: React.FC = () => {
                     req_numero: r.item_correlativo,
                     especialidad: r.especialidad,
                     material: d.descripcion,
-                    categoria: d.material_categoria,
+                    categoria: d.material_categoria || d.tipo, // Usar Tipo si no hay categoría
                     unidad: d.unidad,
                     cant_solicitada: d.cantidad_solicitada,
                     cant_atendida: d.cantidad_atendida,
-                    stock_max: matInfo?.stock_maximo || 0,
+                    stock_max: itemStockMax,
                     estado: d.estado
                 });
             });
@@ -196,7 +249,7 @@ const ReporteMateriales: React.FC = () => {
         setFechaInicio('');
         setFechaFin('');
         setCategoria('');
-        setMaterialId('');
+        setTipo('');
         setMaterialId('');
         setSolicitante('');
         setEstado('');
@@ -306,12 +359,28 @@ const ReporteMateriales: React.FC = () => {
                             <Form.Control type="date" value={fechaFin} onChange={e => setFechaFin(e.target.value)} />
                         </Col>
                         <Col xs={12} sm={6} md={3}>
-                            <Form.Label>Categoría</Form.Label>
-                            <Form.Select value={categoria} onChange={e => setCategoria(e.target.value)}>
-                                <option value="">Todas</option>
-                                {categorias.map(c => <option key={c} value={c}>{c}</option>)}
+                            <Form.Label>Tipo</Form.Label>
+                            <Form.Select value={tipo} onChange={e => {
+                                setTipo(e.target.value);
+                                setMaterialId(''); // Reset item selection when type changes
+                                setCategoria('');  // Reset category mainly if switching away from Material
+                            }}>
+                                <option value="">Todos</option>
+                                <option value="Material">Material</option>
+                                <option value="Equipo">Equipo</option>
+                                <option value="EPP">EPP</option>
+                                <option value="Servicio">Servicio</option>
                             </Form.Select>
                         </Col>
+                        {tipo === 'Material' && (
+                            <Col xs={12} sm={6} md={3}>
+                                <Form.Label>Categoría</Form.Label>
+                                <Form.Select value={categoria} onChange={e => setCategoria(e.target.value)}>
+                                    <option value="">Todas</option>
+                                    {categorias.map(c => <option key={c} value={c}>{c}</option>)}
+                                </Form.Select>
+                            </Col>
+                        )}
                         <Col xs={12} sm={6} md={3}>
                             <Form.Label>Especialidad</Form.Label>
                             <Form.Select value={especialidad} onChange={e => setEspecialidad(e.target.value)}>
@@ -320,19 +389,38 @@ const ReporteMateriales: React.FC = () => {
                             </Form.Select>
                         </Col>
                         <Col xs={12} sm={6} md={3}>
-                            <Form.Label>Material</Form.Label>
+                            <Form.Label>{tipo === 'Equipo' ? 'Equipo' : tipo === 'EPP' ? 'EPP' : tipo === 'Servicio' ? 'Servicio' : 'Material'}</Form.Label>
                             <Form.Select value={materialId} onChange={e => setMaterialId(e.target.value)}>
                                 <option value="">Todos</option>
-                                {materials
-                                    .filter(m => !categoria || m.categoria === categoria)
-                                    .map(m => (
-                                        <option key={m.id} value={m.id}>{m.descripcion}</option>
-                                    ))}
+                                {tipo === 'Material' || tipo === '' ? (
+                                    materials
+                                        .filter(m => !categoria || m.categoria === categoria)
+                                        .map(m => (
+                                            <option key={m.id} value={m.id}>{m.descripcion}</option>
+                                        ))
+                                ) : null}
+                                {tipo === 'Equipo' ? (
+                                    equipos.map(e => (
+                                        <option key={e.id} value={e.id}>{e.nombre}</option>
+                                    ))
+                                ) : null}
+                                {tipo === 'EPP' ? (
+                                    epps.map(e => (
+                                        <option key={e.id} value={e.id}>{e.descripcion}</option>
+                                    ))
+                                ) : null}
+                                {tipo === 'Servicio' ? (
+                                    // Extract unique services from reqs for dropdown
+                                    Array.from(new Set(reqs.flatMap(r => r.detalles?.filter(d => d.tipo === 'Servicio').map(d => d.descripcion) || [])))
+                                        .map((desc, idx) => (
+                                            <option key={idx} value={desc}>{desc}</option>
+                                        ))
+                                ) : null}
                             </Form.Select>
                         </Col>
                         <Col xs={12} sm={6} md={3}>
                             <Form.Label>Solicitante</Form.Label>
-                            <Form.Select value={solicitante} onChange={e => setSolicitante(e.target.value)}>
+                            <Form.Select value={solicitante} onChange={e => setSolicitante(e.target.value)} disabled={!isPrivileged}>
                                 <option value="">Todos</option>
                                 {solicitantes.map(s => <option key={s} value={s}>{s}</option>)}
                             </Form.Select>
@@ -445,6 +533,7 @@ const ReporteMateriales: React.FC = () => {
                                         <td>{new Date(h.generatedAt).toLocaleString()}</td>
                                         <td>
                                             <small>
+                                                {h.filters.tipo ? `Tipo: ${h.filters.tipo}, ` : ''}
                                                 {h.filters.categoria ? `Cat: ${h.filters.categoria}, ` : ''}
                                                 {h.filters.especialidad ? `Esp: ${h.filters.especialidad}, ` : ''}
                                                 {h.filters.solicitante ? `Sol: ${h.filters.solicitante}, ` : ''}

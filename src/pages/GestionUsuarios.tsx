@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Container, Table, Button, Form, Alert, Badge, Modal } from 'react-bootstrap';
+import { Container, Table, Button, Form, Alert, Badge, Modal, Spinner } from 'react-bootstrap';
+import { FaEye, FaEyeSlash, FaKey, FaBuilding, FaMagic, FaClipboard } from 'react-icons/fa';
 import { supabase } from '../config/supabaseClient';
 import { createClient } from '@supabase/supabase-js';
 import { UserProfile, UserRole } from '../types/auth';
@@ -32,7 +33,15 @@ const GestionUsuarios = () => {
     const [selectedUserForObras, setSelectedUserForObras] = useState<UserProfile | null>(null);
     const [allObras, setAllObras] = useState<Obra[]>([]);
     const [userObras, setUserObras] = useState<string[]>([]); // Array of obra_ids
+
     const [savingObras, setSavingObras] = useState(false);
+
+    // Estado de Cambio de Contraseña
+    const [showPasswordModal, setShowPasswordModal] = useState(false);
+    const [passwordResetUserId, setPasswordResetUserId] = useState<string | null>(null);
+    const [newPasswordReset, setNewPasswordReset] = useState('');
+    const [resetLoading, setResetLoading] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
 
     const ROLES: UserRole[] = ['admin', 'produccion', 'coordinador', 'logistica', 'almacenero', 'sin_asignar'];
 
@@ -241,6 +250,60 @@ const GestionUsuarios = () => {
         }
     };
 
+    const handleOpenPasswordModal = (userProfile: UserProfile) => {
+        setPasswordResetUserId(userProfile.id);
+        setNewPasswordReset('');
+        setShowPasswordModal(true);
+        setShowPassword(false);
+    };
+
+    const generatePassword = () => {
+        const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
+        const length = 12;
+        let pwd = "";
+        for (let i = 0; i < length; i++) {
+            pwd += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        setNewPasswordReset(pwd);
+        setShowPassword(true); // Mostrar para que el admin la pueda copiar
+    };
+
+    const copyToClipboard = () => {
+        navigator.clipboard.writeText(newPasswordReset);
+        // Opcional: Mostrar un toast o alerta pequeña
+    };
+
+    const handlePasswordReset = async () => {
+        if (!passwordResetUserId) return;
+        if (newPasswordReset.length < 8) {
+            setError('La contraseña debe tener al menos 8 caracteres.');
+            setTimeout(() => setError(null), 3000);
+            return;
+        }
+
+        setResetLoading(true);
+        try {
+            const { error } = await supabase.rpc('admin_update_user_password', {
+                target_user_id: passwordResetUserId,
+                new_password: newPasswordReset
+            });
+
+            if (error) throw error;
+
+            setSuccessMessage('Contraseña actualizada correctamente.');
+            setShowPasswordModal(false);
+            setNewPasswordReset('');
+            setPasswordResetUserId(null);
+        } catch (error: any) {
+            console.error('Error resetting password:', error);
+            setError(error.message || 'Error al actualizar la contraseña.');
+        } finally {
+            setResetLoading(false);
+            setTimeout(() => setSuccessMessage(null), 5000);
+            setTimeout(() => setError(null), 5000);
+        }
+    };
+
     return (
         <Container className="mt-4">
             <div className="d-flex justify-content-between align-items-center mb-4">
@@ -253,61 +316,74 @@ const GestionUsuarios = () => {
             {error && <Alert variant="danger">{error}</Alert>}
             {successMessage && <Alert variant="success">{successMessage}</Alert>}
 
-            <div className="table-responsive shadow-sm">
-                <Table hover className="align-middle bg-white">
+            <div className="table-responsive shadow-sm rounded-3 overflow-hidden">
+                <Table hover className="align-middle mb-0 bg-white">
                     <thead className="bg-light">
                         <tr>
-                            <th>Nombre</th>
-                            <th>Email</th>
-                            <th>Rol Actual</th>
-                            <th>Asignar Rol</th>
-                            <th>Obras</th>
-                            <th>Fecha Registro</th>
+                            <th className="py-3 ps-4 text-secondary text-uppercase x-small opacity-75 border-0">Nombre</th>
+                            <th className="py-3 text-secondary text-uppercase x-small opacity-75 border-0">Email</th>
+                            <th className="py-3 text-secondary text-uppercase x-small opacity-75 border-0 text-center">Rol Actual</th>
+                            <th className="py-3 text-secondary text-uppercase x-small opacity-75 border-0">Asignar Rol</th>
+                            <th className="py-3 text-secondary text-uppercase x-small opacity-75 border-0 text-center">Acciones</th>
+                            <th className="py-3 pe-4 text-end text-secondary text-uppercase x-small opacity-75 border-0">Fecha Registro</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody className="border-top-0">
                         {loading ? (
                             <tr>
-                                <td colSpan={5} className="text-center py-4">Cargando usuarios...</td>
+                                <td colSpan={6} className="text-center py-5 text-muted">
+                                    <Spinner animation="border" size="sm" className="me-2" /> Cargando usuarios...
+                                </td>
                             </tr>
                         ) : profiles.length === 0 ? (
                             <tr>
-                                <td colSpan={5} className="text-center py-4">No se encontraron usuarios.</td>
+                                <td colSpan={6} className="text-center py-5 text-muted">
+                                    <div className="mb-2">👥</div>
+                                    No se encontraron usuarios.
+                                </td>
                             </tr>
                         ) : (
                             profiles.map((profile) => (
-                                <tr key={profile.id}>
-                                    <td>
+                                <tr key={profile.id} className="border-bottom">
+                                    <td className="ps-4 py-3">
                                         {editingUserId === profile.id ? (
                                             <div className="d-flex gap-2">
                                                 <Form.Control
                                                     size="sm"
                                                     value={editName}
                                                     onChange={(e) => setEditName(e.target.value)}
+                                                    className="form-control-sm"
                                                 />
-                                                <Button size="sm" variant="success" onClick={() => saveName(profile.id)}>✓</Button>
-                                                <Button size="sm" variant="secondary" onClick={cancelEditing}>✕</Button>
+                                                <Button size="sm" variant="success" className="rounded-circle shadow-sm" style={{ width: '32px', height: '32px', padding: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => saveName(profile.id)}>
+                                                    <i className="bi bi-check-lg"></i>
+                                                </Button>
+                                                <Button size="sm" variant="danger" className="rounded-circle shadow-sm" style={{ width: '32px', height: '32px', padding: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }} onClick={cancelEditing}>
+                                                    <i className="bi bi-x-lg"></i>
+                                                </Button>
                                             </div>
                                         ) : (
-                                            <div className="d-flex align-items-center justify-content-between">
-                                                <span>{profile.nombre || 'Sin nombre'}</span>
-                                                <Button size="sm" variant="link" className="p-0 ms-2 text-decoration-none" onClick={() => startEditing(profile)}>✏️</Button>
+                                            <div className="d-flex align-items-center">
+                                                <div className="fw-bold text-dark me-2">{profile.nombre || 'Sin nombre'}</div>
+                                                <Button size="sm" variant="link" className="p-0 text-muted opacity-50 hover-opacity-100 text-decoration-none" onClick={() => startEditing(profile)} title="Editar nombre">
+                                                    <i className="bi bi-pencil-fill small"></i>
+                                                </Button>
                                             </div>
                                         )}
                                     </td>
-                                    <td>{profile.email}</td>
-                                    <td>
-                                        <Badge bg={getRoleBadgeColor(profile.role)}>
+                                    <td className="py-3 text-muted small">{profile.email}</td>
+                                    <td className="py-3 text-center">
+                                        <Badge bg={getRoleBadgeColor(profile.role)} className="rounded-pill px-3 fw-normal">
                                             {profile.role.toUpperCase()}
                                         </Badge>
                                     </td>
-                                    <td>
+                                    <td className="py-3">
                                         <Form.Select
                                             size="sm"
                                             value={profile.role}
                                             onChange={(e) => handleRoleChange(profile.id, e.target.value as UserRole)}
-                                            style={{ maxWidth: '150px' }}
+                                            style={{ maxWidth: '160px', fontSize: '0.85rem' }}
                                             disabled={profile.id === user?.id}
+                                            className="border-secondary border-opacity-25"
                                         >
                                             {ROLES.map(role => (
                                                 <option key={role} value={role}>
@@ -316,16 +392,31 @@ const GestionUsuarios = () => {
                                             ))}
                                         </Form.Select>
                                     </td>
-                                    <td>
-                                        <Button
-                                            variant="outline-primary"
-                                            size="sm"
-                                            onClick={() => handleOpenObraModal(profile)}
-                                        >
-                                            Gestionar Obras
-                                        </Button>
+                                    <td className="py-3 text-center">
+                                        <div className="d-flex justify-content-center gap-2">
+                                            <Button
+                                                variant="outline-primary"
+                                                size="sm"
+                                                className="d-flex align-items-center px-3"
+                                                onClick={() => handleOpenObraModal(profile)}
+                                                title="Gestionar Obras"
+                                            >
+                                                <i className="bi bi-building me-2"></i> Obras
+                                            </Button>
+                                            <Button
+                                                variant="outline-danger"
+                                                size="sm"
+                                                className="d-flex align-items-center px-3"
+                                                onClick={() => handleOpenPasswordModal(profile)}
+                                                title="Cambiar Contraseña"
+                                            >
+                                                <FaKey className="me-2" /> Clave
+                                            </Button>
+                                        </div>
                                     </td>
-                                    <td>{new Date(profile.created_at).toLocaleDateString()}</td>
+                                    <td className="pe-4 py-3 text-end text-muted small">
+                                        {new Date(profile.created_at).toLocaleDateString()}
+                                    </td>
                                 </tr>
                             ))
                         )}
@@ -435,6 +526,62 @@ const GestionUsuarios = () => {
                     </Button>
                     <Button variant="primary" onClick={handleSaveObras} disabled={savingObras}>
                         {savingObras ? 'Guardando...' : 'Guardar Cambios'}
+                    </Button>
+                </Modal.Footer>
+            </Modal>
+
+            {/* Password Reset Modal */}
+            <Modal show={showPasswordModal} onHide={() => setShowPasswordModal(false)} backdrop="static" keyboard={false}>
+                <Modal.Header closeButton>
+                    <Modal.Title>Cambiar Contraseña</Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    <Alert variant="danger">
+                        <i className="bi bi-exclamation-triangle-fill me-2"></i>
+                        <strong>Advertencia:</strong> Esta acción cerrará la sesión actual del usuario en todos sus dispositivos.
+                    </Alert>
+
+                    <Form.Group className="mb-3">
+                        <Form.Label>Nueva Contraseña</Form.Label>
+                        <div className="input-group">
+                            <Form.Control
+                                type={showPassword ? "text" : "password"}
+                                placeholder="Mínimo 8 caracteres"
+                                value={newPasswordReset}
+                                onChange={(e) => setNewPasswordReset(e.target.value)}
+                                minLength={8}
+                            />
+                            <Button variant="outline-secondary" onClick={() => setShowPassword(!showPassword)} title={showPassword ? "Ocultar" : "Mostrar"}>
+                                {showPassword ? <FaEyeSlash /> : <FaEye />}
+                            </Button>
+                        </div>
+                        <Form.Text className="text-muted">
+                            La contraseña debe tener al menos 8 caracteres.
+                        </Form.Text>
+                    </Form.Group>
+
+                    <div className="d-flex gap-2 mb-3">
+                        <Button variant="outline-primary" size="sm" onClick={generatePassword}>
+                            <FaMagic className="me-1" /> Generar Aleatoria
+                        </Button>
+                        <Button variant="outline-secondary" size="sm" onClick={copyToClipboard} disabled={!newPasswordReset}>
+                            <FaClipboard className="me-1" /> Copiar
+                        </Button>
+                    </div>
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="secondary" onClick={() => setShowPasswordModal(false)}>
+                        Cancelar
+                    </Button>
+                    <Button variant="danger" onClick={handlePasswordReset} disabled={resetLoading || newPasswordReset.length < 8}>
+                        {resetLoading ? (
+                            <>
+                                <Spinner as="span" animation="border" size="sm" role="status" aria-hidden="true" className="me-2" />
+                                Cambiando...
+                            </>
+                        ) : (
+                            'Cambiar Contraseña'
+                        )}
                     </Button>
                 </Modal.Footer>
             </Modal>
