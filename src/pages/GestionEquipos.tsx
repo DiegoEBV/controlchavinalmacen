@@ -1,9 +1,32 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Table, Button, Modal, Form, Container, Row, Col, Spinner, Alert } from 'react-bootstrap';
+import * as XLSX from 'xlsx';
 import { useAuth } from '../context/AuthContext';
 import { getEquipos, createEquipo, updateEquipo, deleteEquipo } from '../services/equiposService';
 import { getObras, getUserAssignedObras } from '../services/requerimientosService';
 import { Equipo, Obra } from '../types';
+
+// Extrae el prefijo de 3 letras del nombre
+const getPrefix = (nombre: string): string =>
+    nombre.trim().replace(/\s+/g, '').substring(0, 3).toUpperCase();
+
+// Genera código correlativo: EXC001, EXC002...
+// Recibe la lista actual de equipos para calcular el siguiente número
+const generateCodigo = (nombre: string, equiposList: { codigo: string }[]): string => {
+    const prefix = getPrefix(nombre);
+    if (!prefix) return '';
+    // Buscar el mayor número correlativo ya usado con ese prefijo
+    const regex = new RegExp(`^${prefix}(\\d{3})$`);
+    let maxNum = 0;
+    for (const eq of equiposList) {
+        const match = eq.codigo?.match(regex);
+        if (match) {
+            const n = parseInt(match[1], 10);
+            if (n > maxNum) maxNum = n;
+        }
+    }
+    return `${prefix}${String(maxNum + 1).padStart(3, '0')}`;
+};
 
 const GestionEquipos: React.FC = () => {
     const { selectedObra, selectObra, hasRole, user, isAdmin, loading: authLoading } = useAuth();
@@ -18,6 +41,12 @@ const GestionEquipos: React.FC = () => {
         marca: ''
     });
     const [error, setError] = useState('');
+
+    // Importación Excel
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const [importLoading, setImportLoading] = useState(false);
+    const [importResult, setImportResult] = useState<{ success: number; errors: string[] } | null>(null);
+    const [showImportModal, setShowImportModal] = useState(false);
 
     const canEdit = hasRole(['admin', 'coordinador', 'logistica']);
 
@@ -85,6 +114,16 @@ const GestionEquipos: React.FC = () => {
         setError('');
     };
 
+    // Cuando cambia el nombre, auto-genera el código (solo en creación)
+    const handleNombreChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const nombre = e.target.value;
+        if (!editingEquipo) {
+            setFormData({ ...formData, nombre, codigo: generateCodigo(nombre, equipos) });
+        } else {
+            setFormData({ ...formData, nombre });
+        }
+    };
+
     const handleSave = async () => {
         if (!selectedObra) return;
         if (!formData.nombre) {
@@ -92,11 +131,14 @@ const GestionEquipos: React.FC = () => {
             return;
         }
 
+        // Si no tiene código aún, generarlo
+        const codigoFinal = formData.codigo?.trim() || generateCodigo(formData.nombre || '', equipos);
+
         try {
             if (editingEquipo) {
-                await updateEquipo(editingEquipo.id, formData);
+                await updateEquipo(editingEquipo.id, { ...formData, codigo: codigoFinal });
             } else {
-                await createEquipo({ ...formData, obra_id: selectedObra.id });
+                await createEquipo({ ...formData, codigo: codigoFinal, obra_id: selectedObra.id });
             }
             fetchEquipos();
             handleClose();
@@ -114,6 +156,77 @@ const GestionEquipos: React.FC = () => {
         } catch (err) {
             console.error(err);
             setError('Error al eliminar el equipo.');
+        }
+    };
+
+    // ---- Importación desde Excel ----
+    const handleImportClick = () => {
+        setImportResult(null);
+        fileInputRef.current?.click();
+    };
+
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !selectedObra) return;
+
+        setImportLoading(true);
+        setImportResult(null);
+        setShowImportModal(true);
+
+        try {
+            const data = await file.arrayBuffer();
+            const workbook = XLSX.read(data, { type: 'array' });
+            const sheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[sheetName];
+            const rows: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+            // Buscar columna "nombre" o tomar la primera columna con datos
+            let nombreColIndex = 0;
+            if (rows.length > 0) {
+                const header = rows[0].map((h: any) => String(h).toLowerCase().trim());
+                const idx = header.findIndex((h: string) => h.includes('nombre'));
+                if (idx !== -1) nombreColIndex = idx;
+            }
+
+            // Procesar filas (saltar encabezado si la primera fila es texto)
+            const dataRows = rows.slice(0); // comenzar desde la primera fila
+            // Si la primera fila es encabezado, saltarla
+            const firstCell = String(rows[0]?.[nombreColIndex] || '').toLowerCase();
+            const startIdx = firstCell === 'nombre' || isNaN(Number(firstCell)) && firstCell.length > 0 && rows.length > 1
+                ? 1
+                : 0;
+
+            let successCount = 0;
+            const errors: string[] = [];
+            // Lista acumulada para calcular el correlativo correcto dentro del mismo lote
+            const equiposAcumulados: { codigo: string }[] = [...equipos];
+
+            for (let i = startIdx; i < dataRows.length; i++) {
+                const row = dataRows[i];
+                const nombre = String(row[nombreColIndex] || '').trim();
+                if (!nombre) continue;
+
+                const codigo = generateCodigo(nombre, equiposAcumulados);
+
+                try {
+                    await createEquipo({ nombre, codigo, obra_id: selectedObra.id });
+                    // Agregar a la lista acumulada para el siguiente correlativo
+                    equiposAcumulados.push({ codigo });
+                    successCount++;
+                } catch (err: any) {
+                    errors.push(`Fila ${i + 1} ("${nombre}"): ${err?.message || 'Error al guardar'}`);
+                }
+            }
+
+            setImportResult({ success: successCount, errors });
+            fetchEquipos();
+        } catch (err) {
+            console.error(err);
+            setImportResult({ success: 0, errors: ['Error al leer el archivo Excel.'] });
+        } finally {
+            setImportLoading(false);
+            // Limpiar input para permitir subir el mismo archivo nuevamente
+            if (fileInputRef.current) fileInputRef.current.value = '';
         }
     };
 
@@ -143,11 +256,33 @@ const GestionEquipos: React.FC = () => {
 
             <div className="custom-card fade-in">
                 <Row className="mb-4">
-                    <Col>
+                    <Col className="d-flex gap-2">
                         {canEdit && (
-                            <Button variant="primary" onClick={() => handleShow()}>
-                                + Nuevo Equipo
-                            </Button>
+                            <>
+                                <Button variant="primary" onClick={() => handleShow()}>
+                                    + Nuevo Equipo
+                                </Button>
+                                <Button
+                                    variant="success"
+                                    onClick={handleImportClick}
+                                    disabled={!selectedObra || importLoading}
+                                    title="Importar equipos desde un archivo Excel (.xlsx). Solo se requiere la columna 'Nombre'."
+                                >
+                                    {importLoading ? (
+                                        <><Spinner animation="border" size="sm" className="me-2" />Importando...</>
+                                    ) : (
+                                        '⬆ Importar desde Excel'
+                                    )}
+                                </Button>
+                                {/* Input oculto para selección de archivo */}
+                                <input
+                                    ref={fileInputRef}
+                                    type="file"
+                                    accept=".xlsx,.xls,.csv"
+                                    style={{ display: 'none' }}
+                                    onChange={handleFileChange}
+                                />
+                            </>
                         )}
                     </Col>
                 </Row>
@@ -198,18 +333,21 @@ const GestionEquipos: React.FC = () => {
                 )}
             </div>
 
+            {/* Modal Formulario */}
             <Modal show={showModal} onHide={handleClose}>
                 <Modal.Header closeButton>
                     <Modal.Title>{editingEquipo ? 'Editar Equipo' : 'Nuevo Equipo'}</Modal.Title>
                 </Modal.Header>
                 <Modal.Body>
+                    {error && <Alert variant="danger">{error}</Alert>}
                     <Form>
                         <Form.Group className="mb-3">
                             <Form.Label>Nombre *</Form.Label>
                             <Form.Control
                                 type="text"
                                 value={formData.nombre}
-                                onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
+                                onChange={handleNombreChange}
+                                placeholder="Ej: Excavadora"
                             />
                         </Form.Group>
                         <Form.Group className="mb-3">
@@ -217,8 +355,15 @@ const GestionEquipos: React.FC = () => {
                             <Form.Control
                                 type="text"
                                 value={formData.codigo}
-                                onChange={(e) => setFormData({ ...formData, codigo: e.target.value })}
+                                onChange={(e) => setFormData({ ...formData, codigo: e.target.value.toUpperCase() })}
+                                placeholder="Auto-generado desde el nombre"
+                                maxLength={10}
                             />
+                            {!editingEquipo && (
+                                <Form.Text className="text-muted">
+                                    Se genera automáticamente con las 3 primeras letras del nombre.
+                                </Form.Text>
+                            )}
                         </Form.Group>
                         <Form.Group className="mb-3">
                             <Form.Label>Marca</Form.Label>
@@ -233,6 +378,41 @@ const GestionEquipos: React.FC = () => {
                 <Modal.Footer>
                     <Button variant="secondary" onClick={handleClose}>Cancelar</Button>
                     <Button variant="primary" onClick={handleSave}>Guardar</Button>
+                </Modal.Footer>
+            </Modal>
+
+            {/* Modal Resultado Importación */}
+            <Modal show={showImportModal} onHide={() => setShowImportModal(false)}>
+                <Modal.Header closeButton>
+                    <Modal.Title>Resultado de Importación</Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    {importLoading ? (
+                        <div className="text-center py-4">
+                            <Spinner animation="border" variant="primary" className="mb-3" />
+                            <p className="text-muted">Procesando archivo...</p>
+                        </div>
+                    ) : importResult ? (
+                        <>
+                            <Alert variant={importResult.errors.length === 0 ? 'success' : 'warning'}>
+                                <strong>{importResult.success}</strong> equipo(s) importado(s) correctamente.
+                                {importResult.errors.length > 0 && (
+                                    <> Con <strong>{importResult.errors.length}</strong> error(es).</>
+                                )}
+                            </Alert>
+                            {importResult.errors.length > 0 && (
+                                <ul className="small text-danger">
+                                    {importResult.errors.map((e, i) => <li key={i}>{e}</li>)}
+                                </ul>
+                            )}
+                            <p className="text-muted small mt-2">
+                                <strong>Formato esperado:</strong> El archivo Excel debe tener una columna llamada <em>Nombre</em> (o se usará la primera columna). El código se genera automáticamente con las 3 primeras letras.
+                            </p>
+                        </>
+                    ) : null}
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="secondary" onClick={() => setShowImportModal(false)}>Cerrar</Button>
                 </Modal.Footer>
             </Modal>
         </Container>

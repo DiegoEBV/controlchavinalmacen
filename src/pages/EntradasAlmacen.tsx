@@ -770,7 +770,7 @@ const EntradasAlmacen: React.FC = () => {
                                 } else if (mov.equipo) {
                                     desc = mov.equipo.nombre;
                                     cat = 'Equipo';
-                                    unidad = 'und';
+                                    unidad = 'UND';
                                 } else if (mov.epp) {
                                     desc = mov.epp.descripcion;
                                     cat = 'EPP';

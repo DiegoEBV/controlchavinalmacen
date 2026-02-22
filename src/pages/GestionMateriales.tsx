@@ -14,7 +14,7 @@ const GestionMateriales: React.FC = () => {
     const [newMaterial, setNewMaterial] = useState<Partial<Material>>({
         categoria: '',
         descripcion: '',
-        unidad: 'und',
+        unidad: 'UND',
         informacion_adicional: ''
     });
 
@@ -50,7 +50,7 @@ const GestionMateriales: React.FC = () => {
                 await createMaterial(materialToSave);
             }
             setShowModal(false);
-            setNewMaterial({ categoria: '', descripcion: '', unidad: 'und', informacion_adicional: '' });
+            setNewMaterial({ categoria: '', descripcion: '', unidad: 'UND', informacion_adicional: '' });
             setEditingId(null);
             loadMateriales();
         } catch (error) {
@@ -119,7 +119,7 @@ const GestionMateriales: React.FC = () => {
 
                     const descripcion = norm.descripcion || norm.material;
                     const categoriaName = norm.categoria;
-                    const unidad = norm.unidad || 'und';
+                    const unidad = (norm.unidad || 'UND').toString().toUpperCase();
                     const info = norm.informacion || norm.comentario || norm.info_adicional || '';
 
                     if (descripcion && categoriaName) {
@@ -190,7 +190,7 @@ const GestionMateriales: React.FC = () => {
                                 setNewMaterial({
                                     categoria: '',
                                     descripcion: '',
-                                    unidad: 'und',
+                                    unidad: 'UND',
                                     informacion_adicional: ''
                                 });
                                 setShowModal(true);
@@ -261,7 +261,7 @@ const GestionMateriales: React.FC = () => {
                                 <Form.Label>Unidad</Form.Label>
                                 <Form.Control
                                     value={newMaterial.unidad}
-                                    onChange={e => setNewMaterial({ ...newMaterial, unidad: e.target.value })}
+                                    onChange={e => setNewMaterial({ ...newMaterial, unidad: e.target.value.toUpperCase() })}
                                 />
                             </Form.Group>
                             <Form.Group className="mb-3">
