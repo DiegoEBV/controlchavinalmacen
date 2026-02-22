@@ -9,8 +9,9 @@ import { Requerimiento, SolicitudCompra, Material, MovimientoAlmacen, OrdenCompr
 import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription';
 import { mergeUpdates } from '../utils/stateUpdates';
 import { exportSolicitudCompra } from '../utils/scExcelExport';
-
 import { FaFileExcel } from 'react-icons/fa';
+import { usePagination } from '../hooks/usePagination';
+import PaginationControls from '../components/PaginationControls';
 
 const GestionSolicitudes: React.FC = () => {
     const [requerimientos, setRequerimientos] = useState<Requerimiento[]>([]);
@@ -154,6 +155,8 @@ const GestionSolicitudes: React.FC = () => {
     const processedReqIds = new Set(solicitudes.map(s => s.requerimiento_id));
     const pendingRequerimientos = requerimientos.filter(r => !processedReqIds.has(r.id));
 
+    const { currentPage: scPage, totalPages: scTotalPages, totalItems: scTotalItems, pageSize: scPageSize, paginatedItems: pagedSolicitudes, goToPage: goToScPage } = usePagination(solicitudes, 15);
+
     return (
         <div className="fade-in">
             <div className="page-header">
@@ -195,7 +198,7 @@ const GestionSolicitudes: React.FC = () => {
                 <Col xs={12}>
                     <h4 className="text-secondary mt-4">Solicitudes Generadas</h4>
                     <Accordion defaultActiveKey="0" flush className="custom-card p-0 overflow-hidden mt-3">
-                        {solicitudes.map((sc, idx) => {
+                        {pagedSolicitudes.map((sc, idx) => {
                             // Pre-calcular estado para el Encabezado
                             let allFullyAttended = true;
                             if (!sc.detalles || sc.detalles.length === 0) allFullyAttended = false;
@@ -334,6 +337,7 @@ const GestionSolicitudes: React.FC = () => {
                         })}
                         {solicitudes.length === 0 && <p className="text-center text-muted p-4">No hay solicitudes generadas aún.</p>}
                     </Accordion>
+                    <PaginationControls currentPage={scPage} totalPages={scTotalPages} totalItems={scTotalItems} pageSize={scPageSize} onPageChange={goToScPage} />
                 </Col>
             </Row>
 

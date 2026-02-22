@@ -9,8 +9,8 @@ import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription';
 import { mergeUpdates } from '../utils/stateUpdates';
 import { exportRequerimiento } from '../utils/excelExport';
 import { FaFileExcel, FaEdit } from 'react-icons/fa';
-
-const ITEMS_PER_PAGE = 20;
+import { usePagination } from '../hooks/usePagination';
+import PaginationControls from '../components/PaginationControls';
 
 const GestionRequerimientos: React.FC = () => {
     const [requerimientos, setRequerimientos] = useState<Requerimiento[]>([]);
@@ -20,7 +20,6 @@ const GestionRequerimientos: React.FC = () => {
     const [showForm, setShowForm] = useState(false);
     const [editingReq, setEditingReq] = useState<Requerimiento | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
-    const [visibleCount, setVisibleCount] = useState(ITEMS_PER_PAGE);
     const [exportingId, setExportingId] = useState<string | null>(null);
 
     const { selectedObra, user, isAdmin } = useAuth();
@@ -83,9 +82,6 @@ const GestionRequerimientos: React.FC = () => {
 
     const loadData = async () => {
         if (!selectedObra) return;
-
-        // Reiniciar paginación
-        setVisibleCount(ITEMS_PER_PAGE);
 
         // Obtención paralela
         const pReqs = getRequerimientos(selectedObra.id);
@@ -167,13 +163,7 @@ const GestionRequerimientos: React.FC = () => {
         );
     }, [requerimientos, searchTerm]);
 
-    // Aplicar paginación a la lista filtrada
-    const visibleReqs = filteredReqs.slice(0, visibleCount);
-
-
-    const handleLoadMore = () => {
-        setVisibleCount(prev => prev + ITEMS_PER_PAGE);
-    };
+    const { currentPage, totalPages, totalItems, pageSize, paginatedItems: visibleReqs, goToPage } = usePagination(filteredReqs, 15);
 
     const handleExport = async (req: Requerimiento) => {
         if (exportingId) return; // Prevent multiple clicks
@@ -407,15 +397,9 @@ const GestionRequerimientos: React.FC = () => {
 
                     {filteredReqs.length === 0 && <p className="text-center text-muted mt-5">No se encontraron requerimientos.</p>}
                 </Accordion>
-
-                {/* Botón Cargar Más */}
-                {visibleCount < filteredReqs.length && (
-                    <div className="text-center p-3">
-                        <Button variant="outline-primary" onClick={handleLoadMore}>
-                            Cargar más requerimientos ({filteredReqs.length - visibleCount} restantes)
-                        </Button>
-                    </div>
-                )}
+                <div className="px-3 pb-3">
+                    <PaginationControls currentPage={currentPage} totalPages={totalPages} totalItems={totalItems} pageSize={pageSize} onPageChange={goToPage} />
+                </div>
             </div>
 
             <RequerimientoForm

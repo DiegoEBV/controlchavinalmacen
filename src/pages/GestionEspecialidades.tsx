@@ -3,6 +3,8 @@ import { Row, Col, Table, Button, Form, Modal, Card, Badge, InputGroup } from 'r
 import { FaPlus, FaEdit, FaSearch, FaArchive, FaBoxOpen } from 'react-icons/fa';
 import { getSpecialties, createSpecialty, updateSpecialty, deleteSpecialty } from '../services/specialtiesService';
 import { Specialty } from '../types';
+import { usePagination } from '../hooks/usePagination';
+import PaginationControls from '../components/PaginationControls';
 
 const GestionEspecialidades: React.FC = () => {
     const [specialties, setSpecialties] = useState<Specialty[]>([]);
@@ -88,6 +90,8 @@ const GestionEspecialidades: React.FC = () => {
         (item.description && item.description.toLowerCase().includes(searchTerm.toLowerCase()))
     );
 
+    const { currentPage, totalPages, totalItems, pageSize, paginatedItems: pagedItems, goToPage } = usePagination(filteredItems, 15);
+
     return (
         <div className="fade-in">
             <div className="d-flex justify-content-between align-items-center mb-4">
@@ -147,7 +151,7 @@ const GestionEspecialidades: React.FC = () => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {filteredItems.map(item => (
+                                {pagedItems.map(item => (
                                     <tr key={item.id} className={!item.active ? 'opacity-50' : ''}>
                                         <td className="ps-4 fw-bold">{item.name}</td>
                                         <td>{item.description || '-'}</td>
@@ -177,6 +181,9 @@ const GestionEspecialidades: React.FC = () => {
                                 )}
                             </tbody>
                         </Table>
+                        <div className="px-3 pb-3">
+                            <PaginationControls currentPage={currentPage} totalPages={totalPages} totalItems={totalItems} pageSize={pageSize} onPageChange={goToPage} />
+                        </div>
                     </div>
                 )}
             </Card>

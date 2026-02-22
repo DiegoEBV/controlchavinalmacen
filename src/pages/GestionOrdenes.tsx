@@ -10,6 +10,8 @@ import { exportSolicitudCompra } from '../utils/scExcelExport';
 import { useAuth } from '../context/AuthContext';
 import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription';
 import { mergeUpdates } from '../utils/stateUpdates';
+import { usePagination } from '../hooks/usePagination';
+import PaginationControls from '../components/PaginationControls';
 
 const GestionOrdenes: React.FC = () => {
     const { selectedObra } = useAuth();
@@ -208,6 +210,8 @@ const GestionOrdenes: React.FC = () => {
         }
     };
 
+    const { currentPage: ocPage, totalPages: ocTotalPages, totalItems: ocTotalItems, pageSize: ocPageSize, paginatedItems: pagedOrdenes, goToPage: goToOcPage } = usePagination(ordenes, 15);
+
     return (
         <div className="fade-in">
             <div className="page-header">
@@ -270,7 +274,7 @@ const GestionOrdenes: React.FC = () => {
                             </tr>
                         </thead>
                         <tbody>
-                            {ordenes.map(oc => {
+                            {pagedOrdenes.map(oc => {
                                 return (
                                     <tr key={oc.id}>
                                         <td className="fw-bold text-success">{oc.numero_oc}</td>
@@ -284,6 +288,7 @@ const GestionOrdenes: React.FC = () => {
                             })}
                         </tbody>
                     </Table>
+                    <PaginationControls currentPage={ocPage} totalPages={ocTotalPages} totalItems={ocTotalItems} pageSize={ocPageSize} onPageChange={goToOcPage} />
                 </Col>
             </Row>
 

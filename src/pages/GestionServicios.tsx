@@ -4,6 +4,8 @@ import { getRequerimientosServicios, updateDetalleLogistica } from '../services/
 import { Requerimiento } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription';
+import { usePagination } from '../hooks/usePagination';
+import PaginationControls from '../components/PaginationControls';
 
 const GestionServicios: React.FC = () => {
     const [requerimientos, setRequerimientos] = useState<Requerimiento[]>([]);
@@ -39,8 +41,6 @@ const GestionServicios: React.FC = () => {
         if (!confirm('¿Marcar este servicio como Atendido?')) return;
 
         try {
-            // Update the detail manually.
-            // When updating amount attended to equal solicited, it sets state to "Atendido" automatically in the service
             const detailToUpdate = requerimientos.flatMap(r => r.detalles || []).find(d => d.id === detalleId);
             if (!detailToUpdate) return;
 
@@ -48,16 +48,15 @@ const GestionServicios: React.FC = () => {
                 cantidad_atendida: detailToUpdate.cantidad_solicitada,
                 estado: 'Atendido'
             });
-            await loadData(); // Reload
+            await loadData();
         } catch (error) {
             console.error('Error al actualizar servicio:', error);
             alert('Hubo un error al marcar como atendido');
         }
     };
 
-    if (loading) return <div className="text-center p-5"><Spinner animation="border" /></div>;
-
     // Flatten requirements with their details for easier rendering
+    // (computed before any early return to satisfy Rules of Hooks)
     const serviciosFlat = requerimientos.flatMap(req =>
         (req.detalles || [])
             .filter(d => d.tipo === 'Servicio')
@@ -75,6 +74,10 @@ const GestionServicios: React.FC = () => {
                 created_at: d.created_at
             }))
     );
+
+    const { currentPage, totalPages, totalItems, pageSize, paginatedItems: pagedServicios, goToPage } = usePagination(serviciosFlat, 15);
+
+    if (loading) return <div className="text-center p-5"><Spinner animation="border" /></div>;
 
     return (
         <div className="fade-in">
@@ -101,7 +104,7 @@ const GestionServicios: React.FC = () => {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {serviciosFlat.map((item, idx) => (
+                                    {pagedServicios.map((item, idx) => (
                                         <tr key={idx}>
                                             <td className="fw-bold">#{item.reqCorrelativo}</td>
                                             <td>{item.fecha}</td>
@@ -138,6 +141,7 @@ const GestionServicios: React.FC = () => {
                                     )}
                                 </tbody>
                             </Table>
+                            <PaginationControls currentPage={currentPage} totalPages={totalPages} totalItems={totalItems} pageSize={pageSize} onPageChange={goToPage} />
                         </Card.Body>
                     </Card>
                 </Col>

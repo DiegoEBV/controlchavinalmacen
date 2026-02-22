@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Table, Button, Modal, Form, Container, Row, Col, Spinner, Alert } from 'react-bootstrap';
-import * as XLSX from 'xlsx';
 import { useAuth } from '../context/AuthContext';
 import { getEquipos, createEquipo, updateEquipo, deleteEquipo } from '../services/equiposService';
 import { getObras, getUserAssignedObras } from '../services/requerimientosService';
 import { Equipo, Obra } from '../types';
+import { usePagination } from '../hooks/usePagination';
+import PaginationControls from '../components/PaginationControls';
 
 // Extrae el prefijo de 3 letras del nombre
 const getPrefix = (nombre: string): string =>
@@ -174,6 +175,7 @@ const GestionEquipos: React.FC = () => {
         setShowImportModal(true);
 
         try {
+            const XLSX = await import('xlsx');
             const data = await file.arrayBuffer();
             const workbook = XLSX.read(data, { type: 'array' });
             const sheetName = workbook.SheetNames[0];
@@ -229,6 +231,8 @@ const GestionEquipos: React.FC = () => {
             if (fileInputRef.current) fileInputRef.current.value = '';
         }
     };
+
+    const { currentPage, totalPages, totalItems, pageSize, paginatedItems: pagedEquipos, goToPage } = usePagination(equipos, 15);
 
     if (authLoading) return <div className="text-center mt-5"><Spinner animation="border" /></div>;
 
@@ -303,7 +307,7 @@ const GestionEquipos: React.FC = () => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {equipos.map((eq) => (
+                                {pagedEquipos.map((eq) => (
                                     <tr key={eq.id}>
                                         <td className="ps-4 fw-bold text-primary">{eq.codigo}</td>
                                         <td>{eq.nombre}</td>
@@ -329,6 +333,9 @@ const GestionEquipos: React.FC = () => {
                                 )}
                             </tbody>
                         </Table>
+                        <div className="px-3 pb-3">
+                            <PaginationControls currentPage={currentPage} totalPages={totalPages} totalItems={totalItems} pageSize={pageSize} onPageChange={goToPage} />
+                        </div>
                     </div>
                 )}
             </div>

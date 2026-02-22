@@ -122,16 +122,17 @@ const EntradasAlmacen: React.FC = () => {
             .filter(o => o.estado !== 'Anulada' && o.detalles?.some(d => d.detalle_sc_id === oc_detail.detalle_sc_id))
             .sort((a, b) => new Date(a.fecha_oc).getTime() - new Date(b.fecha_oc).getTime());
 
-        // 2. Compute global consumed for this item
+        // 2. Compute global consumed for this item (OC entries only, exclude Caja Chica)
+        // Caja Chica entries are independent purchases and should NOT consume OC pending quantities
         const consumed = historial
             .filter(h =>
                 String(h.requerimiento_id) === String(req_id) &&
+                h.destino_o_uso !== 'COMPRA CAJA CHICA' &&
                 (
                     (oc_detail.detalle_sc!.material_id && h.material_id === oc_detail.detalle_sc!.material_id) ||
                     (oc_detail.detalle_sc!.equipo_id && h.equipo_id === oc_detail.detalle_sc!.equipo_id) ||
                     (oc_detail.detalle_sc!.epp_id && h.epp_id === oc_detail.detalle_sc!.epp_id)
                 )
-                // Filter by date based on the SC created_at wouldn't hurt, assuming movement is always after.
             )
             .reduce((sum, h) => sum + h.cantidad, 0);
 
