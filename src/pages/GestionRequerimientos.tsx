@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Button, Table, Badge, Accordion, ProgressBar, Row, Col, Form, Card, Spinner } from 'react-bootstrap';
+import { Button, Table, Badge, Accordion, ProgressBar, Row, Col, Form, Card, Spinner, OverlayTrigger, Tooltip } from 'react-bootstrap';
 import { getRequerimientos, createRequerimiento, updateRequerimiento, getObras, getUserAssignedObras, getRequerimientoById } from '../services/requerimientosService';
 import { getSolicitudesCompra, getOrdenesCompra, getSolicitudCompraById, getOrdenCompraById } from '../services/comprasService';
 import { Requerimiento, Obra, SolicitudCompra, OrdenCompra } from '../types';
@@ -145,7 +145,8 @@ const GestionRequerimientos: React.FC = () => {
         if (!req.detalles?.length) return 0;
         let totalPct = 0;
         req.detalles.forEach(d => {
-            totalPct += Math.min((d.cantidad_atendida / d.cantidad_solicitada), 1);
+            const atendidoTotal = Math.min(d.cantidad_atendida, d.cantidad_solicitada);
+            totalPct += (atendidoTotal / d.cantidad_solicitada);
         });
         return Math.round((totalPct / req.detalles.length) * 100);
     };
@@ -319,8 +320,47 @@ const GestionRequerimientos: React.FC = () => {
                                                                 </div>
                                                             ) : '-'}
                                                         </td>
-                                                        <td>{d.cantidad_atendida}</td>
-                                                        <td><Badge bg={getStatusColor(d.estado)}>{d.estado}</Badge></td>
+                                                        <td>
+                                                            <div className="d-flex align-items-center">
+                                                                <span className="me-2">{d.cantidad_atendida}</span>
+                                                                {d.cantidad_caja_chica ? (
+                                                                    <OverlayTrigger
+                                                                        placement="top"
+                                                                        overlay={<Tooltip>{d.cantidad_caja_chica} ingresado por Caja Chica</Tooltip>}
+                                                                    >
+                                                                        <Badge bg="warning" text="dark" className="ms-1" style={{ cursor: 'help' }}>
+                                                                            <i className="bi bi-wallet2 me-1"></i>
+                                                                            {d.cantidad_caja_chica}
+                                                                        </Badge>
+                                                                    </OverlayTrigger>
+                                                                ) : null}
+                                                            </div>
+                                                        </td>
+                                                        <td>
+                                                            {relatedSCItem && Number(relatedSCItem.cantidad) === 0 ? (
+                                                                <OverlayTrigger
+                                                                    placement="top"
+                                                                    overlay={
+                                                                        <Tooltip id={`tooltip-anulado-${d.id}`}>
+                                                                            <strong>Anulado en SC</strong>
+                                                                            {relatedSCItem.comentario
+                                                                                ? <><br />{relatedSCItem.comentario}</>
+                                                                                : <><br /><em>Sin comentario</em></>}
+                                                                        </Tooltip>
+                                                                    }
+                                                                >
+                                                                    <Badge
+                                                                        bg="secondary"
+                                                                        style={{ cursor: 'help', opacity: 0.75 }}
+                                                                        className="d-inline-flex align-items-center gap-1"
+                                                                    >
+                                                                        Sin Atención
+                                                                    </Badge>
+                                                                </OverlayTrigger>
+                                                            ) : (
+                                                                <Badge bg={getStatusColor(d.estado)}>{d.estado}</Badge>
+                                                            )}
+                                                        </td>
                                                         <td>
                                                             <small>
                                                                 {(() => {

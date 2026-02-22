@@ -92,7 +92,9 @@ const GestionSolicitudes: React.FC = () => {
             let item: any = {
                 descripcion: d.descripcion,
                 unidad: d.unidad,
-                cantidad: d.cantidad_solicitada - d.cantidad_atendida,
+                cantidad_original: d.cantidad_solicitada,
+                cantidad: Math.max(0, d.cantidad_solicitada - (d.cantidad_atendida || 0)), // Descontar lo atendido (incl. caja chica)
+                cantidad_caja_chica: d.cantidad_caja_chica || 0,
                 comentario: '',
                 material_id: null,
                 equipo_id: null,
@@ -354,19 +356,26 @@ const GestionSolicitudes: React.FC = () => {
                                 <tr key={idx}>
                                     <td>{it.descripcion}</td>
                                     <td>
-                                        <div className="d-flex align-items-center">
-                                            <Form.Control
-                                                type="number"
-                                                value={it.cantidad}
-                                                onChange={(e) => {
-                                                    const newItems = [...items];
-                                                    newItems[idx].cantidad = parseFloat(e.target.value);
-                                                    setItems(newItems);
-                                                }}
-                                                size="sm"
-                                                style={{ maxWidth: '100px', marginRight: '5px' }}
-                                            />
-                                            <span>{it.unidad}</span>
+                                        <div className="d-flex flex-column align-items-start">
+                                            <div className="d-flex align-items-center mb-1">
+                                                <Form.Control
+                                                    type="number"
+                                                    value={it.cantidad}
+                                                    onChange={(e) => {
+                                                        const newItems = [...items];
+                                                        newItems[idx].cantidad = parseFloat(e.target.value);
+                                                        setItems(newItems);
+                                                    }}
+                                                    size="sm"
+                                                    style={{ maxWidth: '100px', marginRight: '5px' }}
+                                                />
+                                                <span>{it.unidad}</span>
+                                            </div>
+                                            {it.cantidad_caja_chica > 0 && (
+                                                <small className="text-danger fw-bold mt-1" style={{ fontSize: '0.75em', lineHeight: 1.1 }}>
+                                                    *Descontado Caja Chica: {it.cantidad_caja_chica}
+                                                </small>
+                                            )}
                                         </div>
                                     </td>
                                     <td>

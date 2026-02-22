@@ -65,6 +65,35 @@ export const registrarEntrada = async (
     if (error) throw error;
 };
 
+export const registrarEntradaCajaChica = async (
+    reqId: string,
+    detReqId: string,
+    materialId: string | null,
+    equipoId: string | null,
+    eppId: string | null,
+    cantidad: number,
+    factura: string,
+    usuario: string,
+    obraId: string,
+    frenteId: string | null
+) => {
+    const { data, error } = await supabase.rpc('registrar_entrada_caja_chica', {
+        p_requerimiento_id: reqId,
+        p_detalle_req_id: detReqId,
+        p_material_id: materialId || null,
+        p_equipo_id: equipoId || null,
+        p_epp_id: eppId || null,
+        p_cantidad: cantidad,
+        p_factura: factura,
+        p_usuario: usuario,
+        p_obra_id: obraId,
+        p_frente_id: frenteId || null
+    });
+
+    if (error) throw error;
+    return data;
+};
+
 export const registrarEntradaMasiva = async (
     items: any[],
     docRef: string,
