@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Row, Col, Table, Button, Form, Modal, Card } from 'react-bootstrap';
 import { createMaterial, deleteMaterial, updateMaterial, getCategorias, createCategoria, getMateriales } from '../services/requerimientosService';
 import { Material } from '../types';
+import { usePagination } from '../hooks/usePagination';
+import PaginationControls from '../components/PaginationControls';
 
 const GestionMateriales: React.FC = () => {
     const [materiales, setMateriales] = useState<Material[]>([]);
@@ -14,7 +16,7 @@ const GestionMateriales: React.FC = () => {
     const [newMaterial, setNewMaterial] = useState<Partial<Material>>({
         categoria: '',
         descripcion: '',
-        unidad: 'und',
+        unidad: 'UND',
         informacion_adicional: ''
     });
 
@@ -50,7 +52,7 @@ const GestionMateriales: React.FC = () => {
                 await createMaterial(materialToSave);
             }
             setShowModal(false);
-            setNewMaterial({ categoria: '', descripcion: '', unidad: 'und', informacion_adicional: '' });
+            setNewMaterial({ categoria: '', descripcion: '', unidad: 'UND', informacion_adicional: '' });
             setEditingId(null);
             loadMateriales();
         } catch (error) {
@@ -81,6 +83,8 @@ const GestionMateriales: React.FC = () => {
         m.descripcion.toLowerCase().includes(searchTerm.toLowerCase()) ||
         m.categoria.toLowerCase().includes(searchTerm.toLowerCase())
     );
+
+    const { currentPage, totalPages, totalItems, pageSize, paginatedItems: pagedMaterials, goToPage } = usePagination(filteredMaterials, 15);
 
     const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -119,7 +123,7 @@ const GestionMateriales: React.FC = () => {
 
                     const descripcion = norm.descripcion || norm.material;
                     const categoriaName = norm.categoria;
-                    const unidad = norm.unidad || 'und';
+                    const unidad = (norm.unidad || 'UND').toString().toUpperCase();
                     const info = norm.informacion || norm.comentario || norm.info_adicional || '';
 
                     if (descripcion && categoriaName) {
@@ -190,7 +194,7 @@ const GestionMateriales: React.FC = () => {
                                 setNewMaterial({
                                     categoria: '',
                                     descripcion: '',
-                                    unidad: 'und',
+                                    unidad: 'UND',
                                     informacion_adicional: ''
                                 });
                                 setShowModal(true);
@@ -214,7 +218,7 @@ const GestionMateriales: React.FC = () => {
                         </tr>
                     </thead>
                     <tbody>
-                        {filteredMaterials.map(m => (
+                        {pagedMaterials.map(m => (
                             <tr key={m.id}>
                                 <td width="20%">{m.categoria}</td>
                                 <td width="40%">{m.descripcion}</td>
@@ -233,6 +237,9 @@ const GestionMateriales: React.FC = () => {
                         )}
                     </tbody>
                 </Table>
+                <div className="px-3 pb-3">
+                    <PaginationControls currentPage={currentPage} totalPages={totalPages} totalItems={totalItems} pageSize={pageSize} onPageChange={goToPage} />
+                </div>
 
                 <Modal show={showModal} onHide={() => setShowModal(false)}>
                     <Modal.Header closeButton>
@@ -261,7 +268,7 @@ const GestionMateriales: React.FC = () => {
                                 <Form.Label>Unidad</Form.Label>
                                 <Form.Control
                                     value={newMaterial.unidad}
-                                    onChange={e => setNewMaterial({ ...newMaterial, unidad: e.target.value })}
+                                    onChange={e => setNewMaterial({ ...newMaterial, unidad: e.target.value.toUpperCase() })}
                                 />
                             </Form.Group>
                             <Form.Group className="mb-3">

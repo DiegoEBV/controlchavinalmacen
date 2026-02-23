@@ -17,7 +17,7 @@ const GestionEPPs: React.FC = () => {
 
     const [currentEpp, setCurrentEpp] = useState<Partial<EppC>>({
         descripcion: '',
-        unidad: 'und',
+        unidad: 'UND',
         tipo: 'Personal',
         activo: true
     });
@@ -59,7 +59,7 @@ const GestionEPPs: React.FC = () => {
         } else {
             setCurrentEpp({
                 descripcion: '',
-                unidad: 'und',
+                unidad: 'UND',
                 tipo: 'Personal',
                 activo: true
             });
@@ -138,7 +138,7 @@ const GestionEPPs: React.FC = () => {
 
                     const descripcion = norm.descripcion || norm.nombre || norm.item;
                     const tipoRaw = norm.tipo || 'Personal'; // Default
-                    const unidad = norm.unidad || 'und';
+                    const unidad = norm.unidad || 'UND';
                     // Stock removed from UI/Import as requested.
 
                     if (!descripcion) {
@@ -344,7 +344,7 @@ const GestionEPPs: React.FC = () => {
                                     <Form.Label>Unidad</Form.Label>
                                     <Form.Control
                                         value={currentEpp.unidad}
-                                        onChange={e => setCurrentEpp({ ...currentEpp, unidad: e.target.value })}
+                                        onChange={e => setCurrentEpp({ ...currentEpp, unidad: e.target.value.toUpperCase() })}
                                     />
                                 </Form.Group>
                             </Col>

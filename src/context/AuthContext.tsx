@@ -24,8 +24,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const [user, setUser] = useState<User | null>(null);
     const [profile, setProfile] = useState<UserProfile | null>(null);
     const [selectedObra, setSelectedObra] = useState<Obra | null>(() => {
-        const saved = localStorage.getItem('selectedObra');
-        return saved ? JSON.parse(saved) : null;
+        try {
+            const saved = localStorage.getItem('selectedObra');
+            return saved ? JSON.parse(saved) : null;
+        } catch {
+            return null; // Safari modo privado bloquea localStorage
+        }
     });
     const [loading, setLoading] = useState(true);
 
@@ -78,10 +82,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     const selectObra = (obra: Obra | null) => {
         setSelectedObra(obra);
-        if (obra) {
-            localStorage.setItem('selectedObra', JSON.stringify(obra));
-        } else {
-            localStorage.removeItem('selectedObra');
+        try {
+            if (obra) {
+                localStorage.setItem('selectedObra', JSON.stringify(obra));
+            } else {
+                localStorage.removeItem('selectedObra');
+            }
+        } catch {
+            // Safari modo privado: ignorar error de localStorage
         }
     };
 

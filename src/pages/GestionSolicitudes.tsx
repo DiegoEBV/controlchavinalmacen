@@ -9,8 +9,9 @@ import { Requerimiento, SolicitudCompra, Material, MovimientoAlmacen, OrdenCompr
 import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription';
 import { mergeUpdates } from '../utils/stateUpdates';
 import { exportSolicitudCompra } from '../utils/scExcelExport';
-
 import { FaFileExcel } from 'react-icons/fa';
+import { usePagination } from '../hooks/usePagination';
+import PaginationControls from '../components/PaginationControls';
 
 const GestionSolicitudes: React.FC = () => {
     const [requerimientos, setRequerimientos] = useState<Requerimiento[]>([]);
@@ -92,7 +93,9 @@ const GestionSolicitudes: React.FC = () => {
             let item: any = {
                 descripcion: d.descripcion,
                 unidad: d.unidad,
-                cantidad: d.cantidad_solicitada - d.cantidad_atendida,
+                cantidad_original: d.cantidad_solicitada,
+                cantidad: Math.max(0, d.cantidad_solicitada - (d.cantidad_atendida || 0)), // Descontar lo atendido (incl. caja chica)
+                cantidad_caja_chica: d.cantidad_caja_chica || 0,
                 comentario: '',
                 material_id: null,
                 equipo_id: null,
@@ -152,6 +155,8 @@ const GestionSolicitudes: React.FC = () => {
     const processedReqIds = new Set(solicitudes.map(s => s.requerimiento_id));
     const pendingRequerimientos = requerimientos.filter(r => !processedReqIds.has(r.id));
 
+    const { currentPage: scPage, totalPages: scTotalPages, totalItems: scTotalItems, pageSize: scPageSize, paginatedItems: pagedSolicitudes, goToPage: goToScPage } = usePagination(solicitudes, 15);
+
     return (
         <div className="fade-in">
             <div className="page-header">
@@ -193,7 +198,7 @@ const GestionSolicitudes: React.FC = () => {
                 <Col xs={12}>
                     <h4 className="text-secondary mt-4">Solicitudes Generadas</h4>
                     <Accordion defaultActiveKey="0" flush className="custom-card p-0 overflow-hidden mt-3">
-                        {solicitudes.map((sc, idx) => {
+                        {pagedSolicitudes.map((sc, idx) => {
                             // Pre-calcular estado para el Encabezado
                             let allFullyAttended = true;
                             if (!sc.detalles || sc.detalles.length === 0) allFullyAttended = false;
@@ -332,6 +337,7 @@ const GestionSolicitudes: React.FC = () => {
                         })}
                         {solicitudes.length === 0 && <p className="text-center text-muted p-4">No hay solicitudes generadas aún.</p>}
                     </Accordion>
+                    <PaginationControls currentPage={scPage} totalPages={scTotalPages} totalItems={scTotalItems} pageSize={scPageSize} onPageChange={goToScPage} />
                 </Col>
             </Row>
 
@@ -354,19 +360,26 @@ const GestionSolicitudes: React.FC = () => {
                                 <tr key={idx}>
                                     <td>{it.descripcion}</td>
                                     <td>
-                                        <div className="d-flex align-items-center">
-                                            <Form.Control
-                                                type="number"
-                                                value={it.cantidad}
-                                                onChange={(e) => {
-                                                    const newItems = [...items];
-                                                    newItems[idx].cantidad = parseFloat(e.target.value);
-                                                    setItems(newItems);
-                                                }}
-                                                size="sm"
-                                                style={{ maxWidth: '100px', marginRight: '5px' }}
-                                            />
-                                            <span>{it.unidad}</span>
+                                        <div className="d-flex flex-column align-items-start">
+                                            <div className="d-flex align-items-center mb-1">
+                                                <Form.Control
+                                                    type="number"
+                                                    value={it.cantidad}
+                                                    onChange={(e) => {
+                                                        const newItems = [...items];
+                                                        newItems[idx].cantidad = parseFloat(e.target.value);
+                                                        setItems(newItems);
+                                                    }}
+                                                    size="sm"
+                                                    style={{ maxWidth: '100px', marginRight: '5px' }}
+                                                />
+                                                <span>{it.unidad}</span>
+                                            </div>
+                                            {it.cantidad_caja_chica > 0 && (
+                                                <small className="text-danger fw-bold mt-1" style={{ fontSize: '0.75em', lineHeight: 1.1 }}>
+                                                    *Descontado Caja Chica: {it.cantidad_caja_chica}
+                                                </small>
+                                            )}
                                         </div>
                                     </td>
                                     <td>

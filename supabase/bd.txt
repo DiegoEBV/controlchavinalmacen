@@ -1,0 +1,339 @@
+-- WARNING: This schema is for context only and is not meant to be run.
+-- Table order and constraints may not be valid for execution.
+
+CREATE TABLE public.audit_logs (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid,
+  target_user_id uuid,
+  action text NOT NULL,
+  details text,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT audit_logs_pkey PRIMARY KEY (id),
+  CONSTRAINT audit_logs_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id),
+  CONSTRAINT audit_logs_target_user_id_fkey FOREIGN KEY (target_user_id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.bloques (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  frente_id uuid NOT NULL,
+  nombre_bloque text NOT NULL,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT bloques_pkey PRIMARY KEY (id),
+  CONSTRAINT bloques_frente_id_fkey FOREIGN KEY (frente_id) REFERENCES public.frentes(id)
+);
+CREATE TABLE public.categorias (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  nombre text NOT NULL UNIQUE,
+  descripcion text,
+  created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  CONSTRAINT categorias_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.counters (
+  key text NOT NULL,
+  last_val integer DEFAULT 0,
+  year integer DEFAULT EXTRACT(year FROM CURRENT_DATE),
+  value bigint DEFAULT 0,
+  CONSTRAINT counters_pkey PRIMARY KEY (key)
+);
+CREATE TABLE public.detalles_oc (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  oc_id uuid,
+  detalle_sc_id uuid,
+  cantidad numeric NOT NULL,
+  precio_unitario numeric,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT detalles_oc_pkey PRIMARY KEY (id),
+  CONSTRAINT detalles_oc_oc_id_fkey FOREIGN KEY (oc_id) REFERENCES public.ordenes_compra(id),
+  CONSTRAINT detalles_oc_detalle_sc_id_fkey FOREIGN KEY (detalle_sc_id) REFERENCES public.detalles_sc(id)
+);
+CREATE TABLE public.detalles_requerimiento (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  requerimiento_id uuid,
+  tipo text,
+  material_categoria text,
+  descripcion text,
+  unidad text,
+  cantidad_solicitada numeric NOT NULL,
+  cantidad_atendida numeric DEFAULT 0,
+  atencion_por text,
+  fecha_atencion date,
+  numero_solicitud_compra text,
+  orden_compra text,
+  proveedor text,
+  estado text DEFAULT 'Pendiente'::text,
+  observaciones text,
+  created_at timestamp with time zone DEFAULT now(),
+  equipo_id uuid,
+  epp_id uuid,
+  material_id uuid,
+  listinsumo_id uuid,
+  CONSTRAINT detalles_requerimiento_pkey PRIMARY KEY (id),
+  CONSTRAINT detalles_requerimiento_requerimiento_id_fkey FOREIGN KEY (requerimiento_id) REFERENCES public.requerimientos(id),
+  CONSTRAINT detalles_requerimiento_equipo_id_fkey FOREIGN KEY (equipo_id) REFERENCES public.equipos(id),
+  CONSTRAINT detalles_requerimiento_epp_id_fkey FOREIGN KEY (epp_id) REFERENCES public.epps_c(id),
+  CONSTRAINT detalles_requerimiento_material_id_fkey FOREIGN KEY (material_id) REFERENCES public.materiales(id),
+  CONSTRAINT detalles_requerimiento_listinsumo_id_fkey FOREIGN KEY (listinsumo_id) REFERENCES public.listinsumo_especialidad(id)
+);
+CREATE TABLE public.detalles_sc (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  sc_id uuid,
+  material_id uuid,
+  cantidad numeric NOT NULL,
+  unidad text,
+  estado text DEFAULT 'Pendiente'::text,
+  created_at timestamp with time zone DEFAULT now(),
+  comentario text,
+  equipo_id uuid,
+  epp_id uuid,
+  CONSTRAINT detalles_sc_pkey PRIMARY KEY (id),
+  CONSTRAINT detalles_sc_sc_id_fkey FOREIGN KEY (sc_id) REFERENCES public.solicitudes_compra(id),
+  CONSTRAINT detalles_sc_material_id_fkey FOREIGN KEY (material_id) REFERENCES public.materiales(id),
+  CONSTRAINT detalles_sc_equipo_id_fkey FOREIGN KEY (equipo_id) REFERENCES public.equipos(id),
+  CONSTRAINT detalles_sc_epp_id_fkey FOREIGN KEY (epp_id) REFERENCES public.epps_c(id)
+);
+CREATE TABLE public.epps_c (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  codigo text UNIQUE,
+  descripcion text NOT NULL,
+  unidad text DEFAULT 'und'::text,
+  tipo text CHECK (tipo = ANY (ARRAY['Personal'::text, 'Colectivo'::text])),
+  activo boolean DEFAULT true,
+  created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  CONSTRAINT epps_c_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.equipos (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  obra_id uuid NOT NULL,
+  nombre text NOT NULL,
+  codigo text NOT NULL,
+  estado text NOT NULL DEFAULT 'Operativo'::text CHECK (estado = ANY (ARRAY['Operativo'::text, 'En Uso'::text, 'Inoperativo'::text, 'En Taller'::text])),
+  fecha_adquisicion date DEFAULT CURRENT_DATE,
+  created_at timestamp with time zone DEFAULT now(),
+  marca text,
+  CONSTRAINT equipos_pkey PRIMARY KEY (id),
+  CONSTRAINT equipos_obra_id_fkey FOREIGN KEY (obra_id) REFERENCES public.obras(id)
+);
+CREATE TABLE public.frentes (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  obra_id uuid,
+  nombre_frente text NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  CONSTRAINT frentes_pkey PRIMARY KEY (id),
+  CONSTRAINT frentes_obra_id_fkey FOREIGN KEY (obra_id) REFERENCES public.obras(id)
+);
+CREATE TABLE public.front_specialties (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  front_id uuid NOT NULL,
+  specialty_id uuid NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  CONSTRAINT front_specialties_pkey PRIMARY KEY (id),
+  CONSTRAINT front_specialties_front_id_fkey FOREIGN KEY (front_id) REFERENCES public.frentes(id),
+  CONSTRAINT front_specialties_specialty_id_fkey FOREIGN KEY (specialty_id) REFERENCES public.specialties(id)
+);
+CREATE TABLE public.inventario_obra (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  material_id uuid,
+  cantidad_actual numeric DEFAULT 0 CHECK (cantidad_actual >= 0::numeric),
+  ultimo_ingreso date,
+  updated_at timestamp with time zone DEFAULT now(),
+  obra_id uuid,
+  equipo_id uuid,
+  epp_id uuid,
+  CONSTRAINT inventario_obra_pkey PRIMARY KEY (id),
+  CONSTRAINT inventario_obra_material_id_fkey FOREIGN KEY (material_id) REFERENCES public.materiales(id),
+  CONSTRAINT inventario_obra_obra_id_fkey FOREIGN KEY (obra_id) REFERENCES public.obras(id),
+  CONSTRAINT inventario_obra_equipo_id_fkey FOREIGN KEY (equipo_id) REFERENCES public.equipos(id),
+  CONSTRAINT inventario_obra_epp_id_fkey FOREIGN KEY (epp_id) REFERENCES public.epps_c(id)
+);
+CREATE TABLE public.listinsumo_especialidad (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  front_specialty_id uuid NOT NULL,
+  material_id uuid NOT NULL,
+  cantidad_presupuestada numeric NOT NULL DEFAULT 0,
+  cantidad_utilizada numeric DEFAULT 0,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT listinsumo_especialidad_pkey PRIMARY KEY (id),
+  CONSTRAINT listinsumo_especialidad_material_fkey FOREIGN KEY (material_id) REFERENCES public.materiales(id),
+  CONSTRAINT listinsumo_especialidad_front_spec_fkey FOREIGN KEY (front_specialty_id) REFERENCES public.front_specialties(id)
+);
+CREATE TABLE public.materiales (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  categoria text NOT NULL,
+  descripcion text NOT NULL,
+  unidad text NOT NULL,
+  created_at timestamp with time zone DEFAULT now(),
+  informacion_adicional text,
+  CONSTRAINT materiales_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.movimientos_almacen (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  tipo text NOT NULL CHECK (tipo = ANY (ARRAY['ENTRADA'::text, 'SALIDA'::text])),
+  material_id uuid,
+  cantidad numeric NOT NULL CHECK (cantidad > 0::numeric),
+  fecha date DEFAULT CURRENT_DATE,
+  documento_referencia text,
+  requerimiento_id uuid,
+  detalle_requerimiento_id uuid,
+  destino_o_uso text,
+  created_at timestamp with time zone DEFAULT now(),
+  solicitante text,
+  obra_id uuid,
+  vintar_code text,
+  tercero_id uuid,
+  encargado_id uuid,
+  bloque_id uuid,
+  numero_vale text,
+  equipo_id uuid,
+  epp_id uuid,
+  CONSTRAINT movimientos_almacen_pkey PRIMARY KEY (id),
+  CONSTRAINT movimientos_almacen_material_id_fkey FOREIGN KEY (material_id) REFERENCES public.materiales(id),
+  CONSTRAINT movimientos_almacen_requerimiento_id_fkey FOREIGN KEY (requerimiento_id) REFERENCES public.requerimientos(id),
+  CONSTRAINT movimientos_almacen_detalle_requerimiento_id_fkey FOREIGN KEY (detalle_requerimiento_id) REFERENCES public.detalles_requerimiento(id),
+  CONSTRAINT movimientos_almacen_obra_id_fkey FOREIGN KEY (obra_id) REFERENCES public.obras(id),
+  CONSTRAINT movimientos_almacen_tercero_id_fkey FOREIGN KEY (tercero_id) REFERENCES public.terceros(id),
+  CONSTRAINT movimientos_almacen_encargado_id_fkey FOREIGN KEY (encargado_id) REFERENCES public.profiles(id),
+  CONSTRAINT movimientos_almacen_bloque_id_fkey FOREIGN KEY (bloque_id) REFERENCES public.bloques(id),
+  CONSTRAINT movimientos_almacen_equipo_id_fkey FOREIGN KEY (equipo_id) REFERENCES public.equipos(id),
+  CONSTRAINT movimientos_almacen_epp_id_fkey FOREIGN KEY (epp_id) REFERENCES public.epps_c(id)
+);
+CREATE TABLE public.movimientos_equipos (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  equipo_id uuid NOT NULL,
+  solicitante_id uuid,
+  usuario_autoriza_id uuid NOT NULL,
+  bloque_destino text NOT NULL,
+  fecha_salida timestamp with time zone DEFAULT now(),
+  fecha_retorno_estimada timestamp with time zone,
+  fecha_retorno_real timestamp with time zone,
+  estado_retorno text,
+  evidencia_url text,
+  created_at timestamp with time zone DEFAULT now(),
+  nombre_solicitante text,
+  encargado_id uuid,
+  CONSTRAINT movimientos_equipos_pkey PRIMARY KEY (id),
+  CONSTRAINT movimientos_equipos_equipo_id_fkey FOREIGN KEY (equipo_id) REFERENCES public.equipos(id),
+  CONSTRAINT movimientos_equipos_solicitante_id_fkey FOREIGN KEY (solicitante_id) REFERENCES public.solicitantes(id),
+  CONSTRAINT movimientos_equipos_usuario_autoriza_id_fkey FOREIGN KEY (usuario_autoriza_id) REFERENCES auth.users(id),
+  CONSTRAINT movimientos_equipos_encargado_id_fkey FOREIGN KEY (encargado_id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.notifications (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid,
+  title text NOT NULL,
+  message text NOT NULL,
+  type text DEFAULT 'info'::text,
+  read boolean DEFAULT false,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT notifications_pkey PRIMARY KEY (id),
+  CONSTRAINT notifications_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.obras (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  nombre_obra text NOT NULL,
+  ubicacion text,
+  entidad_contratante text,
+  supervision text,
+  supervisor text,
+  contratista text,
+  residente_obra text,
+  contrato_obra text,
+  monto_contrato numeric,
+  plazo_ejecucion_dias integer,
+  fecha_entrega_terreno date,
+  fecha_inicio_plazo date,
+  fecha_fin_plazo date,
+  parent_id uuid,
+  type text,
+  gastos_generales_porcentaje numeric,
+  utilidad_porcentaje numeric,
+  factor_relacion numeric,
+  igv_porcentaje numeric DEFAULT 18,
+  created_at timestamp with time zone DEFAULT now(),
+  formato_requerimiento_url text,
+  formato_solicitud_url text,
+  CONSTRAINT obras_pkey PRIMARY KEY (id),
+  CONSTRAINT obras_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES public.obras(id)
+);
+CREATE TABLE public.ordenes_compra (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  numero_oc text NOT NULL,
+  proveedor text,
+  fecha_oc date DEFAULT CURRENT_DATE,
+  estado text DEFAULT 'Emitida'::text,
+  sc_id uuid,
+  created_at timestamp with time zone DEFAULT now(),
+  fecha_aproximada_atencion date,
+  CONSTRAINT ordenes_compra_pkey PRIMARY KEY (id),
+  CONSTRAINT ordenes_compra_sc_id_fkey FOREIGN KEY (sc_id) REFERENCES public.solicitudes_compra(id)
+);
+CREATE TABLE public.profiles (
+  id uuid NOT NULL,
+  email text,
+  role text CHECK (role = ANY (ARRAY['admin'::text, 'produccion'::text, 'coordinador'::text, 'logistica'::text, 'almacenero'::text, 'sin_asignar'::text])),
+  nombre text,
+  created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  CONSTRAINT profiles_pkey PRIMARY KEY (id),
+  CONSTRAINT profiles_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.requerimientos (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  obra_id uuid,
+  item_correlativo integer NOT NULL DEFAULT nextval('requerimientos_item_correlativo_seq'::regclass),
+  bloque text,
+  especialidad text,
+  solicitante text,
+  fecha_solicitud date DEFAULT CURRENT_DATE,
+  created_at timestamp with time zone DEFAULT now(),
+  frente_id uuid,
+  specialty_id uuid,
+  CONSTRAINT requerimientos_pkey PRIMARY KEY (id),
+  CONSTRAINT requerimientos_obra_id_fkey FOREIGN KEY (obra_id) REFERENCES public.obras(id),
+  CONSTRAINT requerimientos_frente_id_fkey FOREIGN KEY (frente_id) REFERENCES public.frentes(id),
+  CONSTRAINT requerimientos_specialty_id_fkey FOREIGN KEY (specialty_id) REFERENCES public.specialties(id)
+);
+CREATE TABLE public.solicitantes (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  nombre text NOT NULL UNIQUE,
+  cargo text,
+  created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  CONSTRAINT solicitantes_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.solicitudes_compra (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  requerimiento_id uuid,
+  numero_sc text NOT NULL,
+  fecha_sc date DEFAULT CURRENT_DATE,
+  estado text DEFAULT 'Pendiente'::text,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT solicitudes_compra_pkey PRIMARY KEY (id),
+  CONSTRAINT solicitudes_compra_requerimiento_id_fkey FOREIGN KEY (requerimiento_id) REFERENCES public.requerimientos(id)
+);
+CREATE TABLE public.specialties (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  name text NOT NULL UNIQUE,
+  description text,
+  created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  active boolean DEFAULT true,
+  CONSTRAINT specialties_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.terceros (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  obra_id uuid NOT NULL,
+  nombre_completo text NOT NULL,
+  ruc text CHECK (ruc ~ '^[0-9]{11}$'::text),
+  dni text CHECK (dni ~ '^[0-9]{8}$'::text),
+  direccion text,
+  telefono text,
+  email text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT terceros_pkey PRIMARY KEY (id),
+  CONSTRAINT terceros_obra_id_fkey FOREIGN KEY (obra_id) REFERENCES public.obras(id)
+);
+CREATE TABLE public.usuario_obras (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  obra_id uuid NOT NULL,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT usuario_obras_pkey PRIMARY KEY (id),
+  CONSTRAINT usuario_obras_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id),
+  CONSTRAINT usuario_obras_obra_id_fkey FOREIGN KEY (obra_id) REFERENCES public.obras(id)
+);
