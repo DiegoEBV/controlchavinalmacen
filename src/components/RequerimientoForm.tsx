@@ -61,7 +61,7 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
         tipo: 'Material',
         material_categoria: 'General',
         descripcion: '',
-        unidad: 'und',
+        unidad: 'UND',
         cantidad_solicitada: 0,
         material_id: undefined,
         listinsumo_id: undefined
@@ -183,7 +183,7 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
                     tipo: 'Material',
                     material_categoria: 'General',
                     descripcion: '',
-                    unidad: 'und',
+                    unidad: 'UND',
                     cantidad_solicitada: 0,
                     material_id: undefined,
                     listinsumo_id: undefined
@@ -204,7 +204,7 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
                     tipo: 'Material',
                     material_categoria: 'General',
                     descripcion: '',
-                    unidad: 'und',
+                    unidad: 'UND',
                     cantidad_solicitada: 0,
                     material_id: undefined,
                     listinsumo_id: undefined
@@ -376,7 +376,7 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
             ...prev,
             material_categoria: prev.tipo === 'Material' ? 'General' : '',
             descripcion: '',
-            unidad: 'und',
+            unidad: 'UND',
             cantidad_solicitada: 0,
             equipo_id: undefined,
             epp_id: undefined,
@@ -462,7 +462,7 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
             setNewItem(prev => ({
                 ...prev,
                 descripcion: `${selectedEq.nombre} - ${selectedEq.marca}`,
-                unidad: 'und', // Default unit for equipment
+                unidad: 'UND', // Default unit for equipment
                 equipo_id: selectedEq.id
             }));
         }
@@ -514,7 +514,7 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
                                             // Si es Material, mantener General. Si no, vacío.
                                             material_categoria: newItem.tipo === 'Material' ? 'General' : '',
                                             descripcion: '',
-                                            unidad: newItem.tipo === 'Equipo' ? 'und' : 'und',
+                                            unidad: newItem.tipo === 'Equipo' ? 'UND' : 'UND',
                                             cantidad_solicitada: 0,
                                             material_id: undefined,
                                             listinsumo_id: undefined
@@ -665,7 +665,7 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
                                                 tipo: newType,
                                                 material_categoria: newType === 'Material' ? 'General' : '',
                                                 descripcion: '',
-                                                unidad: (newType === 'Equipo' || newType === 'EPP') ? 'und' : newItem.unidad, // Reset unit
+                                                unidad: (newType === 'Equipo' || newType === 'EPP') ? 'UND' : newItem.unidad, // Reset unit
                                                 equipo_id: undefined,
                                                 epp_id: undefined,
                                                 material_id: undefined,
@@ -749,7 +749,7 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
                             <Form.Label>Unidad</Form.Label>
                             <Form.Control
                                 value={newItem.unidad}
-                                onChange={e => setNewItem({ ...newItem, unidad: e.target.value })}
+                                onChange={e => setNewItem({ ...newItem, unidad: e.target.value.toUpperCase() })}
                                 readOnly={(newItem.tipo === 'Material' && !!newItem.material_categoria) || newItem.tipo === 'EPP'} // Solo lectura si se auto-rellena
                             />
                         </Col>

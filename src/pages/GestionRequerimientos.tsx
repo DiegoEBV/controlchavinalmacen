@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Button, Table, Badge, Accordion, ProgressBar, Row, Col, Form, Card, Spinner } from 'react-bootstrap';
+import { Button, Table, Badge, Accordion, ProgressBar, Row, Col, Form, Card, Spinner, OverlayTrigger, Tooltip } from 'react-bootstrap';
 import { getRequerimientos, createRequerimiento, updateRequerimiento, getObras, getUserAssignedObras, getRequerimientoById } from '../services/requerimientosService';
 import { getSolicitudesCompra, getOrdenesCompra, getSolicitudCompraById, getOrdenCompraById } from '../services/comprasService';
 import { Requerimiento, Obra, SolicitudCompra, OrdenCompra } from '../types';
@@ -9,8 +9,8 @@ import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription';
 import { mergeUpdates } from '../utils/stateUpdates';
 import { exportRequerimiento } from '../utils/excelExport';
 import { FaFileExcel, FaEdit } from 'react-icons/fa';
-
-const ITEMS_PER_PAGE = 20;
+import { usePagination } from '../hooks/usePagination';
+import PaginationControls from '../components/PaginationControls';
 
 const GestionRequerimientos: React.FC = () => {
     const [requerimientos, setRequerimientos] = useState<Requerimiento[]>([]);
@@ -20,7 +20,6 @@ const GestionRequerimientos: React.FC = () => {
     const [showForm, setShowForm] = useState(false);
     const [editingReq, setEditingReq] = useState<Requerimiento | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
-    const [visibleCount, setVisibleCount] = useState(ITEMS_PER_PAGE);
     const [exportingId, setExportingId] = useState<string | null>(null);
 
     const { selectedObra, user, isAdmin } = useAuth();
@@ -84,9 +83,6 @@ const GestionRequerimientos: React.FC = () => {
     const loadData = async () => {
         if (!selectedObra) return;
 
-        // Reiniciar paginación
-        setVisibleCount(ITEMS_PER_PAGE);
-
         // Obtención paralela
         const pReqs = getRequerimientos(selectedObra.id);
         const pScs = getSolicitudesCompra(selectedObra.id);
@@ -145,7 +141,8 @@ const GestionRequerimientos: React.FC = () => {
         if (!req.detalles?.length) return 0;
         let totalPct = 0;
         req.detalles.forEach(d => {
-            totalPct += Math.min((d.cantidad_atendida / d.cantidad_solicitada), 1);
+            const atendidoTotal = Math.min(d.cantidad_atendida, d.cantidad_solicitada);
+            totalPct += (atendidoTotal / d.cantidad_solicitada);
         });
         return Math.round((totalPct / req.detalles.length) * 100);
     };
@@ -166,13 +163,7 @@ const GestionRequerimientos: React.FC = () => {
         );
     }, [requerimientos, searchTerm]);
 
-    // Aplicar paginación a la lista filtrada
-    const visibleReqs = filteredReqs.slice(0, visibleCount);
-
-
-    const handleLoadMore = () => {
-        setVisibleCount(prev => prev + ITEMS_PER_PAGE);
-    };
+    const { currentPage, totalPages, totalItems, pageSize, paginatedItems: visibleReqs, goToPage } = usePagination(filteredReqs, 15);
 
     const handleExport = async (req: Requerimiento) => {
         if (exportingId) return; // Prevent multiple clicks
@@ -319,8 +310,47 @@ const GestionRequerimientos: React.FC = () => {
                                                                 </div>
                                                             ) : '-'}
                                                         </td>
-                                                        <td>{d.cantidad_atendida}</td>
-                                                        <td><Badge bg={getStatusColor(d.estado)}>{d.estado}</Badge></td>
+                                                        <td>
+                                                            <div className="d-flex align-items-center">
+                                                                <span className="me-2">{d.cantidad_atendida}</span>
+                                                                {d.cantidad_caja_chica ? (
+                                                                    <OverlayTrigger
+                                                                        placement="top"
+                                                                        overlay={<Tooltip>{d.cantidad_caja_chica} ingresado por Caja Chica</Tooltip>}
+                                                                    >
+                                                                        <Badge bg="warning" text="dark" className="ms-1" style={{ cursor: 'help' }}>
+                                                                            <i className="bi bi-wallet2 me-1"></i>
+                                                                            {d.cantidad_caja_chica}
+                                                                        </Badge>
+                                                                    </OverlayTrigger>
+                                                                ) : null}
+                                                            </div>
+                                                        </td>
+                                                        <td>
+                                                            {relatedSCItem && Number(relatedSCItem.cantidad) === 0 ? (
+                                                                <OverlayTrigger
+                                                                    placement="top"
+                                                                    overlay={
+                                                                        <Tooltip id={`tooltip-anulado-${d.id}`}>
+                                                                            <strong>Anulado en SC</strong>
+                                                                            {relatedSCItem.comentario
+                                                                                ? <><br />{relatedSCItem.comentario}</>
+                                                                                : <><br /><em>Sin comentario</em></>}
+                                                                        </Tooltip>
+                                                                    }
+                                                                >
+                                                                    <Badge
+                                                                        bg="secondary"
+                                                                        style={{ cursor: 'help', opacity: 0.75 }}
+                                                                        className="d-inline-flex align-items-center gap-1"
+                                                                    >
+                                                                        Sin Atención
+                                                                    </Badge>
+                                                                </OverlayTrigger>
+                                                            ) : (
+                                                                <Badge bg={getStatusColor(d.estado)}>{d.estado}</Badge>
+                                                            )}
+                                                        </td>
                                                         <td>
                                                             <small>
                                                                 {(() => {
@@ -367,15 +397,9 @@ const GestionRequerimientos: React.FC = () => {
 
                     {filteredReqs.length === 0 && <p className="text-center text-muted mt-5">No se encontraron requerimientos.</p>}
                 </Accordion>
-
-                {/* Botón Cargar Más */}
-                {visibleCount < filteredReqs.length && (
-                    <div className="text-center p-3">
-                        <Button variant="outline-primary" onClick={handleLoadMore}>
-                            Cargar más requerimientos ({filteredReqs.length - visibleCount} restantes)
-                        </Button>
-                    </div>
-                )}
+                <div className="px-3 pb-3">
+                    <PaginationControls currentPage={currentPage} totalPages={totalPages} totalItems={totalItems} pageSize={pageSize} onPageChange={goToPage} />
+                </div>
             </div>
 
             <RequerimientoForm

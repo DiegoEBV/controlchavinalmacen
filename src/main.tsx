@@ -1,16 +1,5 @@
 import 'bootstrap/dist/css/bootstrap.min.css';
 import './index.css';
-import { registerSW } from 'virtual:pwa-register';
-
-// Register PWA Service Worker
-const updateSW = registerSW({
-    onNeedRefresh() {
-        if (confirm('Nueva versión disponible. ¿Recargar?')) {
-            updateSW(true);
-        }
-    },
-});
-
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
@@ -144,3 +133,19 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         </AuthProvider>
     </React.StrictMode>,
 );
+
+// Registrar Service Worker DESPUÉS del render para no bloquear Safari/iOS
+(async () => {
+    try {
+        const { registerSW } = await import('virtual:pwa-register');
+        const updateSW = registerSW({
+            onNeedRefresh() {
+                if (confirm('Nueva versión disponible. ¿Recargar?')) {
+                    updateSW(true);
+                }
+            },
+        });
+    } catch (e) {
+        console.warn('Service Worker no disponible:', e);
+    }
+})();
