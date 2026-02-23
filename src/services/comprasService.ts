@@ -87,9 +87,9 @@ export const getOrdenesCompra = async (obraId?: string) => {
             *,
             sc:solicitudes_compra!inner(
                 *,
-                requerimiento:requerimientos!inner(id, obra_id)
+                requerimiento:requerimientos!inner(id, obra_id, item_correlativo, solicitante, frente:frentes(nombre_frente))
             ),
-            detalles:detalles_oc(*, detalle_sc:detalles_sc(*, material:materiales(*)))
+            detalles:detalles_oc(*, detalle_sc:detalles_sc(*, material:materiales(*), equipo:equipos(*), epp:epps_c(*)))
         `)
         .order('created_at', { ascending: false });
 
@@ -146,9 +146,9 @@ export const getOrdenCompraById = async (id: string) => {
             *,
             sc:solicitudes_compra!inner(
                 *,
-                requerimiento:requerimientos!inner(id, obra_id)
+                requerimiento:requerimientos!inner(id, obra_id, item_correlativo, solicitante, frente:frentes(nombre_frente))
             ),
-            detalles:detalles_oc(*, detalle_sc:detalles_sc(*, material:materiales(*)))
+            detalles:detalles_oc(*, detalle_sc:detalles_sc(*, material:materiales(*), equipo:equipos(*), epp:epps_c(*)))
         `)
         .eq('id', id)
         .single();

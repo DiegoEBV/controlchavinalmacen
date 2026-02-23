@@ -4,16 +4,20 @@ import { Card, Button, Table, Badge, Modal, Form, Row, Col, Spinner } from 'reac
 import { RiFileExcel2Line } from 'react-icons/ri';
 
 import { getSolicitudesCompra, createOrdenCompra, getOrdenesCompra, getOrdenCompraById, getSolicitudCompraById } from '../services/comprasService';
-import { SolicitudCompra, OrdenCompra } from '../types';
+import { getMovimientos } from '../services/almacenService';
+import { SolicitudCompra, OrdenCompra, MovimientoAlmacen } from '../types';
 import { exportSolicitudCompra } from '../utils/scExcelExport';
 import { useAuth } from '../context/AuthContext';
 import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription';
 import { mergeUpdates } from '../utils/stateUpdates';
+import { usePagination } from '../hooks/usePagination';
+import PaginationControls from '../components/PaginationControls';
 
 const GestionOrdenes: React.FC = () => {
     const { selectedObra } = useAuth();
     const [allSolicitudes, setAllSolicitudes] = useState<SolicitudCompra[]>([]);
     const [ordenes, setOrdenes] = useState<OrdenCompra[]>([]);
+    const [historial, setHistorial] = useState<MovimientoAlmacen[]>([]);
 
     // Estado del Modal
     const [showModal, setShowModal] = useState(false);
@@ -61,13 +65,15 @@ const GestionOrdenes: React.FC = () => {
 
     const loadData = async () => {
         if (!selectedObra) return;
-        const [scs, ocs] = await Promise.all([
+        const [scs, ocs, movs] = await Promise.all([
             getSolicitudesCompra(selectedObra.id),
-            getOrdenesCompra(selectedObra.id)
+            getOrdenesCompra(selectedObra.id),
+            getMovimientos(selectedObra.id)
         ]);
 
         if (scs) setAllSolicitudes(scs);
         if (ocs) setOrdenes(ocs);
+        if (movs) setHistorial(movs as any);
     };
 
     // Estado Derivado: SCs Disponibles
@@ -75,20 +81,34 @@ const GestionOrdenes: React.FC = () => {
         return allSolicitudes.filter(sc => {
             if (!sc.detalles) return false;
 
-            // Verificar si cada ítem en esta SC está totalmente comprado
+            // Verificar si cada ítem en esta SC está totalmente comprado o cubierto
             const isFullyPurchased = sc.detalles.every(d => {
-                // Encontrar todos los detalles de OC que referencian este detalle de SC específico
+                // Total comprometido en OCs
                 const totalPurchased = ordenes.reduce((sum, oc) => {
                     const match = oc.detalles?.find(od => od.detalle_sc_id === d.id);
                     return sum + (match ? match.cantidad : 0);
                 }, 0);
 
-                return totalPurchased >= d.cantidad;
+                // Total cubierto exclusivamente por Caja Chica
+                const totalCajaChica = historial
+                    .filter(h =>
+                        h.tipo === 'ENTRADA' &&
+                        (h as any).destino_o_uso === 'COMPRA CAJA CHICA' &&
+                        String(h.requerimiento_id) === String(sc.requerimiento_id) &&
+                        (
+                            (h.material_id && d.material_id === h.material_id) ||
+                            (h.equipo_id && d.equipo_id === h.equipo_id) ||
+                            (h.epp_id && d.epp_id === h.epp_id)
+                        )
+                    )
+                    .reduce((sum, h) => sum + h.cantidad, 0);
+
+                return (totalPurchased + totalCajaChica) >= d.cantidad;
             });
 
             return !isFullyPurchased;
         });
-    }, [allSolicitudes, ordenes]);
+    }, [allSolicitudes, ordenes, historial]);
 
     const handleOpenCreate = (sc: SolicitudCompra) => {
         setSelectedSC(sc);
@@ -101,13 +121,28 @@ const GestionOrdenes: React.FC = () => {
         // Pre-llenar con ítems de la SC
         // Lógica: Permitir seleccionar ítems parciales.
         const initialItems = sc.detalles?.map(d => {
-            // Calcular lo que ya se ha comprado en OCs anteriores
+            // Calcular lo que ya se ha comprado/comprometido en OCs anteriores
             const totalPurchased = ordenes.reduce((sum, oc) => {
                 const match = oc.detalles?.find(od => od.detalle_sc_id === d.id);
                 return sum + (match ? match.cantidad : 0);
             }, 0);
 
-            const remaining = Math.max(0, d.cantidad - totalPurchased);
+            // Calcular ingresos exclusivamente por CAJA CHICA
+            const totalCajaChica = historial
+                .filter(h =>
+                    h.tipo === 'ENTRADA' &&
+                    (h as any).destino_o_uso === 'COMPRA CAJA CHICA' &&
+                    String(h.requerimiento_id) === String(sc.requerimiento_id) &&
+                    (
+                        (h.material_id && d.material_id === h.material_id) ||
+                        (h.equipo_id && d.equipo_id === h.equipo_id) ||
+                        (h.epp_id && d.epp_id === h.epp_id)
+                    )
+                )
+                .reduce((sum, h) => sum + h.cantidad, 0);
+
+            // Lo pendiente = SC original - (comprometido en OCs) - (cubierto por caja chica)
+            const remaining = Math.max(0, d.cantidad - totalPurchased - totalCajaChica);
 
             return {
                 detalle_sc_id: d.id,
@@ -116,7 +151,8 @@ const GestionOrdenes: React.FC = () => {
                 cantidad_pendiente: remaining,
                 cantidad_compra: remaining,
                 precio_unitario: 0,
-                selected: remaining > 0
+                selected: remaining > 0,
+                cantidad_caja_chica: totalCajaChica  // Solo lo genuinamente de Caja Chica
             };
         }) || [];
         setItemsToOrder(initialItems);
@@ -173,6 +209,8 @@ const GestionOrdenes: React.FC = () => {
             setExportingId(null);
         }
     };
+
+    const { currentPage: ocPage, totalPages: ocTotalPages, totalItems: ocTotalItems, pageSize: ocPageSize, paginatedItems: pagedOrdenes, goToPage: goToOcPage } = usePagination(ordenes, 15);
 
     return (
         <div className="fade-in">
@@ -236,7 +274,7 @@ const GestionOrdenes: React.FC = () => {
                             </tr>
                         </thead>
                         <tbody>
-                            {ordenes.map(oc => {
+                            {pagedOrdenes.map(oc => {
                                 return (
                                     <tr key={oc.id}>
                                         <td className="fw-bold text-success">{oc.numero_oc}</td>
@@ -250,6 +288,7 @@ const GestionOrdenes: React.FC = () => {
                             })}
                         </tbody>
                     </Table>
+                    <PaginationControls currentPage={ocPage} totalPages={ocTotalPages} totalItems={ocTotalItems} pageSize={ocPageSize} onPageChange={goToOcPage} />
                 </Col>
             </Row>
 
@@ -318,7 +357,16 @@ const GestionOrdenes: React.FC = () => {
                                         />
                                     </td>
                                     <td>{it.material_desc}</td>
-                                    <td>{Number(it.cantidad_sc).toFixed(2)}</td>
+                                    <td>
+                                        <div className="d-flex flex-column">
+                                            <span>{Number(it.cantidad_sc).toFixed(2)}</span>
+                                            {it.cantidad_caja_chica > 0 && (
+                                                <small className="text-danger fw-bold mt-1" style={{ fontSize: '0.75em', lineHeight: 1.1 }}>
+                                                    *Descontado Caja Chica: {it.cantidad_caja_chica}
+                                                </small>
+                                            )}
+                                        </div>
+                                    </td>
                                     <td>
                                         <Form.Control
                                             type="number"

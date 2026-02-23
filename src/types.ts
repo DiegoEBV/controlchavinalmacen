@@ -27,6 +27,7 @@ export interface DetalleRequerimiento {
     epp_id?: string;
     epp?: EppC;
     cantidad_atendida: number;
+    cantidad_caja_chica?: number;
     atencion_por?: string;
     fecha_atencion?: string;
     numero_solicitud_compra?: string;

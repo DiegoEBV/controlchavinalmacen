@@ -4,6 +4,8 @@ import { supabase } from '../config/supabaseClient';
 import { getInventario } from '../services/almacenService';
 import { StockItem, Inventario } from '../types';
 import { useAuth } from '../context/AuthContext';
+import { usePagination } from '../hooks/usePagination';
+import PaginationControls from '../components/PaginationControls';
 
 const StockAlmacen: React.FC = () => {
     const { selectedObra } = useAuth();
@@ -120,6 +122,8 @@ const StockAlmacen: React.FC = () => {
         });
     }, [stockItems, searchTerm, filterCategory]);
 
+    const { currentPage, totalPages, totalItems, pageSize, paginatedItems: pagedStock, goToPage } = usePagination(filteredStock, 15);
+
     return (
         <div className="fade-in">
             <div className="page-header">
@@ -170,7 +174,7 @@ const StockAlmacen: React.FC = () => {
                         ) : filteredStock.length === 0 ? (
                             <tr><td colSpan={7} className="text-center p-5 text-muted">No hay ítems en stock.</td></tr>
                         ) : (
-                            filteredStock.map((item, index) => {
+                            pagedStock.map((item, index) => {
                                 let typeLabel = '';
                                 let col2 = '-'; // Frente or Marca
                                 let description = '-';
@@ -228,6 +232,9 @@ const StockAlmacen: React.FC = () => {
                         )}
                     </tbody>
                 </Table>
+                <div className="px-3 pb-3">
+                    <PaginationControls currentPage={currentPage} totalPages={totalPages} totalItems={totalItems} pageSize={pageSize} onPageChange={goToPage} />
+                </div>
             </Card>
         </div>
     );
