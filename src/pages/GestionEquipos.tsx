@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Table, Button, Modal, Form, Container, Row, Col, Spinner, Alert } from 'react-bootstrap';
+import { Table, Button, Modal, Form, Container, Row, Col, Spinner, Alert, InputGroup } from 'react-bootstrap';
 import { useAuth } from '../context/AuthContext';
 import { getEquipos, createEquipo, updateEquipo, deleteEquipo } from '../services/equiposService';
 import { getObras, getUserAssignedObras } from '../services/requerimientosService';
@@ -41,6 +41,7 @@ const GestionEquipos: React.FC = () => {
         codigo: '',
         marca: ''
     });
+    const [searchTerm, setSearchTerm] = useState('');
     const [error, setError] = useState('');
 
     // Importación Excel
@@ -232,7 +233,13 @@ const GestionEquipos: React.FC = () => {
         }
     };
 
-    const { currentPage, totalPages, totalItems, pageSize, paginatedItems: pagedEquipos, goToPage } = usePagination(equipos, 15);
+    const filteredEquipos = equipos.filter(eq =>
+        eq.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (eq.codigo && eq.codigo.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (eq.marca && eq.marca.toLowerCase().includes(searchTerm.toLowerCase()))
+    );
+
+    const { currentPage, totalPages, totalItems, pageSize, paginatedItems: pagedEquipos, goToPage } = usePagination(filteredEquipos, 15);
 
     if (authLoading) return <div className="text-center mt-5"><Spinner animation="border" /></div>;
 
@@ -259,26 +266,35 @@ const GestionEquipos: React.FC = () => {
             {error && <Alert variant="danger" className="shadow-sm border-0 rounded-3 mb-4">{error}</Alert>}
 
             <div className="custom-card fade-in">
-                <Row className="mb-4">
-                    <Col className="d-flex gap-2">
+                <Row className="g-3 align-items-center mb-4">
+                    <Col md={7}>
+                        <InputGroup>
+                            <Form.Control
+                                placeholder="Buscar equipo..."
+                                value={searchTerm}
+                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
+                            />
+                        </InputGroup>
+                    </Col>
+                    <Col md={5} className="d-flex justify-content-end gap-2">
                         {canEdit && (
                             <>
-                                <Button variant="primary" onClick={() => handleShow()}>
-                                    + Nuevo Equipo
-                                </Button>
                                 <Button
                                     variant="success"
                                     onClick={handleImportClick}
                                     disabled={!selectedObra || importLoading}
+                                    className="shadow-sm"
                                     title="Importar equipos desde un archivo Excel (.xlsx). Solo se requiere la columna 'Nombre'."
                                 >
                                     {importLoading ? (
                                         <><Spinner animation="border" size="sm" className="me-2" />Importando...</>
                                     ) : (
-                                        '⬆ Importar desde Excel'
+                                        'Importar Excel'
                                     )}
                                 </Button>
-                                {/* Input oculto para selección de archivo */}
+                                <Button variant="primary" onClick={() => handleShow()} className="shadow-sm">
+                                    + Nuevo Equipo
+                                </Button>
                                 <input
                                     ref={fileInputRef}
                                     type="file"

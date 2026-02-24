@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Container, Row, Col, Table, Button, Form, Modal, Badge, InputGroup } from 'react-bootstrap';
-import { FaPlus, FaEdit, FaSearch, FaArchive, FaBoxOpen } from 'react-icons/fa';
+import { FaEdit, FaArchive, FaBoxOpen } from 'react-icons/fa';
 import { EppC } from '../types';
 import { getEpps, createEpp, updateEpp, toggleEppStatus, getNextEppCode, createEppsBatch } from '../services/eppsService';
 import { useAuth } from '../context/AuthContext';
+import PaginationControls from '../components/PaginationControls';
+import { usePagination } from '../hooks/usePagination';
 
 const GestionEPPs: React.FC = () => {
     const { hasRole } = useAuth();
@@ -190,49 +192,52 @@ const GestionEPPs: React.FC = () => {
         }
     };
 
+
+
     const filteredEpps = epps.filter(e =>
         e.descripcion.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (e.codigo && e.codigo.toLowerCase().includes(searchTerm.toLowerCase()))
     );
 
+    const { currentPage, totalPages, totalItems, pageSize, paginatedItems: PageEpps, goToPage } = usePagination(filteredEpps, 15);
+
     return (
         <Container className="mt-4">
             <div className="d-flex justify-content-between align-items-center mb-4 fade-in">
                 <h2 className="mb-0 fw-bold text-dark">Gestión de EPPs y Colectivos</h2>
-                {canEdit && (
-                    <div className="d-flex gap-2">
-                        <label className="btn btn-success text-white shadow-sm">
-                            <FaEdit className="me-2" /> Importar Excel
-                            <input type="file" hidden accept=".xlsx, .xls" onChange={handleImport} />
-                        </label>
-                        <Button variant="primary" onClick={() => handleOpenModal()} className="shadow-sm">
-                            <FaPlus className="me-2" /> Nuevo Ítem
-                        </Button>
-                    </div>
-                )}
             </div>
 
             <div className="custom-card fade-in">
-                <Row className="mb-4">
+                <Row className="g-3 align-items-center mb-4">
                     <Col md={6}>
                         <InputGroup>
-                            <InputGroup.Text><FaSearch /></InputGroup.Text>
                             <Form.Control
                                 placeholder="Buscar por descripción o código..."
                                 value={searchTerm}
-                                onChange={e => setSearchTerm(e.target.value)}
+                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
                             />
                         </InputGroup>
                     </Col>
-                    <Col md={6} className="text-end">
+                    <Col md={6} className="d-flex justify-content-end align-items-center gap-3">
                         <Form.Check
                             type="switch"
                             id="show-archived"
                             label="Mostrar Archivados"
                             checked={showArchived}
                             onChange={e => setShowArchived(e.target.checked)}
-                            className="d-inline-block"
+                            className="mb-0 mt-1"
                         />
+                        {canEdit && (
+                            <div className="d-flex gap-2">
+                                <label className="btn btn-success text-white mb-0 shadow-sm">
+                                    Importar Excel
+                                    <input type="file" hidden accept=".xlsx, .xls" onChange={handleImport} />
+                                </label>
+                                <Button variant="primary" onClick={() => handleOpenModal()} className="shadow-sm">
+                                    + Nuevo Ítem
+                                </Button>
+                            </div>
+                        )}
                     </Col>
                 </Row>
 
@@ -256,7 +261,7 @@ const GestionEPPs: React.FC = () => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {filteredEpps.length > 0 ? filteredEpps.map(epp => (
+                                {filteredEpps.length > 0 ? PageEpps.map(epp => (
                                     <tr key={epp.id} className={!epp.activo ? 'table-secondary opacity-75' : ''}>
                                         <td>{epp.codigo || '-'}</td>
                                         <td>{epp.descripcion}</td>
@@ -292,6 +297,9 @@ const GestionEPPs: React.FC = () => {
                                 )}
                             </tbody>
                         </Table>
+                        <div className="px-3 pb-3">
+                            <PaginationControls currentPage={currentPage} totalPages={totalPages} totalItems={totalItems} pageSize={pageSize} onPageChange={goToPage} />
+                        </div>
                     </div>
                 )}
 

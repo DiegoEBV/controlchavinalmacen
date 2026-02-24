@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Row, Col, Table, Button, Form, Modal, Card, Badge, InputGroup } from 'react-bootstrap';
-import { FaPlus, FaEdit, FaSearch, FaArchive, FaBoxOpen } from 'react-icons/fa';
+import { FaPlus, FaEdit, FaArchive, FaBoxOpen } from 'react-icons/fa';
 import { getSpecialties, createSpecialty, updateSpecialty, deleteSpecialty } from '../services/specialtiesService';
 import { Specialty } from '../types';
 import { usePagination } from '../hooks/usePagination';
@@ -109,12 +109,10 @@ const GestionEspecialidades: React.FC = () => {
                     <Row className="g-3 align-items-center">
                         <Col xs={12} md={6}>
                             <InputGroup>
-                                <InputGroup.Text className="bg-white border-end-0"><FaSearch className="text-muted" /></InputGroup.Text>
                                 <Form.Control
                                     placeholder="Buscar especialidad..."
                                     value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="border-start-0 ps-0"
+                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
                                 />
                             </InputGroup>
                         </Col>
