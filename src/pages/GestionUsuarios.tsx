@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Container, Table, Button, Form, Alert, Badge, Modal, Spinner } from 'react-bootstrap';
-import { FaEye, FaEyeSlash, FaKey, FaBuilding, FaMagic, FaClipboard } from 'react-icons/fa';
+import { FaEye, FaEyeSlash, FaKey, FaBuilding, FaMagic, FaClipboard, FaPencilAlt, FaCheck, FaTimes, FaExclamationTriangle } from 'react-icons/fa';
 import { supabase } from '../config/supabaseClient';
 import { createClient } from '@supabase/supabase-js';
 import { UserProfile, UserRole } from '../types/auth';
@@ -355,17 +355,17 @@ const GestionUsuarios = () => {
                                                     className="form-control-sm"
                                                 />
                                                 <Button size="sm" variant="success" className="rounded-circle shadow-sm" style={{ width: '32px', height: '32px', padding: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => saveName(profile.id)}>
-                                                    <i className="bi bi-check-lg"></i>
+                                                    <FaCheck />
                                                 </Button>
                                                 <Button size="sm" variant="danger" className="rounded-circle shadow-sm" style={{ width: '32px', height: '32px', padding: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }} onClick={cancelEditing}>
-                                                    <i className="bi bi-x-lg"></i>
+                                                    <FaTimes />
                                                 </Button>
                                             </div>
                                         ) : (
                                             <div className="d-flex align-items-center">
                                                 <div className="fw-bold text-dark me-2">{profile.nombre || 'Sin nombre'}</div>
                                                 <Button size="sm" variant="link" className="p-0 text-muted opacity-50 hover-opacity-100 text-decoration-none" onClick={() => startEditing(profile)} title="Editar nombre">
-                                                    <i className="bi bi-pencil-fill small"></i>
+                                                    <FaPencilAlt className="small" />
                                                 </Button>
                                             </div>
                                         )}
@@ -401,7 +401,7 @@ const GestionUsuarios = () => {
                                                 onClick={() => handleOpenObraModal(profile)}
                                                 title="Gestionar Obras"
                                             >
-                                                <i className="bi bi-building me-2"></i> Obras
+                                                <FaBuilding className="me-2" /> Obras
                                             </Button>
                                             <Button
                                                 variant="outline-danger"
@@ -537,7 +537,7 @@ const GestionUsuarios = () => {
                 </Modal.Header>
                 <Modal.Body>
                     <Alert variant="danger">
-                        <i className="bi bi-exclamation-triangle-fill me-2"></i>
+                        <FaExclamationTriangle className="me-2" />
                         <strong>Advertencia:</strong> Esta acción cerrará la sesión actual del usuario en todos sus dispositivos.
                     </Alert>
 
