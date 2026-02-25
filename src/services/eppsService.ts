@@ -1,19 +1,33 @@
 import { supabase } from '../config/supabaseClient';
 import { EppC } from '../types';
 
-export const getEpps = async (includeArchived: boolean = false): Promise<EppC[]> => {
+
+export const getEpps = async (includeArchived: boolean = false, page: number = 1, pageSize: number = 15, searchTerm: string = '') => {
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+
     let query = supabase
         .from('epps_c')
-        .select('*')
-        .order('descripcion');
+        .select('*', { count: 'exact' })
+        .order('descripcion')
+        .range(from, to);
 
     if (!includeArchived) {
         query = query.eq('activo', true);
     }
 
-    const { data, error } = await query;
-    if (error) throw error;
-    return data || [];
+    if (searchTerm) {
+        query = query.or(`descripcion.ilike.%${searchTerm}%,codigo.ilike.%${searchTerm}%`);
+    }
+
+    try {
+        const { data, count, error } = await query;
+        if (error) throw error;
+        return { data: data as EppC[], count: count || 0 };
+    } catch (error) {
+        console.error('Error fetching EPPS:', error);
+        return { data: [], count: 0 };
+    }
 };
 
 export const createEpp = async (epp: Omit<EppC, 'id' | 'created_at'>): Promise<EppC> => {

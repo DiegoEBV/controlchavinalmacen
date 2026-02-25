@@ -202,18 +202,29 @@ export const getUserAssignedObras = async (userId: string) => {
 };
 
 // CRUD de Materiales
-export const getMateriales = async () => {
-    const { data, error } = await supabase
-        .from('materiales')
-        .select('*')
-        .order('categoria', { ascending: true })
-        .order('descripcion', { ascending: true });
+export const getMateriales = async (page: number = 1, pageSize: number = 15, searchTerm: string = '') => {
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
 
-    if (error) {
-        console.error('Error fetching materiales:', error);
-        return [];
+    let query = supabase
+        .from('materiales')
+        .select('*', { count: 'exact' })
+        .order('categoria', { ascending: true })
+        .order('descripcion', { ascending: true })
+        .range(from, to);
+
+    if (searchTerm) {
+        query = query.or(`descripcion.ilike.%${searchTerm}%,categoria.ilike.%${searchTerm}%`);
     }
-    return data;
+
+    try {
+        const { data, count, error } = await query;
+        if (error) throw error;
+        return { data: data as any[], count: count || 0 };
+    } catch (error) {
+        console.error('Error fetching materiales:', error);
+        return { data: [], count: 0 };
+    }
 };
 
 export const updateMaterial = async (id: string, updates: any) => {

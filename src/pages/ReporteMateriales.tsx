@@ -81,9 +81,9 @@ const ReporteMateriales: React.FC = () => {
         try {
             const [rData, mData, eData, eppData] = await Promise.all([
                 getRequerimientos(selectedObra.id),
-                getMateriales(),
-                getEquipos(selectedObra.id),
-                getEpps()
+                getMateriales(1, 10000),
+                getEquipos(selectedObra.id, 1, 10000),
+                getEpps(true, 1, 10000)
             ]);
 
             if (rData.data) {
@@ -106,14 +106,19 @@ const ReporteMateriales: React.FC = () => {
                 setFrentes(uniqueFrentes as string[]);
             }
 
-            if (mData) {
-                setMaterials(mData);
-                const uniqueCats = Array.from(new Set(mData.map((m: Material) => m.categoria).filter(Boolean)));
+            if (mData.data) {
+                setMaterials(mData.data);
+                const uniqueCats = Array.from(new Set(mData.data.map((m: Material) => m.categoria).filter(Boolean)));
                 setCategorias(uniqueCats as string[]);
             }
 
-            if (eData) setEquipos(eData);
-            if (eppData) setEpps(eppData);
+            if (eData.data) {
+                setEquipos(eData.data);
+            }
+
+            if (eppData.data) {
+                setEpps(eppData.data);
+            }
         } catch (error) {
             console.error("Error loading data", error);
         }
