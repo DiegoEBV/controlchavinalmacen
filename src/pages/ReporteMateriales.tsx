@@ -96,7 +96,7 @@ const ReporteMateriales: React.FC = () => {
         }
     };
 
-    // Load dependent filters (Especialidades, Bloques)
+    // Cargar filtros dependientes (Especialidades, Bloques)
     useEffect(() => {
         if (!selectedObra) return;
 
@@ -120,7 +120,7 @@ const ReporteMateriales: React.FC = () => {
         fetchFilters();
     }, [frente, selectedObra, frentesData]);
 
-    // Load Items Catalog (Materials, Equipos, EPPs)
+    // Cargar Catálogo de Ítems (Materiales, Equipos, EPPs)
     useEffect(() => {
         const loadItems = async () => {
             try {
@@ -196,7 +196,7 @@ const ReporteMateriales: React.FC = () => {
                 estado
             });
 
-            // Post-filtering for specialist/bloque if needed (or move to server if crucial)
+            // Filtrado posterior por especialidad/bloque si es necesario (o mover al servidor si es crucial)
             let filteredResults = results;
             if (especialidad || bloque) {
                 filteredResults = results.filter(d => {
@@ -346,7 +346,7 @@ const ReporteMateriales: React.FC = () => {
                 head: [['Fecha', 'Solic', 'Frente/Esp.', 'Req#', 'Material', 'Soli', 'Aten', 'Est']],
                 body: reportData.map(r => [
                     r.fecha ? new Date(r.fecha).toISOString().split('T')[0] : '-',
-                    r.solicitante.substring(0, 10), // Truncate to fit PDF
+                    r.solicitante.substring(0, 10), // Truncar para ajustar al PDF
                     `${r.frente}/${r.especialidad}`,
                     r.req_numero,
                     r.material.substring(0, 15),
@@ -354,7 +354,7 @@ const ReporteMateriales: React.FC = () => {
                     Number(r.cant_atendida).toFixed(1),
                     r.estado
                 ]),
-                styles: { fontSize: 7 } // Smaller font strictly for PDF Details
+                styles: { fontSize: 7 } // Fuente más pequeña estrictamente para detalles de PDF
             });
 
             doc.save(`Reporte_Materiales_${new Date().toISOString().split('T')[0]}.pdf`);
@@ -396,8 +396,8 @@ const ReporteMateriales: React.FC = () => {
                             <Form.Label>Tipo</Form.Label>
                             <Form.Select value={tipo} onChange={e => {
                                 setTipo(e.target.value);
-                                setMaterialId(''); // Reset item selection when type changes
-                                setCategoria('');  // Reset category mainly if switching away from Material
+                                setMaterialId(''); // Restablecer selección de ítem cuando cambia el tipo
+                                setCategoria('');  // Restablecer categoría principalmente si se cambia de Material
                             }}>
                                 <option value="">Todos</option>
                                 <option value="Material">Material</option>
@@ -410,8 +410,8 @@ const ReporteMateriales: React.FC = () => {
                             <Form.Label>Frente</Form.Label>
                             <Form.Select value={frente} onChange={e => {
                                 setFrente(e.target.value);
-                                setEspecialidad(''); // Reset descendent filter
-                                setBloque(''); // Reset descendent filter
+                                setEspecialidad(''); // Restablecer filtro descendiente
+                                setBloque(''); // Restablecer filtro descendiente
                             }}>
                                 <option value="">Todos</option>
                                 {frentesData.map(f => <option key={f.id} value={f.nombre_frente}>{f.nombre_frente}</option>)}
@@ -604,7 +604,7 @@ const ReporteMateriales: React.FC = () => {
                                         </td>
                                         <td>{h.resultCount} registros</td>
                                         <td>
-                                            {/* Restore functionality could be added here */}
+                                            {/* La funcionalidad de restauración podría agregarse aquí */}
                                             <Badge bg="secondary">Archivado</Badge>
                                         </td>
                                     </tr>

@@ -1,16 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { Row, Col, Table, Button, Form, Modal, Card } from 'react-bootstrap';
+import { FaPencilAlt, FaTrash } from 'react-icons/fa';
 import { supabase } from '../config/supabaseClient';
 import { Material, Specialty, ListInsumoEspecialidad } from '../types';
 import { getFrontSpecialties } from '../services/specialtiesService';
-import { getMateriales } from '../services/requerimientosService';
+import { getMateriales, getBudgetItemsPaginated } from '../services/requerimientosService';
+import PaginationControls from '../components/PaginationControls';
 
 const GestionPresupuesto: React.FC = () => {
     const [obras, setObras] = useState<any[]>([]);
     const [frentes, setFrentes] = useState<any[]>([]);
     const [specialties, setSpecialties] = useState<Specialty[]>([]);
 
-    // Filters
+    // Filtros
     const [selectedObraId, setSelectedObraId] = useState('');
     const [selectedFrenteId, setSelectedFrenteId] = useState('');
     const [selectedSpecialtyId, setSelectedSpecialtyId] = useState('');
@@ -18,16 +20,30 @@ const GestionPresupuesto: React.FC = () => {
     const [budgetItems, setBudgetItems] = useState<ListInsumoEspecialidad[]>([]);
     const [allMaterials, setAllMaterials] = useState<Material[]>([]);
 
-    // UI State
+    // Estado de la IU
     const [loading, setLoading] = useState(false);
     const [showModal, setShowModal] = useState(false);
     const [editingItem, setEditingItem] = useState<ListInsumoEspecialidad | null>(null);
 
-    // Form State
+    // Estado del Formulario
     const [formMaterialId, setFormMaterialId] = useState('');
     const [formCantidad, setFormCantidad] = useState<number>(0);
 
     const [searchTerm, setSearchTerm] = useState('');
+    const [debouncedSearch, setDebouncedSearch] = useState('');
+
+    // Estado de la Paginación
+    const [currentPage, setCurrentPage] = useState(1);
+    const [pageSize] = useState(15);
+    const [totalCount, setTotalCount] = useState(0);
+
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedSearch(searchTerm);
+            setCurrentPage(1); // Reiniciar a la página 1 en una nueva búsqueda
+        }, 500);
+        return () => clearTimeout(timer);
+    }, [searchTerm]);
 
     useEffect(() => {
         loadObras();
@@ -57,8 +73,9 @@ const GestionPresupuesto: React.FC = () => {
             loadBudgetItems();
         } else {
             setBudgetItems([]);
+            setTotalCount(0);
         }
-    }, [selectedFrenteId, selectedSpecialtyId]);
+    }, [selectedFrenteId, selectedSpecialtyId, currentPage, debouncedSearch]);
 
     const loadObras = async () => {
         const { data } = await supabase.from('obras').select('*').order('nombre_obra');
@@ -78,7 +95,7 @@ const GestionPresupuesto: React.FC = () => {
     const loadBudgetItems = async () => {
         setLoading(true);
         try {
-            // First get the front_specialty_id
+            // Primero obtener el front_specialty_id
             const { data: fsData, error: fsError } = await supabase
                 .from('front_specialties')
                 .select('id')
@@ -89,16 +106,19 @@ const GestionPresupuesto: React.FC = () => {
             if (fsError || !fsData) {
                 console.error("Error finding front_specialty:", fsError);
                 setBudgetItems([]);
+                setTotalCount(0);
                 return;
             }
 
-            const { data, error } = await supabase
-                .from('listinsumo_especialidad')
-                .select('*, material:materiales(*)')
-                .eq('front_specialty_id', fsData.id);
+            const { data, count } = await getBudgetItemsPaginated(
+                fsData.id,
+                currentPage,
+                pageSize,
+                debouncedSearch
+            );
 
-            if (error) throw error;
-            setBudgetItems(data as ListInsumoEspecialidad[]);
+            setBudgetItems(data);
+            setTotalCount(count);
         } catch (error) {
             console.error(error);
         } finally {
@@ -112,7 +132,7 @@ const GestionPresupuesto: React.FC = () => {
         if (formCantidad <= 0) return alert("La cantidad debe ser mayor a 0");
 
         try {
-            // Get front_specialty_id
+            // Obtener front_specialty_id
             const { data: fsData } = await supabase
                 .from('front_specialties')
                 .select('id')
@@ -123,14 +143,14 @@ const GestionPresupuesto: React.FC = () => {
             if (!fsData) return alert("Error al identificar la especialidad del frente");
 
             if (editingItem) {
-                // Update
+                // Actualizar
                 const { error } = await supabase
                     .from('listinsumo_especialidad')
                     .update({ cantidad_presupuestada: formCantidad })
                     .eq('id', editingItem.id);
                 if (error) throw error;
             } else {
-                // Insert
+                // Insertar
                 const { error } = await supabase
                     .from('listinsumo_especialidad')
                     .insert({
@@ -242,25 +262,25 @@ const GestionPresupuesto: React.FC = () => {
                 const matIdMap = new Map(allMaterials.map(m => [m.id, m.id]));
 
                 for (const rawRow of data as any[]) {
-                    // Normalize keys to lower case to avoid case sensitivity issues
+                    // Normalizar claves a minúsculas para evitar problemas de sensibilidad a mayúsculas
                     const row: any = {};
                     Object.keys(rawRow).forEach(key => {
                         row[key.toLowerCase().trim()] = rawRow[key];
                     });
 
-                    // Try ID match first
+                    // Intentar coincidencia por ID primero
                     let matId = '';
                     const rowId = row.id || row.material_id || row['id material'];
 
                     if (rowId && matIdMap.has(rowId)) {
                         matId = rowId;
                     } else {
-                        // Fallback to Description match
+                        // Respaldo a coincidencia por descripción
                         const desc = (row.descripcion || row.material || row.insumo || row.description || '').toString().trim().toUpperCase();
                         if (desc) matId = matMap.get(desc) || '';
                     }
 
-                    // Parse quantity
+                    // Analizar cantidad
                     const qtyVal = row.cantidad || row.presupuesto || row['cantidad presupuestada'] || row['cant.'] || '0';
                     const qty = parseFloat(qtyVal);
 
@@ -271,7 +291,7 @@ const GestionPresupuesto: React.FC = () => {
                                 front_specialty_id: fsData.id,
                                 material_id: matId,
                                 cantidad_presupuestada: qty
-                                // cantidad_utilizada: 0 // Do not reset utilized on upsert!
+                                // ¡No restablecer el utilizado al hacer upsert!
                             }, { onConflict: 'front_specialty_id, material_id' });
 
                             if (!error) count++;
@@ -301,10 +321,7 @@ const GestionPresupuesto: React.FC = () => {
         e.target.value = '';
     }
 
-    const filteredItems = budgetItems.filter(item =>
-        item.material?.descripcion.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.material?.categoria.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const totalPages = Math.ceil(totalCount / pageSize);
 
     return (
         <div className="fade-in">
@@ -392,8 +409,8 @@ const GestionPresupuesto: React.FC = () => {
                     <tbody>
                         {loading ? (
                             <tr><td colSpan={6} className="text-center p-4">Cargando...</td></tr>
-                        ) : filteredItems.length > 0 ? (
-                            filteredItems.map(item => {
+                        ) : budgetItems.length > 0 ? (
+                            budgetItems.map(item => {
                                 const saldo = item.cantidad_presupuestada - item.cantidad_utilizada;
                                 const percent = item.cantidad_presupuestada > 0
                                     ? (item.cantidad_utilizada / item.cantidad_presupuestada) * 100
@@ -420,13 +437,29 @@ const GestionPresupuesto: React.FC = () => {
                                             {saldo.toFixed(2)}
                                         </td>
                                         <td className="text-end">
-                                            <Button variant="outline-primary" size="sm" className="me-2" onClick={() => {
-                                                setEditingItem(item);
-                                                setFormMaterialId(item.material_id);
-                                                setFormCantidad(item.cantidad_presupuestada);
-                                                setShowModal(true);
-                                            }}>Editar</Button>
-                                            <Button variant="outline-danger" size="sm" onClick={() => handleDelete(item.id)}>Eliminar</Button>
+                                            <div className="d-flex justify-content-end gap-2">
+                                                <Button
+                                                    variant="outline-primary"
+                                                    size="sm"
+                                                    className="d-flex align-items-center px-3"
+                                                    onClick={() => {
+                                                        setEditingItem(item);
+                                                        setFormMaterialId(item.material_id);
+                                                        setFormCantidad(item.cantidad_presupuestada);
+                                                        setShowModal(true);
+                                                    }}
+                                                >
+                                                    <FaPencilAlt className="me-2" /> Editar
+                                                </Button>
+                                                <Button
+                                                    variant="outline-danger"
+                                                    size="sm"
+                                                    className="d-flex align-items-center px-3"
+                                                    onClick={() => handleDelete(item.id)}
+                                                >
+                                                    <FaTrash className="me-2" /> Eliminar
+                                                </Button>
+                                            </div>
                                         </td>
                                     </tr>
                                 )
@@ -440,6 +473,13 @@ const GestionPresupuesto: React.FC = () => {
                         )}
                     </tbody>
                 </Table>
+                <PaginationControls
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    totalItems={totalCount}
+                    pageSize={pageSize}
+                    onPageChange={setCurrentPage}
+                />
             </Card>
 
             <Modal show={showModal} onHide={() => setShowModal(false)}>

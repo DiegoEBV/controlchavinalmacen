@@ -40,7 +40,7 @@ const StockAlmacen: React.FC = () => {
         if (!selectedObra) return;
         setLoading(true);
         try {
-            // Fetch unified inventory
+            // Obtener inventario unificado
             const inventarioData = await getInventario(selectedObra.id);
 
             // Normalize data into StockItem
