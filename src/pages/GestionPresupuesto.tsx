@@ -71,8 +71,8 @@ const GestionPresupuesto: React.FC = () => {
     };
 
     const loadMaterials = async () => {
-        const mats = await getMateriales();
-        if (mats) setAllMaterials(mats);
+        const { data } = await getMateriales(1, 10000);
+        if (data) setAllMaterials(data);
     };
 
     const loadBudgetItems = async () => {

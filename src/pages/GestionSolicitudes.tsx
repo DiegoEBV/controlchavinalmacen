@@ -67,7 +67,7 @@ const GestionSolicitudes: React.FC = () => {
         const [reqs, scs, mats, movs, ocs] = await Promise.all([
             getRequerimientos(undefined, true), // Excluir servicios
             getSolicitudesCompra(),
-            getMateriales(),
+            getMateriales(1, 10000),
             getMovimientos(),
             getOrdenesCompra()
         ]);
@@ -80,7 +80,7 @@ const GestionSolicitudes: React.FC = () => {
             setRequerimientos(pending);
         }
         if (scs) setSolicitudes(scs);
-        if (mats) setMateriales(mats);
+        if (mats.data) setMateriales(mats.data);
         if (movs) setHistorial(movs as any);
         if (ocs) setOrdenes(ocs);
     };

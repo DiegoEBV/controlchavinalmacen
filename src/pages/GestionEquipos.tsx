@@ -4,7 +4,6 @@ import { useAuth } from '../context/AuthContext';
 import { getEquipos, createEquipo, updateEquipo, deleteEquipo } from '../services/equiposService';
 import { getObras, getUserAssignedObras } from '../services/requerimientosService';
 import { Equipo, Obra } from '../types';
-import { usePagination } from '../hooks/usePagination';
 import PaginationControls from '../components/PaginationControls';
 
 // Extrae el prefijo de 3 letras del nombre
@@ -34,6 +33,10 @@ const GestionEquipos: React.FC = () => {
     const [equipos, setEquipos] = useState<Equipo[]>([]);
     const [obras, setObras] = useState<Obra[]>([]);
     const [loading, setLoading] = useState(false);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalItems, setTotalItems] = useState(0);
+    const pageSize = 15;
+
     const [showModal, setShowModal] = useState(false);
     const [editingEquipo, setEditingEquipo] = useState<Equipo | null>(null);
     const [formData, setFormData] = useState<Partial<Equipo>>({
@@ -60,7 +63,7 @@ const GestionEquipos: React.FC = () => {
         if (selectedObra) {
             fetchEquipos();
         }
-    }, [selectedObra]);
+    }, [selectedObra, currentPage, searchTerm]);
 
     const loadObras = async () => {
         if (!user) return;
@@ -82,14 +85,20 @@ const GestionEquipos: React.FC = () => {
         if (!selectedObra) return;
         setLoading(true);
         try {
-            const data = await getEquipos(selectedObra.id);
+            const { data, count } = await getEquipos(selectedObra.id, currentPage, pageSize, searchTerm);
             setEquipos(data || []);
+            setTotalItems(count || 0);
         } catch (err) {
             console.error(err);
             setError('Error al cargar equipos.');
         } finally {
             setLoading(false);
         }
+    };
+
+    const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setSearchTerm(e.target.value);
+        setCurrentPage(1); // Reset to page 1 on new search
     };
 
     const handleShow = (equipo?: Equipo) => {
@@ -233,13 +242,7 @@ const GestionEquipos: React.FC = () => {
         }
     };
 
-    const filteredEquipos = equipos.filter(eq =>
-        eq.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (eq.codigo && eq.codigo.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (eq.marca && eq.marca.toLowerCase().includes(searchTerm.toLowerCase()))
-    );
-
-    const { currentPage, totalPages, totalItems, pageSize, paginatedItems: pagedEquipos, goToPage } = usePagination(filteredEquipos, 15);
+    const totalPages = Math.ceil(totalItems / pageSize);
 
     if (authLoading) return <div className="text-center mt-5"><Spinner animation="border" /></div>;
 
@@ -272,7 +275,7 @@ const GestionEquipos: React.FC = () => {
                             <Form.Control
                                 placeholder="Buscar equipo..."
                                 value={searchTerm}
-                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
+                                onChange={handleSearch}
                             />
                         </InputGroup>
                     </Col>
@@ -323,7 +326,7 @@ const GestionEquipos: React.FC = () => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {pagedEquipos.map((eq) => (
+                                {equipos.map((eq) => (
                                     <tr key={eq.id}>
                                         <td className="ps-4 fw-bold text-primary">{eq.codigo}</td>
                                         <td>{eq.nombre}</td>
@@ -350,7 +353,7 @@ const GestionEquipos: React.FC = () => {
                             </tbody>
                         </Table>
                         <div className="px-3 pb-3">
-                            <PaginationControls currentPage={currentPage} totalPages={totalPages} totalItems={totalItems} pageSize={pageSize} onPageChange={goToPage} />
+                            <PaginationControls currentPage={currentPage} totalPages={totalPages} totalItems={totalItems} pageSize={pageSize} onPageChange={setCurrentPage} />
                         </div>
                     </div>
                 )}

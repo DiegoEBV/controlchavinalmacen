@@ -5,7 +5,6 @@ import { EppC } from '../types';
 import { getEpps, createEpp, updateEpp, toggleEppStatus, getNextEppCode, createEppsBatch } from '../services/eppsService';
 import { useAuth } from '../context/AuthContext';
 import PaginationControls from '../components/PaginationControls';
-import { usePagination } from '../hooks/usePagination';
 
 const GestionEPPs: React.FC = () => {
     const { hasRole } = useAuth();
@@ -13,6 +12,10 @@ const GestionEPPs: React.FC = () => {
 
     const [epps, setEpps] = useState<EppC[]>([]);
     const [loading, setLoading] = useState(false);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalItems, setTotalItems] = useState(0);
+    const pageSize = 15;
+
     const [showModal, setShowModal] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [showArchived, setShowArchived] = useState(false);
@@ -40,18 +43,24 @@ const GestionEPPs: React.FC = () => {
 
     useEffect(() => {
         loadEpps();
-    }, [showArchived]);
+    }, [showArchived, currentPage, searchTerm]);
 
     const loadEpps = async () => {
         setLoading(true);
         try {
-            const data = await getEpps(showArchived);
-            setEpps(data);
+            const { data, count } = await getEpps(showArchived, currentPage, pageSize, searchTerm);
+            setEpps(data || []);
+            setTotalItems(count || 0);
         } catch (error) {
             console.error("Error loading EPPs:", error);
         } finally {
             setLoading(false);
         }
+    };
+
+    const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setSearchTerm(e.target.value);
+        setCurrentPage(1);
     };
 
     const handleOpenModal = (epp?: EppC) => {
@@ -141,7 +150,6 @@ const GestionEPPs: React.FC = () => {
                     const descripcion = norm.descripcion || norm.nombre || norm.item;
                     const tipoRaw = norm.tipo || 'Personal'; // Default
                     const unidad = norm.unidad || 'UND';
-                    // Stock removed from UI/Import as requested.
 
                     if (!descripcion) {
                         skipped++;
@@ -192,14 +200,7 @@ const GestionEPPs: React.FC = () => {
         }
     };
 
-
-
-    const filteredEpps = epps.filter(e =>
-        e.descripcion.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (e.codigo && e.codigo.toLowerCase().includes(searchTerm.toLowerCase()))
-    );
-
-    const { currentPage, totalPages, totalItems, pageSize, paginatedItems: PageEpps, goToPage } = usePagination(filteredEpps, 15);
+    const totalPages = Math.ceil(totalItems / pageSize);
 
     return (
         <Container className="mt-4">
@@ -214,7 +215,7 @@ const GestionEPPs: React.FC = () => {
                             <Form.Control
                                 placeholder="Buscar por descripción o código..."
                                 value={searchTerm}
-                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
+                                onChange={handleSearch}
                             />
                         </InputGroup>
                     </Col>
@@ -261,7 +262,7 @@ const GestionEPPs: React.FC = () => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {filteredEpps.length > 0 ? PageEpps.map(epp => (
+                                {epps.length > 0 ? epps.map(epp => (
                                     <tr key={epp.id} className={!epp.activo ? 'table-secondary opacity-75' : ''}>
                                         <td>{epp.codigo || '-'}</td>
                                         <td>{epp.descripcion}</td>
@@ -298,12 +299,10 @@ const GestionEPPs: React.FC = () => {
                             </tbody>
                         </Table>
                         <div className="px-3 pb-3">
-                            <PaginationControls currentPage={currentPage} totalPages={totalPages} totalItems={totalItems} pageSize={pageSize} onPageChange={goToPage} />
+                            <PaginationControls currentPage={currentPage} totalPages={totalPages} totalItems={totalItems} pageSize={pageSize} onPageChange={setCurrentPage} />
                         </div>
                     </div>
                 )}
-
-
             </div>
 
             <Modal show={showModal} onHide={() => setShowModal(false)}>
@@ -357,7 +356,6 @@ const GestionEPPs: React.FC = () => {
                                 </Form.Group>
                             </Col>
                         </Row>
-
                     </Form>
                 </Modal.Body>
                 <Modal.Footer>
