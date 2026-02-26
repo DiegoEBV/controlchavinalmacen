@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Modal, Button, Form, Table, Row, Col, InputGroup, Spinner, Dropdown, Tooltip, OverlayTrigger, Badge } from 'react-bootstrap';
 import SearchableSelect from './SearchableSelect';
 import { Requerimiento, DetalleRequerimiento, Obra, Material, Equipo, EppC } from '../types';
-import { getSolicitantes, getCategorias, getBudgetedMaterials } from '../services/requerimientosService';
+import { getSolicitantes, getCategorias, getBudgetedMaterials, getMaterialesCatalog } from '../services/requerimientosService';
 import { getEquipos } from '../services/equiposService';
 import { getBloques } from '../services/frentesService';
 import { getInventario } from '../services/almacenService';
@@ -36,8 +36,8 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
     const [loadingTemplate, setLoadingTemplate] = useState(false);
 
     // Fuentes de Datos
-    const [materialesList, setMaterialesList] = useState<Material[]>([]);
     const [equiposList, setEquiposList] = useState<Equipo[]>([]);
+    const [allMaterialesList, setAllMaterialesList] = useState<Material[]>([]);
     const [eppsList, setEppsList] = useState<EppC[]>([]);
     const [frentesList, setFrentesList] = useState<any[]>([]); // Frentes de la obra seleccionada
     const [bloquesList, setBloquesList] = useState<any[]>([]);
@@ -69,20 +69,36 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
 
     const [selectedMaterialId, setSelectedMaterialId] = useState('');
 
-    // Optimization: Filter materials with useMemo
-    // Filtrar materiales basados en categoría seleccionada (ya vienen filtrados por frente/especialidad de la DB)
+    // Optimization: Filter materials with useMemo and logical Left Join with Budget
     const filteredMaterials = React.useMemo(() => {
-        return materialesList.filter(m => {
+        // Create a map of budget items for quick lookup
+        const budgetMap = new Map(budgetItems.map(b => [b.material_id, b]));
+
+        const list = allMaterialesList.filter(m => {
             const matchesCategory = newItem.material_categoria === 'General' || m.categoria === newItem.material_categoria;
             return matchesCategory;
+        }).map(m => {
+            const budgetItem = budgetMap.get(m.id);
+            const saldo = budgetItem ? budgetItem.cantidad_presupuestada - budgetItem.cantidad_utilizada : null;
+            return {
+                ...m,
+                saldo
+            };
         });
-    }, [materialesList, newItem.material_categoria]);
 
-    // Derived: Available categories based on filtered materials (ignoring current category selection)
+        // Sort: Items with budget (saldo is not null) first
+        return list.sort((a, b) => {
+            if (a.saldo !== null && b.saldo === null) return -1;
+            if (a.saldo === null && b.saldo !== null) return 1;
+            return a.descripcion.localeCompare(b.descripcion);
+        });
+    }, [allMaterialesList, budgetItems, newItem.material_categoria]);
+
+    // Derived: Available categories based on the WHOLE catalog
     const availableCategories = React.useMemo(() => {
-        const cats = new Set(materialesList.map(m => m.categoria));
+        const cats = new Set(allMaterialesList.map(m => m.categoria));
         return categoriasList.filter((c: any) => cats.has(c.nombre));
-    }, [materialesList, categoriasList]);
+    }, [allMaterialesList, categoriasList]);
 
     useEffect(() => {
         loadCatalogs();
@@ -105,17 +121,17 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
     }, [obraId]);
 
     const loadCatalogs = async () => {
-        const [sols, cats, epps] = await Promise.all([
-            // getMateriales(), // No cargar materiales al inicio, se cargan por especialidad
+        const [sols, cats, epps, allMats] = await Promise.all([
             getSolicitantes(),
             getCategorias(),
-            getEpps()
+            getEpps(),
+            getMaterialesCatalog()
         ]);
 
-        // if (mats) setMaterialesList(mats);
         if (sols) setSolicitantesList(sols);
         if (cats) setCategoriasList(cats);
-        if (epps) setEppsList(epps);
+        if (epps) setEppsList((epps as any).data || epps);
+        if (allMats) setAllMaterialesList(allMats);
     };
 
     const loadFrentes = async (oid: string) => {
@@ -133,8 +149,12 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
     };
 
     const loadEquipos = async (oid: string) => {
-        const data = await getEquipos(oid);
-        if (data) setEquiposList(data);
+        const result = await getEquipos(oid);
+        if (result && (result as any).data) {
+            setEquiposList((result as any).data);
+        } else if (result) {
+            setEquiposList(result as any);
+        }
     };
 
     const loadInventory = async (oid: string) => {
@@ -216,18 +236,11 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
     // Load Budgeted Materials when Frente + Specialty changes
     useEffect(() => {
         if (frenteId && selectedSpecialtyId) {
-            setMaterialesList([]); // Clear previous
             setBudgetItems([]);
             getBudgetedMaterials(frenteId, selectedSpecialtyId).then((data: any[]) => {
-                const items = data || [];
-                setBudgetItems(items as ListInsumoEspecialidad[]);
-                // Extract unique materials
-                const mats = items.map((i: any) => i.material).filter(Boolean);
-                const uniqueMats = Array.from(new Map(mats.map((m: any) => [m.id, m])).values());
-                setMaterialesList(uniqueMats as Material[]);
+                setBudgetItems((data || []) as ListInsumoEspecialidad[]);
             });
         } else {
-            setMaterialesList([]);
             setBudgetItems([]);
         }
     }, [frenteId, selectedSpecialtyId]);
@@ -344,9 +357,15 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
                     }
                 }
             } else {
-                // Material without budget logic... (keep as is or warn?)
-                if (!confirm("Este material NO tiene presupuesto asignado en este frente/especialidad.\n¿Deseas agregarlo de todos modos?")) {
-                    return;
+                // Material without budget logic
+                const hideWarningKey = `hide_budget_warning_${profile?.id || 'guest'}`;
+                const isWarningHidden = localStorage.getItem(hideWarningKey) === 'true';
+
+                if (!isWarningHidden) {
+                    if (!confirm("Este material NO tiene presupuesto asignado en este frente/especialidad.\n¿Deseas agregarlo de todos modos?")) {
+                        return;
+                    }
+                    localStorage.setItem(hideWarningKey, 'true');
                 }
             }
         }
@@ -425,21 +444,26 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
     // Filtrar materiales basados en categoría seleccionada Y frente seleccionado
 
 
-    // Manejar selección de material para auto-rellenar unidad
+    // Manejar selección de material para auto-rellenar unidad y cargar stock selectivamente
     const handleMaterialSelect = (id: string) => {
         setSelectedMaterialId(id);
-        const selectedMat = materialesList.find(m => m.id === id);
+        const selectedMat = allMaterialesList.find(m => m.id === id);
         if (selectedMat) {
             const budgetItem = budgetItems.find(b => b.material_id === id);
             setNewItem(prev => ({
                 ...prev,
                 descripcion: selectedMat.descripcion,
-                // Si estamos en General, actualizamos a la categoría real del material para consistencia de datos y stock
                 material_categoria: selectedMat.categoria,
                 unidad: selectedMat.unidad,
                 material_id: id,
                 listinsumo_id: budgetItem ? budgetItem.id : undefined
             }));
+
+            // Cargar stock solo para este material al ser seleccionado
+            if (obraId) {
+                // Ya tenemos el stockMap cargado en loadInventory, pero podríamos forzar refresh si fuera necesario
+                // Aquí solo nos aseguramos de que el mapa contenga el ID (ya lo hace loadInventory)
+            }
         }
     };
 
@@ -698,20 +722,16 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
                                 {availableCategories.map((c: any) => <option key={c.id} value={c.nombre}>{c.nombre}</option>)}
                             </Form.Select>
                         </Col>
-                        <Col md={4}>
+                        <Col md={5}>
                             <Form.Label>Descripción *</Form.Label>
                             {/* Si se selecciona categoría, mostrar dropdown de materiales. Si no, mostrar input de texto (o select vacío) */}
                             {newItem.tipo === 'Material' && newItem.material_categoria ? (
                                 <SearchableSelect
-                                    options={filteredMaterials.map(m => {
-                                        const budgetItem = budgetItems.find(b => b.material_id === m.id);
-                                        const saldo = budgetItem ? budgetItem.cantidad_presupuestada - budgetItem.cantidad_utilizada : 0;
-                                        return {
-                                            value: m.id,
-                                            label: `${m.descripcion} (Saldo: ${saldo.toFixed(2)})`,
-                                            info: m.informacion_adicional
-                                        };
-                                    })}
+                                    options={filteredMaterials.map(m => ({
+                                        value: m.id,
+                                        label: m.descripcion,
+                                        info: m.informacion_adicional || m.categoria
+                                    }))}
                                     value={selectedMaterialId}
                                     onChange={(val) => handleMaterialSelect(val as string)}
                                     disabled={!frenteId || !selectedSpecialtyId}
@@ -721,7 +741,8 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
                                 <SearchableSelect
                                     options={equiposList.map(e => ({
                                         value: e.id,
-                                        label: `${e.nombre} - ${e.marca} (${e.codigo || 'S/C'})`
+                                        label: `${e.nombre}${e.marca ? ' - ' + e.marca : ''}`,
+                                        info: `Código: ${e.codigo || 'S/C'}`
                                     }))}
                                     value={newItem.equipo_id || ''}
                                     onChange={(val) => handleEquipoSelect(val as string)}
@@ -731,7 +752,8 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
                                 <SearchableSelect
                                     options={eppsList.map(e => ({
                                         value: e.id,
-                                        label: `${e.descripcion} [${e.codigo || 'S/C'}]`
+                                        label: e.descripcion,
+                                        info: `Código: ${e.codigo || 'S/C'}`
                                     }))}
                                     value={newItem.epp_id || ''}
                                     onChange={(val) => handleEppSelect(val as string)}
@@ -745,7 +767,7 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
                                 />
                             )}
                         </Col>
-                        <Col md={2}>
+                        <Col md={1}>
                             <Form.Label>Unidad</Form.Label>
                             <Form.Control
                                 value={newItem.unidad}
@@ -768,7 +790,7 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
                                         let unit = newItem.unidad;
 
                                         if (newItem.tipo === 'Material' && selectedMaterialId) {
-                                            const selectedMat = materialesList.find(m => m.id === selectedMaterialId);
+                                            const selectedMat = allMaterialesList.find(m => m.id === selectedMaterialId);
                                             if (selectedMat) {
                                                 stock = stockMap[selectedMat.id] || 0;
                                                 showStock = true;

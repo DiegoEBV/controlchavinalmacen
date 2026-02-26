@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Form, Table, Button, Row, Col, Badge, Alert, Tab, Tabs } from 'react-bootstrap';
-import { getRequerimientos, getMateriales } from '../services/requerimientosService';
+import { getSolicitantes, getCategorias, getReporteMaterialesData, getMaterialesCatalog } from '../services/requerimientosService';
 import { getEquipos } from '../services/equiposService';
 import { getEpps } from '../services/eppsService';
+import { getFrentes, getBloques } from '../services/frentesService';
+import SearchableSelect from '../components/SearchableSelect';
+import { getFrontSpecialties } from '../services/specialtiesService';
 import { supabase } from '../config/supabaseClient';
-import { Requerimiento, Material, Equipo, EppC } from '../types';
+import { Material, Frente, Specialty, Bloque } from '../types';
 import { useAuth } from '../context/AuthContext';
 
 // Clave de Almacenamiento Local
@@ -31,14 +34,12 @@ interface ReportHistoryItem {
 
 const ReporteMateriales: React.FC = () => {
     // Datos
-    const [reqs, setReqs] = useState<Requerimiento[]>([]);
     const [materials, setMaterials] = useState<Material[]>([]);
-    const [equipos, setEquipos] = useState<Equipo[]>([]);
-    const [epps, setEpps] = useState<EppC[]>([]);
     const [solicitantes, setSolicitantes] = useState<string[]>([]);
     const [categorias, setCategorias] = useState<string[]>([]);
-    const [frentes, setFrentes] = useState<string[]>([]);
-    // Especialidades and Bloques are derived dynamically from `reqs` based on `frente`.
+    const [frentesData, setFrentesData] = useState<Frente[]>([]);
+    const [especialidadesData, setEspecialidadesData] = useState<Specialty[]>([]);
+    const [bloquesData, setBloquesData] = useState<Bloque[]>([]);
 
     // Filtros
     const [fechaInicio, setFechaInicio] = useState('');
@@ -70,8 +71,6 @@ const ReporteMateriales: React.FC = () => {
     useEffect(() => {
         if (selectedObra && profile) {
             loadInitialData();
-        } else {
-            setReqs([]);
         }
         loadHistory();
     }, [selectedObra, profile]);
@@ -79,45 +78,80 @@ const ReporteMateriales: React.FC = () => {
     const loadInitialData = async () => {
         if (!selectedObra) return;
         try {
-            const [rData, mData, eData, eppData] = await Promise.all([
-                getRequerimientos(selectedObra.id),
-                getMateriales(),
-                getEquipos(selectedObra.id),
-                getEpps()
+            const [solsData, catsData, ftesData] = await Promise.all([
+                getSolicitantes(),
+                getCategorias(),
+                getFrentes(selectedObra.id)
             ]);
 
-            if (rData.data) {
-                let filteredReqs = rData.data;
+            setSolicitantes(solsData.map((s: any) => s.nombre));
+            setCategorias(catsData.map((c: any) => c.nombre));
+            setFrentesData(ftesData);
 
-                // Filtrar si no es privilegiado
-                if (!isPrivileged && profile?.nombre) {
-                    filteredReqs = filteredReqs.filter((r: Requerimiento) => r.solicitante === profile.nombre);
-                    // Pre-seleccionar solicitante
-                    setSolicitante(profile.nombre);
-                }
-
-                setReqs(filteredReqs);
-                // Extraer solicitantes únicos
-                const uniqueSols = Array.from(new Set(filteredReqs.map((r: Requerimiento) => r.solicitante).filter(Boolean)));
-                setSolicitantes(uniqueSols as string[]);
-
-                // Extraer frentes únicos
-                const uniqueFrentes = Array.from(new Set(filteredReqs.map((r: Requerimiento) => r.frente?.nombre_frente).filter(Boolean)));
-                setFrentes(uniqueFrentes as string[]);
+            if (!isPrivileged && profile?.nombre) {
+                setSolicitante(profile.nombre);
             }
-
-            if (mData) {
-                setMaterials(mData);
-                const uniqueCats = Array.from(new Set(mData.map((m: Material) => m.categoria).filter(Boolean)));
-                setCategorias(uniqueCats as string[]);
-            }
-
-            if (eData) setEquipos(eData);
-            if (eppData) setEpps(eppData);
         } catch (error) {
-            console.error("Error loading data", error);
+            console.error("Error loading metadata", error);
         }
     };
+
+    // Load dependent filters (Especialidades, Bloques)
+    useEffect(() => {
+        if (!selectedObra) return;
+
+        const fetchFilters = async () => {
+            if (frente) {
+                const selectedFrente = frentesData.find(f => f.nombre_frente === frente);
+                if (selectedFrente) {
+                    const [bData, fsData] = await Promise.all([
+                        getBloques(selectedFrente.id),
+                        getFrontSpecialties(selectedFrente.id)
+                    ]);
+                    setBloquesData(bData);
+                    setEspecialidadesData(fsData);
+                }
+            } else {
+                setBloquesData([]);
+                setEspecialidadesData([]);
+            }
+        };
+
+        fetchFilters();
+    }, [frente, selectedObra, frentesData]);
+
+    // Load Items Catalog (Materials, Equipos, EPPs)
+    useEffect(() => {
+        const loadItems = async () => {
+            try {
+                const [mCat, eCat, eppCat] = await Promise.all([
+                    getMaterialesCatalog(),
+                    getEquipos(selectedObra?.id || '', 1, 5000), // Usar servicios existentes
+                    getEpps(true, 1, 5000)
+                ]);
+
+                const allItems: any[] = [
+                    ...(mCat || []).map((m: Material) => ({ ...m, categoria_interna: 'Material' })),
+                    ...(eCat.data || []).map((e: any) => ({
+                        id: e.id,
+                        descripcion: `${e.nombre} ${e.marca || ''} (${e.codigo})`,
+                        categoria: 'Equipo',
+                        categoria_interna: 'Equipo'
+                    })),
+                    ...(eppCat.data || []).map((e: any) => ({
+                        id: e.id,
+                        descripcion: `${e.descripcion} (${e.codigo || ''})`,
+                        categoria: 'EPP',
+                        categoria_interna: 'EPP'
+                    }))
+                ];
+                setMaterials(allItems);
+            } catch (err) {
+                console.error("Error loading items catalogs", err);
+            }
+        };
+        if (selectedObra) loadItems();
+    }, [selectedObra]);
 
     const loadHistory = () => {
         const stored = localStorage.getItem(HISTORY_KEY);
@@ -149,105 +183,43 @@ const ReporteMateriales: React.FC = () => {
     };
 
     const handleGenerate = async () => {
+        if (!selectedObra) return;
         setIsGenerating(true);
         try {
-            // Aplanar Requerimientos -> Detalles
-            let flattened: any[] = [];
+            const results = await getReporteMaterialesData({
+                obra_id: selectedObra.id,
+                fechaInicio,
+                fechaFin,
+                tipo,
+                frente,
+                solicitante,
+                estado
+            });
 
-            // Para optimizar DB calls, recogemos todos los (frente_id, specialty_id, material_id) necesarios antes.
-            // En el nuevo modelo, los materiales se ligan al presupuesto (listinsumo_especialidad)
-            // que depende del frente y la especialidad.
-            const budgetCache = new Map<string, number>();
-
-            // Extraemos los requerimientos y armamos los parámetros de búsqueda de presupuestos
-            for (const r of reqs) {
-                if (fechaInicio && new Date(r.fecha_solicitud) < new Date(fechaInicio)) continue;
-                if (fechaFin && new Date(r.fecha_solicitud) > new Date(fechaFin)) continue;
-                if (solicitante && r.solicitante !== solicitante) continue;
-                if (frente && r.frente?.nombre_frente !== frente) continue;
-                if (especialidad && r.especialidad !== especialidad) continue;
-                if (bloque && !r.bloque?.split(',').map((b: string) => b.trim()).includes(bloque)) continue;
-
-                if (!r.detalles) continue;
-
-                for (const d of r.detalles) {
-                    if (estado && d.estado !== estado) continue;
-                    if (tipo && d.tipo !== tipo) continue;
-
-                    let itemMatch = false;
-
-                    // Matchers
-                    if (d.tipo === 'Material') {
-                        if (categoria && d.material_categoria !== categoria) continue;
-                        if (materialId) {
-                            if (d.material_id === materialId) itemMatch = true;
-                            else continue; // optimization
-                        } else {
-                            itemMatch = true;
-                        }
-                    } else if (d.tipo === 'Equipo') {
-                        if (materialId) {
-                            if (d.equipo_id === materialId) itemMatch = true;
-                        } else itemMatch = true;
-                    } else if (d.tipo === 'EPP') {
-                        if (materialId) {
-                            if (d.epp_id === materialId) itemMatch = true;
-                        } else itemMatch = true;
-                    } else if (d.tipo === 'Servicio') {
-                        if (materialId) {
-                            if (d.descripcion === materialId) itemMatch = true;
-                        } else itemMatch = true;
-                    }
-
-                    if (!itemMatch) continue;
-
-                    let itemStockMax = 0;
-
-                    // Si se seleccionó Material, necesitamos consultar `listinsumo_especialidad` para saber
-                    // el presupuesto máximo de *este* material en *esta* especialidad y frente.
-                    if (d.tipo === 'Material' && d.material_id && r.frente_id && r.specialty_id) {
-                        const cacheKey = `${r.frente_id}_${r.specialty_id}_${d.material_id}`;
-                        if (budgetCache.has(cacheKey)) {
-                            itemStockMax = budgetCache.get(cacheKey) || 0;
-                        } else {
-                            // Buscar en base de datos el presupuesto límite
-                            const { data: fsData } = await supabase
-                                .from('front_specialties')
-                                .select('id')
-                                .eq('front_id', r.frente_id)
-                                .eq('specialty_id', r.specialty_id)
-                                .single();
-
-                            if (fsData) {
-                                const { data: listData } = await supabase
-                                    .from('listinsumo_especialidad')
-                                    .select('cantidad_presupuestada')
-                                    .eq('front_specialty_id', fsData.id)
-                                    .eq('material_id', d.material_id)
-                                    .single();
-
-                                itemStockMax = listData?.cantidad_presupuestada || 0;
-                            }
-                            budgetCache.set(cacheKey, itemStockMax);
-                        }
-                    }
-
-                    flattened.push({
-                        fecha: r.fecha_solicitud,
-                        solicitante: r.solicitante,
-                        req_numero: r.item_correlativo,
-                        especialidad: r.especialidad,
-                        frente: r.frente?.nombre_frente || '-',
-                        material: d.descripcion,
-                        categoria: d.material_categoria || d.tipo, // Usar Tipo si no hay categoría
-                        unidad: d.unidad,
-                        cant_solicitada: d.cantidad_solicitada,
-                        cant_atendida: d.cantidad_atendida,
-                        stock_max: itemStockMax, // Representa "Cantidad Presupuestada" ahora
-                        estado: d.estado
-                    });
-                }
+            // Post-filtering for specialist/bloque if needed (or move to server if crucial)
+            let filteredResults = results;
+            if (especialidad || bloque) {
+                filteredResults = results.filter(d => {
+                    const matchEsp = !especialidad || d.requerimiento.especialidad === especialidad;
+                    const matchBlq = !bloque || d.requerimiento.bloque?.split(',').map((b: string) => b.trim()).includes(bloque);
+                    return matchEsp && matchBlq;
+                });
             }
+
+            const flattened = filteredResults.map(d => ({
+                fecha: d.requerimiento.fecha_solicitud,
+                solicitante: d.requerimiento.solicitante,
+                req_numero: d.requerimiento.item_correlativo,
+                especialidad: d.requerimiento.especialidad,
+                frente: d.requerimiento.frente?.nombre_frente || '-',
+                material: d.descripcion,
+                categoria: d.material_categoria || d.tipo,
+                unidad: d.unidad,
+                cant_solicitada: d.cantidad_solicitada,
+                cant_atendida: d.cantidad_atendida,
+                stock_max: d.stock_max,
+                estado: d.estado
+            }));
 
             // Agrupación de Resumen
             const summaryMap = new Map<string, any>();
@@ -392,19 +364,8 @@ const ReporteMateriales: React.FC = () => {
         }
     };
 
-    const availableEspecialidades = frente
-        ? Array.from(new Set(reqs.filter(r => r.frente?.nombre_frente === frente).map(r => r.especialidad).filter(Boolean)))
-        : Array.from(new Set(reqs.map(r => r.especialidad).filter(Boolean)));
-
-    const extractUniqueBloques = (reqsList: Requerimiento[]) => {
-        const allBloquesStr = reqsList.map(r => r.bloque).filter(Boolean) as string[];
-        const splitBloques = allBloquesStr.flatMap(bStr => bStr.split(',').map(b => b.trim()).filter(Boolean));
-        return Array.from(new Set(splitBloques));
-    };
-
-    const availableBloques = frente
-        ? extractUniqueBloques(reqs.filter(r => r.frente?.nombre_frente === frente))
-        : extractUniqueBloques(reqs);
+    const availableEspecialidades = especialidadesData.map(e => e.name);
+    const availableBloques = bloquesData.map(b => b.nombre_bloque);
 
     return (
         <div className="fade-in container-fluid">
@@ -453,7 +414,7 @@ const ReporteMateriales: React.FC = () => {
                                 setBloque(''); // Reset descendent filter
                             }}>
                                 <option value="">Todos</option>
-                                {frentes.map(f => <option key={f} value={f}>{f}</option>)}
+                                {frentesData.map(f => <option key={f.id} value={f.nombre_frente}>{f.nombre_frente}</option>)}
                             </Form.Select>
                         </Col>
 
@@ -481,34 +442,32 @@ const ReporteMateriales: React.FC = () => {
                             </Col>
                         )}
                         <Col xs={12} sm={6} md={3}>
-                            <Form.Label>{tipo === 'Equipo' ? 'Equipo' : tipo === 'EPP' ? 'EPP' : tipo === 'Servicio' ? 'Servicio' : 'Material'}</Form.Label>
-                            <Form.Select value={materialId} onChange={e => setMaterialId(e.target.value)}>
-                                <option value="">Todos</option>
-                                {tipo === 'Material' || tipo === '' ? (
-                                    materials
-                                        .filter(m => !categoria || m.categoria === categoria)
-                                        .map(m => (
-                                            <option key={m.id} value={m.id}>{m.descripcion}</option>
-                                        ))
-                                ) : null}
-                                {tipo === 'Equipo' ? (
-                                    equipos.map(e => (
-                                        <option key={e.id} value={e.id}>{e.nombre}</option>
-                                    ))
-                                ) : null}
-                                {tipo === 'EPP' ? (
-                                    epps.map(e => (
-                                        <option key={e.id} value={e.id}>{e.descripcion}</option>
-                                    ))
-                                ) : null}
-                                {tipo === 'Servicio' ? (
-                                    // Extract unique services from reqs for dropdown
-                                    Array.from(new Set(reqs.flatMap(r => r.detalles?.filter(d => d.tipo === 'Servicio').map(d => d.descripcion) || [])))
-                                        .map((desc, idx) => (
-                                            <option key={idx} value={desc}>{desc}</option>
-                                        ))
-                                ) : null}
-                            </Form.Select>
+                            <Form.Label>{tipo === 'Equipo' ? 'Equipo' : tipo === 'EPP' ? 'EPP' : tipo === 'Servicio' ? 'Servicio' : 'Material/Insumo'}</Form.Label>
+                            {tipo !== 'Servicio' ? (
+                                <SearchableSelect
+                                    options={materials
+                                        .filter(m => {
+                                            if (tipo) return (m as any).categoria_interna === tipo;
+                                            if (categoria) return m.categoria === categoria;
+                                            return true;
+                                        })
+                                        .map(m => ({
+                                            value: m.id,
+                                            label: m.descripcion,
+                                            info: m.categoria
+                                        }))}
+                                    value={materialId}
+                                    onChange={(val) => setMaterialId(String(val))}
+                                    placeholder={`Buscar ${tipo || 'ítem'}...`}
+                                />
+                            ) : (
+                                <Form.Control
+                                    type="text"
+                                    placeholder="Ingresar descripción de servicio"
+                                    value={materialId}
+                                    onChange={e => setMaterialId(e.target.value)}
+                                />
+                            )}
                         </Col>
                         <Col xs={12} sm={6} md={3}>
                             <Form.Label>Solicitante</Form.Label>

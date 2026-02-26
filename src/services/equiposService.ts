@@ -1,18 +1,30 @@
 import { supabase } from '../config/supabaseClient';
 import { Equipo } from '../types';
 
-export const getEquipos = async (obraId: string) => {
-    const { data, error } = await supabase
-        .from('equipos')
-        .select('*')
-        .eq('obra_id', obraId)
-        .order('nombre');
 
-    if (error) {
-        console.error('Error fetching equipos:', error);
-        return [];
+export const getEquipos = async (obraId: string, page: number = 1, pageSize: number = 15, searchTerm: string = '') => {
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+
+    let query = supabase
+        .from('equipos')
+        .select('*', { count: 'exact' })
+        .eq('obra_id', obraId)
+        .order('nombre')
+        .range(from, to);
+
+    if (searchTerm) {
+        query = query.or(`nombre.ilike.%${searchTerm}%,codigo.ilike.%${searchTerm}%,marca.ilike.%${searchTerm}%`);
     }
-    return data as Equipo[];
+
+    try {
+        const { data, count, error } = await query;
+        if (error) throw error;
+        return { data: data as Equipo[], count: count || 0 };
+    } catch (error) {
+        console.error('Error fetching equipos:', error);
+        return { data: [], count: 0 };
+    }
 };
 
 export const createEquipo = async (equipo: Partial<Equipo>) => {

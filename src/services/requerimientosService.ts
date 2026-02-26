@@ -201,19 +201,54 @@ export const getUserAssignedObras = async (userId: string) => {
     return data || [];
 };
 
-// CRUD de Materiales
-export const getMateriales = async () => {
-    const { data, error } = await supabase
-        .from('materiales')
-        .select('*')
-        .order('categoria', { ascending: true })
-        .order('descripcion', { ascending: true });
+// Local cache for materials catalog
+let materialsCatalogCache: any[] | null = null;
 
-    if (error) {
-        console.error('Error fetching materiales:', error);
+export const getMaterialesCatalog = async (forceRefresh: boolean = false) => {
+    if (materialsCatalogCache && !forceRefresh) {
+        return materialsCatalogCache;
+    }
+
+    try {
+        const { data, error } = await supabase
+            .from('materiales')
+            .select('id, categoria, descripcion, unidad, informacion_adicional')
+            .order('categoria', { ascending: true })
+            .order('descripcion', { ascending: true });
+
+        if (error) throw error;
+        materialsCatalogCache = data;
+        return data || [];
+    } catch (error) {
+        console.error('Error fetching materials catalog:', error);
         return [];
     }
-    return data;
+};
+
+// CRUD de Materiales
+export const getMateriales = async (page: number = 1, pageSize: number = 15, searchTerm: string = '') => {
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+
+    let query = supabase
+        .from('materiales')
+        .select('*', { count: 'exact' })
+        .order('categoria', { ascending: true })
+        .order('descripcion', { ascending: true })
+        .range(from, to);
+
+    if (searchTerm) {
+        query = query.or(`descripcion.ilike.%${searchTerm}%,categoria.ilike.%${searchTerm}%`);
+    }
+
+    try {
+        const { data, count, error } = await query;
+        if (error) throw error;
+        return { data: data as any[], count: count || 0 };
+    } catch (error) {
+        console.error('Error fetching materiales:', error);
+        return { data: [], count: 0 };
+    }
 };
 
 export const updateMaterial = async (id: string, updates: any) => {
@@ -368,5 +403,111 @@ export const getRequerimientosServicios = async (obraId?: string) => {
     } catch (error: any) {
         console.error('Error fetching requerimientos de servicios:', error);
         return { data: null, error: error.message };
+    }
+};
+
+export const getReporteMaterialesData = async (filters: {
+    obra_id: string;
+    fechaInicio?: string;
+    fechaFin?: string;
+    tipo?: string;
+    frente?: string;
+    solicitante?: string;
+    estado?: string;
+}) => {
+    try {
+        // 1. Fetch details joined with requirement info
+        let query = supabase
+            .from('detalles_requerimiento')
+            .select(`
+                *,
+                requerimiento:requerimientos!inner(
+                    item_correlativo, 
+                    solicitante, 
+                    fecha_solicitud, 
+                    frente_id, 
+                    specialty_id,
+                    especialidad,
+                    frente:frentes(nombre_frente)
+                )
+            `)
+            .eq('requerimiento.obra_id', filters.obra_id);
+
+        if (filters.fechaInicio) query = query.gte('requerimiento.fecha_solicitud', filters.fechaInicio);
+        if (filters.fechaFin) query = query.lte('requerimiento.fecha_solicitud', filters.fechaFin);
+        if (filters.tipo) query = query.eq('tipo', filters.tipo);
+        if (filters.frente) query = query.eq('requerimiento.frente.nombre_frente', filters.frente);
+        if (filters.solicitante) query = query.eq('requerimiento.solicitante', filters.solicitante);
+        if (filters.estado) query = query.eq('estado', filters.estado);
+
+        const { data: details, error: detailsError } = await query;
+        if (detailsError) throw detailsError;
+
+        if (!details || details.length === 0) return [];
+
+        // 2. Identify materials that need budget info
+        // We only care about materials that have both material_id and are in a requirement with frente/specialty
+        const materialItems = details.filter(d => d.tipo === 'Material' && d.material_id && d.requerimiento.frente_id && d.requerimiento.specialty_id);
+
+        if (materialItems.length === 0) {
+            return details.map(d => ({ ...d, stock_max: 0 }));
+        }
+
+        // 3. Batch fetch budgets
+        // Collect unique pairs of (frente_id, specialty_id)
+
+        // Fetch FrontSpecialty IDs for these pairs
+        const { data: fsData, error: fsError } = await supabase
+            .from('front_specialties')
+            .select('id, front_id, specialty_id');
+
+        if (fsError) throw fsError;
+
+        const fsIdMap = new Map();
+        fsData.forEach(fs => {
+            fsIdMap.set(`${fs.front_id}|${fs.specialty_id}`, fs.id);
+        });
+
+        // Map details to their front_specialty_id
+        const materialWithFsId = materialItems.map(d => ({
+            ...d,
+            fsId: fsIdMap.get(`${d.requerimiento.frente_id}|${d.requerimiento.specialty_id}`)
+        })).filter(d => d.fsId);
+
+        if (materialWithFsId.length === 0) {
+            return details.map(d => ({ ...d, stock_max: 0 }));
+        }
+
+        // Fetch listinsumo_especialidad in bulk
+        // Note: Supabase doesn't easily support multi-column "IN" filters in JS client, 
+        // so we fetch all relevant for the front_specialties we found and filter on client if too many.
+        // But usually, there aren't *that* many front_specialties in a single report.
+        const uniqueFsIds = Array.from(new Set(materialWithFsId.map(d => d.fsId)));
+
+        const { data: budgetData, error: budgetError } = await supabase
+            .from('listinsumo_especialidad')
+            .select('front_specialty_id, material_id, cantidad_presupuestada')
+            .in('front_specialty_id', uniqueFsIds);
+
+        if (budgetError) throw budgetError;
+
+        const budgetMap = new Map();
+        budgetData.forEach(b => {
+            budgetMap.set(`${b.front_specialty_id}|${b.material_id}`, b.cantidad_presupuestada);
+        });
+
+        // 4. Merge
+        return details.map(d => {
+            let stock_max = 0;
+            if (d.tipo === 'Material') {
+                const fsId = fsIdMap.get(`${d.requerimiento.frente_id}|${d.requerimiento.specialty_id}`);
+                stock_max = budgetMap.get(`${fsId}|${d.material_id}`) || 0;
+            }
+            return { ...d, stock_max };
+        });
+
+    } catch (error) {
+        console.error('Error fetching report data:', error);
+        throw error;
     }
 };

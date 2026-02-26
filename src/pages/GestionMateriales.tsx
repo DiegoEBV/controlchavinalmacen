@@ -2,13 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { Row, Col, Table, Button, Form, Modal, Card } from 'react-bootstrap';
 import { createMaterial, deleteMaterial, updateMaterial, getCategorias, createCategoria, getMateriales } from '../services/requerimientosService';
 import { Material } from '../types';
-import { usePagination } from '../hooks/usePagination';
 import PaginationControls from '../components/PaginationControls';
 
 const GestionMateriales: React.FC = () => {
     const [materiales, setMateriales] = useState<Material[]>([]);
     const [categoriasList, setCategoriasList] = useState<any[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalItems, setTotalItems] = useState(0);
+    const pageSize = 15;
 
     const [showModal, setShowModal] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
@@ -21,13 +23,12 @@ const GestionMateriales: React.FC = () => {
     });
 
     useEffect(() => {
-        loadInitialData();
+        loadCategorias();
     }, []);
 
-    const loadInitialData = async () => {
-        await loadCategorias();
-        await loadMateriales();
-    };
+    useEffect(() => {
+        loadMateriales();
+    }, [currentPage, searchTerm]);
 
     const loadCategorias = async () => {
         const cats = await getCategorias();
@@ -35,10 +36,20 @@ const GestionMateriales: React.FC = () => {
     };
 
     const loadMateriales = async () => {
-        // Now fetching all materials globally
-        const mats = await getMateriales();
-        if (mats) setMateriales(mats);
+        const { data, count } = await getMateriales(currentPage, pageSize, searchTerm);
+        if (data) {
+            setMateriales(data);
+            setTotalItems(count);
+        }
     };
+
+    // Reset page to 1 when search term changes
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm]);
+
+    const totalPages = Math.ceil(totalItems / pageSize);
+    const goToPage = (page: number) => setCurrentPage(page);
 
     const handleSave = async () => {
         if (!newMaterial.categoria || !newMaterial.descripcion) return alert("Complete los campos obligatorios");
@@ -78,13 +89,6 @@ const GestionMateriales: React.FC = () => {
             loadMateriales();
         }
     };
-
-    const filteredMaterials = materiales.filter(m =>
-        m.descripcion.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        m.categoria.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-
-    const { currentPage, totalPages, totalItems, pageSize, paginatedItems: pagedMaterials, goToPage } = usePagination(filteredMaterials, 15);
 
     const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -218,7 +222,7 @@ const GestionMateriales: React.FC = () => {
                         </tr>
                     </thead>
                     <tbody>
-                        {pagedMaterials.map(m => (
+                        {materiales.map(m => (
                             <tr key={m.id}>
                                 <td width="20%">{m.categoria}</td>
                                 <td width="40%">{m.descripcion}</td>
@@ -232,7 +236,7 @@ const GestionMateriales: React.FC = () => {
                                 </td>
                             </tr>
                         ))}
-                        {filteredMaterials.length === 0 && (
+                        {materiales.length === 0 && (
                             <tr><td colSpan={5} className="text-center">No se encontraron materiales.</td></tr>
                         )}
                     </tbody>
