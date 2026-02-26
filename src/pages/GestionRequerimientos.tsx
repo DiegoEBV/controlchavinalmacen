@@ -166,7 +166,7 @@ const GestionRequerimientos: React.FC = () => {
     const { currentPage, totalPages, totalItems, pageSize, paginatedItems: visibleReqs, goToPage } = usePagination(filteredReqs, 15);
 
     const handleExport = async (req: Requerimiento) => {
-        if (exportingId) return; // Prevent multiple clicks
+        if (exportingId) return; // Prevenir clics múltiples
         setExportingId(req.id);
         try {
             // Obtener datos frescos de la obra si es posible, o usar del contexto

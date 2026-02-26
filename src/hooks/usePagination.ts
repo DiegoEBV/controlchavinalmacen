@@ -3,7 +3,7 @@ import { useState, useMemo, useEffect } from 'react';
 export function usePagination<T>(items: T[], pageSize: number = 15) {
     const [currentPage, setCurrentPage] = useState(1);
 
-    // Reset to page 1 whenever the source data changes
+    // Reiniciar a la página 1 cada vez que cambien los datos de origen
     useEffect(() => {
         setCurrentPage(1);
     }, [items.length]);

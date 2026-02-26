@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Row, Col, Table, Button, Form, Modal, Card, Badge, InputGroup } from 'react-bootstrap';
-import { FaPlus, FaEdit, FaArchive, FaBoxOpen } from 'react-icons/fa';
+import { FaPlus, FaPencilAlt, FaTrash, FaBoxOpen } from 'react-icons/fa';
 import { getSpecialties, createSpecialty, updateSpecialty, deleteSpecialty } from '../services/specialtiesService';
 import { Specialty } from '../types';
 import { usePagination } from '../hooks/usePagination';
@@ -27,8 +27,8 @@ const GestionEspecialidades: React.FC = () => {
     const loadData = async () => {
         setLoading(true);
         try {
-            // If showInactive is true, we want ALL (pass false to activeOnly). 
-            // If showInactive is false, we want ONLY ACTIVE (pass true to activeOnly).
+            // Si showInactive es true, queremos TODOS (pasar false a activeOnly). 
+            // Si showInactive es false, queremos SOLO ACTIVOS (pasar true a activeOnly).
             const data = await getSpecialties(!showInactive);
             setSpecialties(data);
         } catch (error) {
@@ -74,9 +74,9 @@ const GestionEspecialidades: React.FC = () => {
         if (confirm(`¿${specialty.active ? 'Archivar' : 'Activar'} esta especialidad?`)) {
             try {
                 if (specialty.active) {
-                    await deleteSpecialty(specialty.id); // Soft delete
+                    await deleteSpecialty(specialty.id); // Eliminación lógica (archivar)
                 } else {
-                    await updateSpecialty(specialty.id, { active: true }); // Restore
+                    await updateSpecialty(specialty.id, { active: true }); // Restaurar
                 }
                 loadData();
             } catch (error: any) {
@@ -160,17 +160,27 @@ const GestionEspecialidades: React.FC = () => {
                                             }
                                         </td>
                                         <td className="text-end pe-4">
-                                            <Button variant="link" className="text-primary p-0 me-3" onClick={() => handleOpenModal(item)} title="Editar">
-                                                <FaEdit size={18} />
-                                            </Button>
-                                            <Button
-                                                variant="link"
-                                                className={item.active ? "text-danger p-0" : "text-success p-0"}
-                                                onClick={() => handleDelete(item)}
-                                                title={item.active ? "Archivar" : "Restaurar"}
-                                            >
-                                                {item.active ? <FaArchive size={18} /> : <FaBoxOpen size={18} />}
-                                            </Button>
+                                            <div className="d-flex justify-content-end gap-2">
+                                                <Button
+                                                    variant="outline-primary"
+                                                    size="sm"
+                                                    className="d-flex align-items-center px-3"
+                                                    onClick={() => handleOpenModal(item)}
+                                                    title="Editar"
+                                                >
+                                                    <FaPencilAlt className="me-2" /> Editar
+                                                </Button>
+                                                <Button
+                                                    variant={item.active ? "outline-danger" : "outline-success"}
+                                                    size="sm"
+                                                    className="d-flex align-items-center px-3"
+                                                    onClick={() => handleDelete(item)}
+                                                    title={item.active ? "Archivar" : "Restaurar"}
+                                                >
+                                                    {item.active ? <FaTrash className="me-2" /> : <FaBoxOpen className="me-2" />}
+                                                    {item.active ? "Archivar" : "Restaurar"}
+                                                </Button>
+                                            </div>
                                         </td>
                                     </tr>
                                 ))}

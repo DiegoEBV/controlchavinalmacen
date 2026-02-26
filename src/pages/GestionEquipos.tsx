@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Table, Button, Modal, Form, Container, Row, Col, Spinner, Alert, InputGroup } from 'react-bootstrap';
+import { FaPencilAlt, FaTrash } from 'react-icons/fa';
 import { useAuth } from '../context/AuthContext';
 import { getEquipos, createEquipo, updateEquipo, deleteEquipo } from '../services/equiposService';
 import { getObras, getUserAssignedObras } from '../services/requerimientosService';
@@ -98,7 +99,7 @@ const GestionEquipos: React.FC = () => {
 
     const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
         setSearchTerm(e.target.value);
-        setCurrentPage(1); // Reset to page 1 on new search
+        setCurrentPage(1); // Reiniciar a la página 1 en una nueva búsqueda
     };
 
     const handleShow = (equipo?: Equipo) => {
@@ -333,12 +334,26 @@ const GestionEquipos: React.FC = () => {
                                         <td>{eq.marca}</td>
                                         {canEdit && (
                                             <td className="text-end pe-4">
-                                                <Button variant="link" className="text-primary p-0 me-3" onClick={() => handleShow(eq)} title="Editar">
-                                                    Editar
-                                                </Button>
-                                                <Button variant="link" className="text-danger p-0" onClick={() => handleDelete(eq.id)} title="Eliminar">
-                                                    Eliminar
-                                                </Button>
+                                                <div className="d-flex justify-content-end gap-2">
+                                                    <Button
+                                                        variant="outline-primary"
+                                                        size="sm"
+                                                        className="d-flex align-items-center px-3"
+                                                        onClick={() => handleShow(eq)}
+                                                        title="Editar"
+                                                    >
+                                                        <FaPencilAlt className="me-2" /> Editar
+                                                    </Button>
+                                                    <Button
+                                                        variant="outline-danger"
+                                                        size="sm"
+                                                        className="d-flex align-items-center px-3"
+                                                        onClick={() => handleDelete(eq.id)}
+                                                        title="Eliminar"
+                                                    >
+                                                        <FaTrash className="me-2" /> Eliminar
+                                                    </Button>
+                                                </div>
                                             </td>
                                         )}
                                     </tr>

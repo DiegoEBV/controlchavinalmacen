@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Row, Col, Table, Button, Form, Modal, Card } from 'react-bootstrap';
+import { FaPencilAlt, FaTrash } from 'react-icons/fa';
 import { createMaterial, deleteMaterial, updateMaterial, getCategorias, createCategoria, getMateriales } from '../services/requerimientosService';
 import { Material } from '../types';
 import PaginationControls from '../components/PaginationControls';
@@ -43,7 +44,7 @@ const GestionMateriales: React.FC = () => {
         }
     };
 
-    // Reset page to 1 when search term changes
+    // Reiniciar página a 1 cuando el término de búsqueda cambia
     useEffect(() => {
         setCurrentPage(1);
     }, [searchTerm]);
@@ -142,9 +143,9 @@ const GestionMateriales: React.FC = () => {
                             } catch (err) { }
                         }
 
-                        // Check uniqueness by name to avoid duplicates during import?
-                        // For simplicity, just try insert. If uniqueness constraint exists on DB it will fail, else duplicate.
-                        // Ideally we should check if exists.
+                        // ¿Verificar unicidad por nombre para evitar duplicados durante la importación?
+                        // Por simplicidad, solo intentar insertar. Si existe una restricción de unicidad en la BD fallará, de lo contrario duplicará.
+                        // Idealmente deberíamos verificar si existe.
 
                         try {
                             await createMaterial({
@@ -230,8 +231,22 @@ const GestionMateriales: React.FC = () => {
                                 <td width="20%">{m.informacion_adicional || '-'}</td>
                                 <td width="10%">
                                     <div className="d-flex gap-2">
-                                        <Button variant="warning" size="sm" className="text-white" onClick={() => handleEdit(m)}>Editar</Button>
-                                        <Button variant="danger" size="sm" onClick={() => handleDelete(m.id)}>Eliminar</Button>
+                                        <Button
+                                            variant="outline-primary"
+                                            size="sm"
+                                            className="d-flex align-items-center px-3"
+                                            onClick={() => handleEdit(m)}
+                                        >
+                                            <FaPencilAlt className="me-2" /> Editar
+                                        </Button>
+                                        <Button
+                                            variant="outline-danger"
+                                            size="sm"
+                                            className="d-flex align-items-center px-3"
+                                            onClick={() => handleDelete(m.id)}
+                                        >
+                                            <FaTrash className="me-2" /> Eliminar
+                                        </Button>
                                     </div>
                                 </td>
                             </tr>

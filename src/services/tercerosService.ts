@@ -13,7 +13,7 @@ export const getTerceros = async (obraId: string) => {
 };
 
 export const createTercero = async (tercero: Omit<Tercero, 'id' | 'created_at'>) => {
-    // Sanitize empty strings to null
+    // Sanear cadenas vacías a nulo
     const sanitizedTercero = {
         ...tercero,
         ruc: tercero.ruc === '' ? null : tercero.ruc,
@@ -39,7 +39,7 @@ export const createTercero = async (tercero: Omit<Tercero, 'id' | 'created_at'>)
 };
 
 export const updateTercero = async (id: string, updates: Partial<Tercero>) => {
-    // Sanitize empty strings to null
+    // Sanear cadenas vacías a nulo
     const sanitizedUpdates = {
         ...updates,
         ...(updates.ruc !== undefined && { ruc: updates.ruc === '' ? null : updates.ruc }),

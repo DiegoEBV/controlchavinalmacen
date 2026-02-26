@@ -13,7 +13,7 @@ const SalidasAlmacen: React.FC = () => {
     const { selectedObra } = useAuth();
     const [inventario, setInventario] = useState<Inventario[]>([]);
 
-    // Form Header State
+    // Estado de la Cabecera del Formulario
     const [solicitante, setSolicitante] = useState('');
     const [destino, setDestino] = useState('');
     const [selectedTercero, setSelectedTercero] = useState<string>('');
@@ -21,17 +21,17 @@ const SalidasAlmacen: React.FC = () => {
     const [selectedBloque, setSelectedBloque] = useState<string>('');
     const [numeroVale, setNumeroVale] = useState('');
 
-    // Masters
+    // Maestros
     const [terceros, setTerceros] = useState<Tercero[]>([]);
     const [encargados, setEncargados] = useState<UserProfile[]>([]);
     const [bloques, setBloques] = useState<Bloque[]>([]);
 
-    // Item Addition State
+    // Estado de Adición de Ítems
     const [tipoItem, setTipoItem] = useState<'MATERIAL' | 'EQUIPO' | 'EPP'>('MATERIAL');
-    const [selectedInventarioId, setSelectedInventarioId] = useState<string>(''); // We select the Inventory ID
+    const [selectedInventarioId, setSelectedInventarioId] = useState<string>(''); // Seleccionamos el ID de Inventario
     const [cantidadSalida, setCantidadSalida] = useState(0);
 
-    // List of Items to Withdraw
+    // Lista de Ítems para Retirar
     interface SalidaItem {
         tipo: 'MATERIAL' | 'EQUIPO' | 'EPP';
         id: string; // The specific Item ID (not inventory ID)
@@ -39,7 +39,7 @@ const SalidasAlmacen: React.FC = () => {
         unidad: string;
         cantidad: number;
         maxStock: number;
-        invId: string; // Keep track of inventory record ID
+        invId: string; // Seguimiento del ID del registro de inventario
     }
     const [itemsToAdd, setItemsToAdd] = useState<SalidaItem[]>([]);
 
@@ -51,7 +51,7 @@ const SalidasAlmacen: React.FC = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [filterType, setFilterType] = useState('todo');
 
-    // --- Realtime Subscriptions ---
+    // --- Suscripciones en Tiempo Real ---
     useRealtimeSubscription(async ({ upserts }) => {
         if (upserts.size > 0) {
             const { data: updatedStock } = await supabase
@@ -72,7 +72,7 @@ const SalidasAlmacen: React.FC = () => {
 
     useRealtimeSubscription(async ({ upserts }) => {
         if (upserts.size > 0) {
-            loadData(); // Simple reload for history updates
+            loadData(); // Recarga simple para actualizaciones de historial
         }
     }, { table: 'movimientos_almacen', event: 'INSERT', throttleMs: 2000 });
 
@@ -88,7 +88,7 @@ const SalidasAlmacen: React.FC = () => {
         }
     }, [selectedObra]);
 
-    // Clear selection on type change
+    // Limpiar selección al cambiar el tipo
     useEffect(() => {
         setSelectedInventarioId('');
         setCantidadSalida(0);
@@ -149,7 +149,7 @@ const SalidasAlmacen: React.FC = () => {
                 .limit(50)
         ]);
 
-        // Filter stock > 0
+        // Filtrar stock > 0
         setInventario(stockData?.filter(i => i.cantidad_actual > 0) || []);
 
         if (movsData.data) {
@@ -186,7 +186,7 @@ const SalidasAlmacen: React.FC = () => {
 
         if (cantidadSalida > invRecord.cantidad_actual) return alert("No hay suficiente stock");
 
-        // Check if already added
+        // Verificar si ya fue agregado
         const existing = itemsToAdd.find(i => i.invId === invRecord.id);
         if (existing) {
             if (existing.cantidad + cantidadSalida > invRecord.cantidad_actual) {
@@ -257,7 +257,7 @@ const SalidasAlmacen: React.FC = () => {
         setLoading(false);
     };
 
-    // Filter available options for dropdowns based on type and stock
+    // Filtrar opciones disponibles para los desplegables según el tipo y el stock
     const availableOptions = inventario.filter(i => {
         if (tipoItem === 'MATERIAL') return i.material_id !== null;
         if (tipoItem === 'EQUIPO') return i.equipo_id !== null;

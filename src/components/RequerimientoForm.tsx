@@ -101,8 +101,10 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
     }, [allMaterialesList, categoriasList]);
 
     useEffect(() => {
-        loadCatalogs();
-    }, []);
+        if (show) {
+            loadCatalogs();
+        }
+    }, [show]);
 
     useEffect(() => {
         if (obraId) {
