@@ -21,7 +21,7 @@ const PaginationControls: React.FC<PaginationControlsProps> = ({
     const start = (currentPage - 1) * pageSize + 1;
     const end = Math.min(currentPage * pageSize, totalItems);
 
-    // Show up to 5 page numbers around current
+    // Mostrar hasta 5 números de página alrededor de la actual
     const pageNumbers: (number | '...')[] = [];
     if (totalPages <= 7) {
         for (let i = 1; i <= totalPages; i++) pageNumbers.push(i);

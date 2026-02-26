@@ -113,17 +113,17 @@ const EntradasAlmacen: React.FC = () => {
         setSuccessMsg('');
     };
 
-    // --- Helper to calculate Pending for a specific DetalleOC ---
+    // --- Ayudante para calcular Pendiente para un DetalleOC específico ---
     const getPendingForOCDetail = useCallback((oc_detail: DetalleOC, current_oc_id: string, req_id: string) => {
         if (!oc_detail.detalle_sc) return 0;
 
-        // 1. Sort OCs by date to allocate consumed amount to oldest OCs first
+        // 1. Ordenar OCs por fecha para asignar la cantidad consumida a las OCs más antiguas primero
         const ocsForThisDetail = ordenes
             .filter(o => o.estado !== 'Anulada' && o.detalles?.some(d => d.detalle_sc_id === oc_detail.detalle_sc_id))
             .sort((a, b) => new Date(a.fecha_oc).getTime() - new Date(b.fecha_oc).getTime());
 
-        // 2. Compute global consumed for this item (OC entries only, exclude Caja Chica)
-        // Caja Chica entries are independent purchases and should NOT consume OC pending quantities
+        // 2. Calcular consumido global para este ítem (solo entradas OC, excluir Caja Chica)
+        // Las entradas de Caja Chica son compras independientes y NO deben consumir cantidades pendientes de OC
         const consumed = historial
             .filter(h =>
                 String(h.requerimiento_id) === String(req_id) &&
@@ -136,7 +136,7 @@ const EntradasAlmacen: React.FC = () => {
             )
             .reduce((sum, h) => sum + h.cantidad, 0);
 
-        // 3. Allocate sequentially
+        // 3. Asignar secuencialmente
         let remainingConsumed = consumed;
         let pendingForThisOC = 0;
 
@@ -185,7 +185,7 @@ const EntradasAlmacen: React.FC = () => {
         });
     }, [ordenes, getPendingForOCDetail]);
 
-    // Auto-clearing effect when selectedOC becomes fully attended
+    // Efecto de limpieza automática cuando selectedOC está totalmente atendida
     useEffect(() => {
         if (selectedOC && activeOrdenes.length > 0) {
             const isStillActive = activeOrdenes.find(o => o.id === selectedOC.id);

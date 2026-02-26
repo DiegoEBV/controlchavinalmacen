@@ -1,12 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { Row, Col, Table, Button, Form, Modal, Card } from 'react-bootstrap';
-import { getCategorias, createCategoria, deleteCategoria } from '../services/requerimientosService';
-import type * as XLSX from 'xlsx';
+import { FaPencilAlt, FaTrash } from 'react-icons/fa';
+import { getCategorias, createCategoria, deleteCategoria, updateCategoria, getCategoriasPaginated } from '../services/requerimientosService';
+import PaginationControls from '../components/PaginationControls';
 
 const GestionCategorias: React.FC = () => {
     const [categorias, setCategorias] = useState<any[]>([]);
     const [showModal, setShowModal] = useState(false);
+    const [editingId, setEditingId] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalItems, setTotalItems] = useState(0);
+    const pageSize = 15;
 
     const [newItem, setNewItem] = useState({
         nombre: '',
@@ -15,25 +20,47 @@ const GestionCategorias: React.FC = () => {
 
     useEffect(() => {
         loadData();
-    }, []);
+    }, [currentPage, searchTerm]);
+
+    // Reiniciar página a 1 al buscar
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm]);
 
     const loadData = async () => {
-        const data = await getCategorias();
-        setCategorias(data || []);
+        const { data, count } = await getCategoriasPaginated(currentPage, pageSize, searchTerm);
+        if (data) {
+            setCategorias(data);
+            setTotalItems(count);
+        }
     };
 
     const handleSave = async () => {
         if (!newItem.nombre) return alert("El nombre es obligatorio");
 
         try {
-            await createCategoria(newItem);
+            if (editingId) {
+                await updateCategoria(editingId, newItem);
+            } else {
+                await createCategoria(newItem);
+            }
             setShowModal(false);
             setNewItem({ nombre: '', descripcion: '' });
+            setEditingId(null);
             loadData();
         } catch (error: any) {
             console.error(error);
             alert("Error al guardar: " + error.message);
         }
+    };
+
+    const handleEdit = (item: any) => {
+        setEditingId(item.id);
+        setNewItem({
+            nombre: item.nombre,
+            descripcion: item.descripcion || ''
+        });
+        setShowModal(true);
     };
 
     const handleDelete = async (id: string) => {
@@ -47,10 +74,7 @@ const GestionCategorias: React.FC = () => {
         }
     };
 
-    const filteredItems = categorias.filter(item =>
-        item.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (item.descripcion && item.descripcion.toLowerCase().includes(searchTerm.toLowerCase()))
-    );
+    const filteredItems = categorias; // filtrado en el servidor
 
     const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -114,7 +138,7 @@ const GestionCategorias: React.FC = () => {
             }
         };
         reader.readAsBinaryString(file);
-        e.target.value = ''; // reset
+        e.target.value = ''; // reiniciar
     };
 
     return (
@@ -157,7 +181,24 @@ const GestionCategorias: React.FC = () => {
                                 <td>{item.nombre}</td>
                                 <td>{item.descripcion || '-'}</td>
                                 <td>
-                                    <Button variant="danger" size="sm" onClick={() => handleDelete(item.id)}>Eliminar</Button>
+                                    <div className="d-flex gap-2">
+                                        <Button
+                                            variant="outline-primary"
+                                            size="sm"
+                                            className="d-flex align-items-center px-3"
+                                            onClick={() => handleEdit(item)}
+                                        >
+                                            <FaPencilAlt className="me-2" /> Editar
+                                        </Button>
+                                        <Button
+                                            variant="outline-danger"
+                                            size="sm"
+                                            className="d-flex align-items-center px-3"
+                                            onClick={() => handleDelete(item.id)}
+                                        >
+                                            <FaTrash className="me-2" /> Eliminar
+                                        </Button>
+                                    </div>
                                 </td>
                             </tr>
                         ))}
@@ -166,11 +207,25 @@ const GestionCategorias: React.FC = () => {
                         )}
                     </tbody>
                 </Table>
+
+                {totalItems > pageSize && (
+                    <PaginationControls
+                        currentPage={currentPage}
+                        totalPages={Math.ceil(totalItems / pageSize)}
+                        totalItems={totalItems}
+                        pageSize={pageSize}
+                        onPageChange={setCurrentPage}
+                    />
+                )}
             </Card>
 
-            <Modal show={showModal} onHide={() => setShowModal(false)}>
+            <Modal show={showModal} onHide={() => {
+                setShowModal(false);
+                setEditingId(null);
+                setNewItem({ nombre: '', descripcion: '' });
+            }}>
                 <Modal.Header closeButton>
-                    <Modal.Title>Nueva Categoría</Modal.Title>
+                    <Modal.Title>{editingId ? 'Editar Categoría' : 'Nueva Categoría'}</Modal.Title>
                 </Modal.Header>
                 <Modal.Body>
                     <Form>

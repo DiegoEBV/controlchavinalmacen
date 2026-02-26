@@ -66,11 +66,11 @@ export const toggleEppStatus = async (id: string, currentStatus: boolean): Promi
 export const getNextEppCode = async (tipo: 'Personal' | 'Colectivo'): Promise<string> => {
     const prefix = tipo === 'Personal' ? 'EPP-' : 'EPC-';
 
-    // Fetch the max code for the given prefix
-    // We can't easily use SQL functions here without RPC, so we'll fetch all codes (or just the latest if we could sort by substring)
-    // A better approach for the frontend preview is to just get the count or similar, but the most accurate is to Query.
+    // Obtener el código máximo para el prefijo dado
+    // No podemos usar fácilmente funciones SQL aquí sin RPC, así que obtendremos todos los códigos (o solo el último si pudiéramos ordenar por subcadena)
+    // Un mejor enfoque para la vista previa del frontend es simplemente obtener el conteo o similar, pero lo más preciso es consultar.
 
-    // Let's rely on a reliable simplistic approach: Get the last created item of that type.
+    // Confiemos en un enfoque simplista confiable: Obtener el último elemento creado de ese tipo.
     const { data, error } = await supabase
         .from('epps_c')
         .select('codigo')

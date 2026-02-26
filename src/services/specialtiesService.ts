@@ -40,7 +40,7 @@ export const updateSpecialty = async (id: string, updates: Partial<Specialty>): 
 };
 
 export const deleteSpecialty = async (id: string): Promise<void> => {
-    // Soft delete
+    // Eliminación lógica
     const { error } = await supabase
         .from('specialties')
         .update({ active: false })
@@ -52,7 +52,7 @@ export const deleteSpecialty = async (id: string): Promise<void> => {
 export const getFrontSpecialties = async (frontId: string): Promise<Specialty[]> => {
     console.log("Fetching specialties for front:", frontId);
 
-    // First, verify we can fetch the intermediate items
+    // Primero, verificar que podemos obtener los elementos intermedios
     const { data: rawData, error: rawError } = await supabase
         .from('front_specialties')
         .select('*')
@@ -76,14 +76,14 @@ export const getFrontSpecialties = async (frontId: string): Promise<Specialty[]>
 
     if (!data) return [];
 
-    // Transform and log
+    // Transformar y registrar
     const mapped = data.map((item: any) => item.specialties).filter((s: any) => s && s.active);
     console.log("Mapped specialties:", mapped);
     return mapped;
 };
 
 export const assignSpecialtiesToFront = async (frontId: string, specialtyIds: string[]): Promise<void> => {
-    // 1. Get existing assignments
+    // 1. Obtener asignaciones existentes
     const { data: existing, error: fetchError } = await supabase
         .from('front_specialties')
         .select('specialty_id')
@@ -97,7 +97,7 @@ export const assignSpecialtiesToFront = async (frontId: string, specialtyIds: st
     const toAdd = specialtyIds.filter(id => !existingIds.includes(id));
     const toRemove = existingIds.filter(id => !specialtyIds.includes(id));
 
-    // 3. Remove
+    // 3. Eliminar
     if (toRemove.length > 0) {
         const { error: removeError } = await supabase
             .from('front_specialties')
@@ -108,7 +108,7 @@ export const assignSpecialtiesToFront = async (frontId: string, specialtyIds: st
         if (removeError) throw removeError;
     }
 
-    // 4. Add
+    // 4. Agregar
     if (toAdd.length > 0) {
         const { error: addError } = await supabase
             .from('front_specialties')

@@ -18,7 +18,7 @@ export const getRequerimientos = async (obraId?: string, excludeServices: boolea
         }
 
         if (excludeServices) {
-            // Only fetch requirements that have at least one detail that is NOT a 'Servicio'
+            // Solo obtener requerimientos que tengan al menos un detalle que NO sea un 'Servicio'
             query = query.neq('detalles.tipo', 'Servicio');
         }
 
@@ -65,8 +65,8 @@ export const createRequerimiento = async (
             descripcion: d.descripcion,
             unidad: d.unidad,
             cantidad_solicitada: d.cantidad_solicitada,
-            material_id: d.material_id || null, // New traceability field
-            listinsumo_id: d.listinsumo_id || null, // New traceability field
+            material_id: d.material_id || null, // Nuevo campo de trazabilidad
+            listinsumo_id: d.listinsumo_id || null, // Nuevo campo de trazabilidad
             equipo_id: d.equipo_id || null, // Asegurar envío de IDs
             epp_id: d.epp_id || null
         }));
@@ -201,7 +201,7 @@ export const getUserAssignedObras = async (userId: string) => {
     return data || [];
 };
 
-// Local cache for materials catalog
+// Caché local para el catálogo de materiales
 let materialsCatalogCache: any[] | null = null;
 
 export const getMaterialesCatalog = async (forceRefresh: boolean = false) => {
@@ -328,6 +328,34 @@ export const getCategorias = async () => {
     return data;
 };
 
+export const getCategoriasPaginated = async (
+    page: number = 1,
+    pageSize: number = 20,
+    searchTerm: string = ''
+) => {
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+
+    let query = supabase
+        .from('categorias')
+        .select('*', { count: 'exact' })
+        .order('nombre', { ascending: true })
+        .range(from, to);
+
+    if (searchTerm) {
+        query = query.ilike('nombre', `%${searchTerm}%`);
+    }
+
+    try {
+        const { data, count, error } = await query;
+        if (error) throw error;
+        return { data: data || [], count: count || 0 };
+    } catch (error) {
+        console.error('Error fetching paginated categorias:', error);
+        return { data: [], count: 0 };
+    }
+};
+
 export const createCategoria = async (item: any) => {
     const { data, error } = await supabase
         .from('categorias')
@@ -345,6 +373,18 @@ export const deleteCategoria = async (id: string) => {
         .delete()
         .eq('id', id);
     if (error) throw error;
+};
+
+export const updateCategoria = async (id: string, item: any) => {
+    const { data, error } = await supabase
+        .from('categorias')
+        .update(item)
+        .eq('id', id)
+        .select()
+        .single();
+
+    if (error) throw error;
+    return data;
 };
 
 export const getBudgetedMaterials = async (frontId: string, specialtyId: string) => {
@@ -376,6 +416,37 @@ export const getBudgetedMaterials = async (frontId: string, specialtyId: string)
     } catch (error) {
         console.error("Error fetching budgeted materials:", error);
         return [];
+    }
+};
+
+export const getBudgetItemsPaginated = async (
+    frontSpecialtyId: string,
+    page: number = 1,
+    pageSize: number = 15,
+    searchTerm: string = ''
+) => {
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+
+    let query = supabase
+        .from('listinsumo_especialidad')
+        .select('*, material:materiales!inner(*)', { count: 'exact' })
+        .eq('front_specialty_id', frontSpecialtyId)
+        .order('id', { ascending: false }) // Orden de respaldo
+        .range(from, to);
+
+    if (searchTerm) {
+        // Filtrar por descripción o categoría del material
+        query = query.or(`descripcion.ilike.%${searchTerm}%,categoria.ilike.%${searchTerm}%`, { foreignTable: 'materiales' });
+    }
+
+    try {
+        const { data, count, error } = await query;
+        if (error) throw error;
+        return { data: data as any[], count: count || 0 };
+    } catch (error) {
+        console.error('Error fetching paginated budget items:', error);
+        return { data: [], count: 0 };
     }
 };
 
@@ -496,7 +567,7 @@ export const getReporteMaterialesData = async (filters: {
             budgetMap.set(`${b.front_specialty_id}|${b.material_id}`, b.cantidad_presupuestada);
         });
 
-        // 4. Merge
+        // 4. Combinar
         return details.map(d => {
             let stock_max = 0;
             if (d.tipo === 'Material') {
