@@ -30,6 +30,34 @@ export const getEpps = async (includeArchived: boolean = false, page: number = 1
     }
 };
 
+export const getEppsCatalog = async () => {
+    let allEpps: EppC[] = [];
+    let from = 0;
+    const step = 1000;
+
+    while (true) {
+        const { data, error } = await supabase
+            .from('epps_c')
+            .select('*')
+            .eq('activo', true)
+            .order('descripcion', { ascending: true })
+            .range(from, from + step - 1);
+
+        if (error) {
+            console.error('Error in getEppsCatalog:', error);
+            throw error;
+        }
+
+        if (!data || data.length === 0) break;
+
+        allEpps = [...allEpps, ...data as EppC[]];
+        if (data.length < step) break;
+        from += step;
+    }
+
+    return allEpps;
+};
+
 export const createEpp = async (epp: Omit<EppC, 'id' | 'created_at'>): Promise<EppC> => {
     const { data, error } = await supabase
         .from('epps_c')

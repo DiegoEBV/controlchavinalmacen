@@ -27,6 +27,34 @@ export const getEquipos = async (obraId: string, page: number = 1, pageSize: num
     }
 };
 
+export const getEquiposCatalog = async (obraId: string) => {
+    let allEquipos: Equipo[] = [];
+    let from = 0;
+    const step = 1000;
+
+    while (true) {
+        const { data, error } = await supabase
+            .from('equipos')
+            .select('*')
+            .eq('obra_id', obraId)
+            .order('nombre', { ascending: true })
+            .range(from, from + step - 1);
+
+        if (error) {
+            console.error('Error in getEquiposCatalog:', error);
+            throw error;
+        }
+
+        if (!data || data.length === 0) break;
+
+        allEquipos = [...allEquipos, ...data as Equipo[]];
+        if (data.length < step) break;
+        from += step;
+    }
+
+    return allEquipos;
+};
+
 export const createEquipo = async (equipo: Partial<Equipo>) => {
     const { data, error } = await supabase
         .from('equipos')
