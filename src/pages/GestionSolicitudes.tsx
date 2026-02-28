@@ -4,7 +4,8 @@ import { Card, Button, Table, Badge, Modal, Form, Row, Col, Accordion, Spinner }
 
 import { getRequerimientos, getMateriales, getRequerimientoById } from '../services/requerimientosService';
 import { getOrdenesCompra, getSolicitudesCompra, createSolicitudCompra, getSolicitudCompraById } from '../services/comprasService';
-import { getMovimientos } from '../services/almacenService';
+import { getAllMovimientos } from '../services/almacenService';
+import { useAuth } from '../context/AuthContext';
 import { Requerimiento, SolicitudCompra, Material, MovimientoAlmacen, OrdenCompra } from '../types';
 import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription';
 import { mergeUpdates } from '../utils/stateUpdates';
@@ -14,6 +15,7 @@ import { usePagination } from '../hooks/usePagination';
 import PaginationControls from '../components/PaginationControls';
 
 const GestionSolicitudes: React.FC = () => {
+    const { selectedObra } = useAuth();
     const [requerimientos, setRequerimientos] = useState<Requerimiento[]>([]);
     const [solicitudes, setSolicitudes] = useState<SolicitudCompra[]>([]);
     const [materiales, setMateriales] = useState<Material[]>([]);
@@ -27,8 +29,14 @@ const GestionSolicitudes: React.FC = () => {
     const [exportingId, setExportingId] = useState<string | null>(null);
 
     useEffect(() => {
-        loadData();
-    }, []);
+        if (selectedObra) {
+            loadData();
+        } else {
+            setRequerimientos([]);
+            setSolicitudes([]);
+            setHistorial([]);
+        }
+    }, [selectedObra]);
 
     // --- Suscripciones en Tiempo Real Optimizadas ---
 
@@ -64,12 +72,13 @@ const GestionSolicitudes: React.FC = () => {
 
 
     const loadData = async () => {
+        if (!selectedObra) return;
         const [reqs, scs, mats, movs, ocs] = await Promise.all([
-            getRequerimientos(undefined, true), // Excluir servicios
-            getSolicitudesCompra(),
+            getRequerimientos(selectedObra.id, true), // Excluir servicios
+            getSolicitudesCompra(selectedObra.id),
             getMateriales(1, 10000),
-            getMovimientos(),
-            getOrdenesCompra()
+            getAllMovimientos(selectedObra.id),
+            getOrdenesCompra(selectedObra.id)
         ]);
 
         const processedReqIds = new Set(scs?.map(s => s.requerimiento_id));

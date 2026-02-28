@@ -2,10 +2,11 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card, Form, Table, Button, Row, Col, Alert } from 'react-bootstrap';
 import { supabase } from '../config/supabaseClient';
 import { getRequerimientos } from '../services/requerimientosService';
-import { getMovimientos, registrarEntradaMasiva, registrarEntradaCajaChica } from '../services/almacenService';
+import { getMovimientos, registrarEntradaMasiva, registrarEntradaCajaChica, getAllMovimientos } from '../services/almacenService';
 import { getOrdenesCompra, getOrdenCompraById } from '../services/comprasService';
 import { Requerimiento, MovimientoAlmacen, OrdenCompra, DetalleOC } from '../types';
 import { Modal } from 'react-bootstrap';
+import PaginationControls from '../components/PaginationControls';
 import { useAuth } from '../context/AuthContext';
 import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription';
 import { mergeUpdates } from '../utils/stateUpdates';
@@ -16,6 +17,7 @@ const EntradasAlmacen: React.FC = () => {
 
     const [allReqs, setAllReqs] = useState<Requerimiento[]>([]);
     const [historial, setHistorial] = useState<MovimientoAlmacen[]>([]);
+    const [fullHistorial, setFullHistorial] = useState<MovimientoAlmacen[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [filterType, setFilterType] = useState('todo');
 
@@ -32,6 +34,11 @@ const EntradasAlmacen: React.FC = () => {
     const [selectedDetalleReqCajaChica, setSelectedDetalleReqCajaChica] = useState<any | null>(null);
     const [cajaChicaFactura, setCajaChicaFactura] = useState('');
     const [cajaChicaCantidad, setCajaChicaCantidad] = useState<number | ''>('');
+
+    // Paginación para historial
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalItems, setTotalItems] = useState(0);
+    const pageSize = 20;
 
     useRealtimeSubscription(async ({ upserts }) => {
         if (upserts.size > 0) {
@@ -83,19 +90,24 @@ const EntradasAlmacen: React.FC = () => {
             setOrdenes([]);
             setHistorial([]);
         }
-    }, [selectedObra]);
+    }, [selectedObra, currentPage, searchTerm]);
 
     const loadData = async (refreshOCId?: string) => {
         if (!selectedObra) return;
-        const [reqsData, movesData, ocsData] = await Promise.all([
+        const [reqsData, movesData, fullMovesData, ocsData] = await Promise.all([
             getRequerimientos(selectedObra.id),
-            getMovimientos(selectedObra.id),
+            getMovimientos(selectedObra.id, currentPage, pageSize, searchTerm, 'ENTRADA'),
+            getAllMovimientos(selectedObra.id, 'ENTRADA'),
             getOrdenesCompra(selectedObra.id)
         ]);
 
         if (reqsData.data) setAllReqs(reqsData.data);
         if (movesData) {
-            setHistorial(movesData.filter((m: MovimientoAlmacen) => m.tipo === 'ENTRADA'));
+            setHistorial(movesData.data as MovimientoAlmacen[]);
+            setTotalItems(movesData.count);
+        }
+        if (fullMovesData) {
+            setFullHistorial(fullMovesData);
         }
         if (ocsData) {
             setOrdenes(ocsData);
@@ -124,7 +136,7 @@ const EntradasAlmacen: React.FC = () => {
 
         // 2. Calcular consumido global para este ítem (solo entradas OC, excluir Caja Chica)
         // Las entradas de Caja Chica son compras independientes y NO deben consumir cantidades pendientes de OC
-        const consumed = historial
+        const consumed = fullHistorial
             .filter(h =>
                 String(h.requerimiento_id) === String(req_id) &&
                 h.destino_o_uso !== 'COMPRA CAJA CHICA' &&
@@ -154,7 +166,7 @@ const EntradasAlmacen: React.FC = () => {
         }
 
         return pendingForThisOC;
-    }, [ordenes, historial]);
+    }, [ordenes, fullHistorial]);
 
     const getPendingOCForReqDetail = useCallback((reqId: string, detReq: any) => {
         const ocsForReq = ordenes.filter(o => o.estado !== 'Anulada' && (o as any).sc?.requerimiento_id === reqId);
@@ -700,7 +712,10 @@ const EntradasAlmacen: React.FC = () => {
                                 type="text"
                                 placeholder="Buscar..."
                                 value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
+                                onChange={(e) => {
+                                    setSearchTerm(e.target.value);
+                                    setCurrentPage(1);
+                                }}
                             />
                         </Form.Group>
                     </Col>
@@ -732,78 +747,62 @@ const EntradasAlmacen: React.FC = () => {
                             </tr>
                         </thead>
                         <tbody>
-                            {historial.filter(h => {
-                                if (!searchTerm) return true;
-                                const term = searchTerm.toLowerCase();
-
-                                const mov = h as any;
-                                let desc = '';
-                                if (mov.material) desc = mov.material.descripcion;
-                                else if (mov.equipo) desc = mov.equipo.nombre;
-                                else if (mov.epp) desc = mov.epp.descripcion;
-
-                                const reqNum = mov.requerimiento ? String(mov.requerimiento.item_correlativo) : '';
-
-                                switch (filterType) {
-                                    case 'material':
-                                        return desc.toLowerCase().includes(term);
-                                    case 'doc':
-                                        return h.documento_referencia?.toLowerCase().includes(term);
-                                    case 'req':
-                                        return reqNum.includes(term);
-                                    default:
-                                        return (
-                                            desc.toLowerCase().includes(term) ||
-                                            h.documento_referencia?.toLowerCase().includes(term) ||
-                                            reqNum.includes(term)
-                                        );
-                                }
-                            }).map(h => {
-                                const mov = h as any;
-                                let desc = 'Desconocido';
-                                let cat = '';
-                                let unidad = '';
-
-                                if (mov.material) {
-                                    desc = mov.material.descripcion;
-                                    cat = mov.material.categoria;
-                                    unidad = mov.material.unidad;
-                                } else if (mov.equipo) {
-                                    desc = mov.equipo.nombre;
-                                    cat = 'Equipo';
-                                    unidad = 'UND';
-                                } else if (mov.epp) {
-                                    desc = mov.epp.descripcion;
-                                    cat = 'EPP';
-                                    unidad = mov.epp.unidad;
-                                }
-
-                                const reqNum = mov.requerimiento ? mov.requerimiento.item_correlativo : '-';
-
-                                return (
-                                    <tr key={h.id}>
-                                        <td>{new Date(h.fecha).toISOString().split('T')[0]}</td>
-                                        <td className="fw-bold text-primary">
-                                            {reqNum !== '-' ? `#${reqNum}` : '-'}
-                                        </td>
-                                        <td className="fw-bold">{h.documento_referencia || '-'}</td>
-                                        <td>
-                                            <div>{desc}</div>
-                                            <small className="text-muted">{cat}</small>
-                                        </td>
-                                        <td>{h.cantidad}</td>
-                                        <td>{unidad}</td>
-                                    </tr>
-                                );
-                            })}
-                            {historial.length === 0 && (
+                            {historial.length === 0 ? (
                                 <tr>
-                                    <td colSpan={5} className="text-center text-muted">No hay entradas registradas recientemente.</td>
+                                    <td colSpan={6} className="text-center text-muted p-4">No hay entradas registradas.</td>
                                 </tr>
+                            ) : (
+                                historial.map(h => {
+                                    const mov = h as any;
+                                    let desc = 'Desconocido';
+                                    let cat = '';
+                                    let unidad = '';
+
+                                    if (mov.material) {
+                                        desc = mov.material.descripcion;
+                                        cat = mov.material.categoria;
+                                        unidad = mov.material.unidad;
+                                    } else if (mov.equipo) {
+                                        desc = mov.equipo.nombre;
+                                        cat = 'Equipo';
+                                        unidad = 'UND';
+                                    } else if (mov.epp) {
+                                        desc = mov.epp.descripcion;
+                                        cat = 'EPP';
+                                        unidad = mov.epp.unidad;
+                                    }
+
+                                    const reqNum = mov.requerimiento ? mov.requerimiento.item_correlativo : '-';
+
+                                    return (
+                                        <tr key={h.id}>
+                                            <td>{new Date(h.fecha).toLocaleDateString()}</td>
+                                            <td className="fw-bold text-primary">
+                                                {reqNum !== '-' ? `#${reqNum}` : '-'}
+                                            </td>
+                                            <td className="fw-bold">{h.documento_referencia || '-'}</td>
+                                            <td>
+                                                <div>{desc}</div>
+                                                <small className="text-muted">{cat}</small>
+                                            </td>
+                                            <td>{h.cantidad}</td>
+                                            <td>{unidad}</td>
+                                        </tr>
+                                    );
+                                })
                             )}
                         </tbody>
                     </Table>
                 </Card>
+                <div className="mt-3">
+                    <PaginationControls
+                        currentPage={currentPage}
+                        totalPages={Math.max(1, Math.ceil(totalItems / pageSize))}
+                        totalItems={totalItems}
+                        pageSize={pageSize}
+                        onPageChange={setCurrentPage}
+                    />
+                </div>
             </div>
         </div>
     );

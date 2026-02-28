@@ -6,7 +6,7 @@ import {
 } from 'recharts';
 import { supabase } from '../config/supabaseClient';
 import { getRequerimientos } from '../services/requerimientosService';
-import { getMovimientos } from '../services/almacenService';
+import { getAllMovimientos } from '../services/almacenService';
 import { useAuth } from '../context/AuthContext';
 import { Requerimiento, MovimientoAlmacen } from '../types';
 
@@ -97,7 +97,7 @@ const EstadisticasMateriales: React.FC = () => {
         setLoading(true);
         try {
             const [movsData, reqsResp, invData, scZeroData] = await Promise.all([
-                getMovimientos(selectedObra.id),
+                getAllMovimientos(selectedObra.id),
                 getRequerimientos(selectedObra.id),
                 supabase
                     .from('inventario_obra')

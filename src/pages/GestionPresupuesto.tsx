@@ -4,7 +4,7 @@ import { FaPencilAlt, FaTrash } from 'react-icons/fa';
 import { supabase } from '../config/supabaseClient';
 import { Material, Specialty, ListInsumoEspecialidad } from '../types';
 import { getFrontSpecialties } from '../services/specialtiesService';
-import { getMateriales, getBudgetItemsPaginated } from '../services/requerimientosService';
+import { getMateriales, getBudgetItemsPaginated, exportCatalogToCSV } from '../services/requerimientosService';
 import PaginationControls from '../components/PaginationControls';
 
 const GestionPresupuesto: React.FC = () => {
@@ -191,29 +191,28 @@ const GestionPresupuesto: React.FC = () => {
     };
 
     const handleDownloadCatalog = async () => {
+        setLoading(true);
         try {
-            let XLSX: any;
-            try {
-                XLSX = await import('xlsx');
-            } catch (error) {
-                return alert("Error cargando librería XLSX");
+            const { data, error } = await exportCatalogToCSV();
+            if (error) throw new Error(error);
+
+            if (data?.url) {
+                // Trigger download using a temporary link to ensure consistent naming if possible
+                const link = document.createElement('a');
+                link.href = data.url;
+                link.download = data.fileName || 'catalogo_materiales.csv';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            } else {
+                throw new Error("No se recibió la URL de descarga");
             }
 
-            const data = allMaterials.map(m => ({
-                id: m.id,
-                descripcion: m.descripcion,
-                unidad: m.unidad,
-                categoria: m.categoria
-            }));
-
-            const ws = XLSX.utils.json_to_sheet(data);
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "Catalogo");
-            XLSX.writeFile(wb, "catalogo_materiales.xlsx");
-
-        } catch (error) {
+        } catch (error: any) {
             console.error("Error downloading catalog:", error);
-            alert("Error al descargar catálogo");
+            alert("Error al descargar catálogo: " + error.message);
+        } finally {
+            setLoading(false);
         }
     };
 
