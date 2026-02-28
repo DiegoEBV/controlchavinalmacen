@@ -3,10 +3,11 @@ import { Modal, Button, Form, Table, Row, Col, InputGroup, Spinner, Dropdown, To
 import SearchableSelect from './SearchableSelect';
 import { Requerimiento, DetalleRequerimiento, Obra, Material, Equipo, EppC } from '../types';
 import { getSolicitantes, getCategorias, getBudgetedMaterials, getMaterialesCatalog } from '../services/requerimientosService';
-import { getEquipos } from '../services/equiposService';
+import { getEquiposCatalog } from '../services/equiposService';
 import { getBloques } from '../services/frentesService';
 import { getInventario } from '../services/almacenService';
-import { getEpps } from '../services/eppsService';
+import { getEppsCatalog } from '../services/eppsService';
+import InsumoSkeleton from './InsumoSkeleton';
 
 
 import { useAuth } from '../context/AuthContext';
@@ -47,6 +48,11 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
     const [categoriasList, setCategoriasList] = useState<any[]>([]);
     const [stockMap, setStockMap] = useState<Record<string, number>>({});
     const [budgetItems, setBudgetItems] = useState<ListInsumoEspecialidad[]>([]);
+
+    // Loading States
+    const [loadingMateriales, setLoadingMateriales] = useState(false);
+    const [loadingEquipos, setLoadingEquipos] = useState(false);
+    const [loadingEpps, setLoadingEpps] = useState(false);
 
 
     // Especialidades (Cascada)
@@ -123,17 +129,24 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
     }, [obraId]);
 
     const loadCatalogs = async () => {
-        const [sols, cats, epps, allMats] = await Promise.all([
-            getSolicitantes(),
-            getCategorias(),
-            getEpps(),
-            getMaterialesCatalog()
-        ]);
+        setLoadingEpps(true);
+        setLoadingMateriales(true);
 
-        if (sols) setSolicitantesList(sols);
-        if (cats) setCategoriasList(cats);
-        if (epps) setEppsList((epps as any).data || epps);
-        if (allMats) setAllMaterialesList(allMats);
+        // Fetch Solicitors and Categories (fast)
+        getSolicitantes().then(s => s && setSolicitantesList(s));
+        getCategorias().then(c => c && setCategoriasList(c));
+
+        // Fetch EPPs Catalog
+        getEppsCatalog()
+            .then(data => setEppsList(data))
+            .catch(err => console.error("Error loading EPPs catalog:", err))
+            .finally(() => setLoadingEpps(false));
+
+        // Fetch Materials Catalog
+        getMaterialesCatalog()
+            .then(data => setAllMaterialesList(data))
+            .catch(err => console.error("Error loading Materials catalog:", err))
+            .finally(() => setLoadingMateriales(false));
     };
 
     const loadFrentes = async (oid: string) => {
@@ -151,16 +164,20 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
     };
 
     const loadEquipos = async (oid: string) => {
-        const result = await getEquipos(oid);
-        if (result && (result as any).data) {
-            setEquiposList((result as any).data);
-        } else if (result) {
-            setEquiposList(result as any);
+        setLoadingEquipos(true);
+        try {
+            const result = await getEquiposCatalog(oid);
+            setEquiposList(result);
+        } catch (err) {
+            console.error("Error loading Equipos catalog:", err);
+        } finally {
+            setLoadingEquipos(false);
         }
     };
 
     const loadInventory = async (oid: string) => {
-        const inv = await getInventario(oid);
+        const invResult = await getInventario(oid);
+        const inv = invResult?.data || [];
         if (inv) {
             const map: Record<string, number> = {};
             inv.forEach((i: any) => {
@@ -670,161 +687,165 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
                     </Row>
 
                     <h6 className="text-primary mb-3">Agregar Insumo</h6>
-                    <Row className="mb-3 g-2 bg-light p-2 rounded">
-                        <Col md={2}>
-                            <Form.Label>Tipo</Form.Label>
-                            <OverlayTrigger
-                                placement="top"
-                                overlay={
-                                    <Tooltip id="tooltip-tipo">
-                                        No se pueden mezclar Servicios con Materiales, Equipos o EPPs en un mismo requerimiento.
-                                    </Tooltip>
-                                }
-                            >
-                                <div>
-                                    <Form.Select
-                                        value={newItem.tipo}
-                                        onChange={e => {
-                                            const newType = e.target.value as any;
-                                            setNewItem({
-                                                ...newItem,
-                                                tipo: newType,
-                                                material_categoria: newType === 'Material' ? 'General' : '',
-                                                descripcion: '',
-                                                unidad: (newType === 'Equipo' || newType === 'EPP') ? 'UND' : newItem.unidad, // Reset unit
-                                                equipo_id: undefined,
-                                                epp_id: undefined,
-                                                material_id: undefined,
-                                                listinsumo_id: undefined
-                                            });
-                                            setSelectedMaterialId('');
-                                        }}
-                                    >
-                                        <option value="Material" disabled={items.some(i => i.tipo === 'Servicio')}>Material</option>
-                                        <option value="Servicio" disabled={items.some(i => i.tipo !== 'Servicio')}>Servicio</option>
-                                        <option value="Equipo" disabled={items.some(i => i.tipo === 'Servicio')}>Equipo</option>
-                                        <option value="EPP" disabled={items.some(i => i.tipo === 'Servicio')}>EPP</option>
-                                    </Form.Select>
-                                </div>
-                            </OverlayTrigger>
-                        </Col>
-                        <Col md={2}>
-                            <Form.Label>Categoría</Form.Label>
-                            <Form.Select
-                                value={newItem.material_categoria}
-                                onChange={e => {
-                                    setNewItem({ ...newItem, material_categoria: e.target.value, descripcion: '' });
-                                    setSelectedMaterialId('');
-                                }}
-                                disabled={newItem.tipo !== 'Material'}
-                            >
-                                <option value="">Seleccione...</option>
-                                <option value="General">General</option>
+                    {loadingMateriales || loadingEquipos || loadingEpps ? (
+                        <InsumoSkeleton />
+                    ) : (
+                        <Row className="mb-3 g-2 bg-light p-2 rounded">
+                            <Col md={2}>
+                                <Form.Label>Tipo</Form.Label>
+                                <OverlayTrigger
+                                    placement="top"
+                                    overlay={
+                                        <Tooltip id="tooltip-tipo">
+                                            No se pueden mezclar Servicios con Materiales, Equipos o EPPs en un mismo requerimiento.
+                                        </Tooltip>
+                                    }
+                                >
+                                    <div>
+                                        <Form.Select
+                                            value={newItem.tipo}
+                                            onChange={e => {
+                                                const newType = e.target.value as any;
+                                                setNewItem({
+                                                    ...newItem,
+                                                    tipo: newType,
+                                                    material_categoria: newType === 'Material' ? 'General' : '',
+                                                    descripcion: '',
+                                                    unidad: (newType === 'Equipo' || newType === 'EPP') ? 'UND' : newItem.unidad, // Reset unit
+                                                    equipo_id: undefined,
+                                                    epp_id: undefined,
+                                                    material_id: undefined,
+                                                    listinsumo_id: undefined
+                                                });
+                                                setSelectedMaterialId('');
+                                            }}
+                                        >
+                                            <option value="Material" disabled={items.some(i => i.tipo === 'Servicio')}>Material</option>
+                                            <option value="Servicio" disabled={items.some(i => i.tipo !== 'Servicio')}>Servicio</option>
+                                            <option value="Equipo" disabled={items.some(i => i.tipo === 'Servicio')}>Equipo</option>
+                                            <option value="EPP" disabled={items.some(i => i.tipo === 'Servicio')}>EPP</option>
+                                        </Form.Select>
+                                    </div>
+                                </OverlayTrigger>
+                            </Col>
+                            <Col md={2}>
+                                <Form.Label>Categoría</Form.Label>
+                                <Form.Select
+                                    value={newItem.material_categoria}
+                                    onChange={e => {
+                                        setNewItem({ ...newItem, material_categoria: e.target.value, descripcion: '' });
+                                        setSelectedMaterialId('');
+                                    }}
+                                    disabled={newItem.tipo !== 'Material'}
+                                >
+                                    <option value="">Seleccione...</option>
+                                    <option value="General">General</option>
 
-                                {availableCategories.map((c: any) => <option key={c.id} value={c.nombre}>{c.nombre}</option>)}
-                            </Form.Select>
-                        </Col>
-                        <Col md={5}>
-                            <Form.Label>Descripción *</Form.Label>
-                            {/* Si se selecciona categoría, mostrar dropdown de materiales. Si no, mostrar input de texto (o select vacío) */}
-                            {newItem.tipo === 'Material' && newItem.material_categoria ? (
-                                <SearchableSelect
-                                    options={filteredMaterials.map(m => ({
-                                        value: m.id,
-                                        label: m.descripcion,
-                                        info: m.informacion_adicional || m.categoria
-                                    }))}
-                                    value={selectedMaterialId}
-                                    onChange={(val) => handleMaterialSelect(val as string)}
-                                    disabled={!frenteId || !selectedSpecialtyId}
-                                    placeholder={(!frenteId || !selectedSpecialtyId) ? 'Seleccione Especialidad Primero' : 'Seleccione Material...'}
-                                />
-                            ) : newItem.tipo === 'Equipo' ? (
-                                <SearchableSelect
-                                    options={equiposList.map(e => ({
-                                        value: e.id,
-                                        label: `${e.nombre}${e.marca ? ' - ' + e.marca : ''}`,
-                                        info: `Código: ${e.codigo || 'S/C'}`
-                                    }))}
-                                    value={newItem.equipo_id || ''}
-                                    onChange={(val) => handleEquipoSelect(val as string)}
-                                    placeholder="Buscar Equipo..."
-                                />
-                            ) : newItem.tipo === 'EPP' ? (
-                                <SearchableSelect
-                                    options={eppsList.map(e => ({
-                                        value: e.id,
-                                        label: e.descripcion,
-                                        info: `Código: ${e.codigo || 'S/C'}`
-                                    }))}
-                                    value={newItem.epp_id || ''}
-                                    onChange={(val) => handleEppSelect(val as string)}
-                                    placeholder="Buscar EPP..."
-                                />
-                            ) : (
+                                    {availableCategories.map((c: any) => <option key={c.id} value={c.nombre}>{c.nombre}</option>)}
+                                </Form.Select>
+                            </Col>
+                            <Col md={5}>
+                                <Form.Label>Descripción *</Form.Label>
+                                {/* Si se selecciona categoría, mostrar dropdown de materiales. Si no, mostrar input de texto (o select vacío) */}
+                                {newItem.tipo === 'Material' && newItem.material_categoria ? (
+                                    <SearchableSelect
+                                        options={filteredMaterials.map(m => ({
+                                            value: m.id,
+                                            label: m.descripcion,
+                                            info: m.informacion_adicional || m.categoria
+                                        }))}
+                                        value={selectedMaterialId}
+                                        onChange={(val) => handleMaterialSelect(val as string)}
+                                        disabled={!frenteId || !selectedSpecialtyId}
+                                        placeholder={(!frenteId || !selectedSpecialtyId) ? 'Seleccione Especialidad Primero' : 'Seleccione Material...'}
+                                    />
+                                ) : newItem.tipo === 'Equipo' ? (
+                                    <SearchableSelect
+                                        options={equiposList.map(e => ({
+                                            value: e.id,
+                                            label: `${e.nombre}${e.marca ? ' - ' + e.marca : ''}`,
+                                            info: `Código: ${e.codigo || 'S/C'}`
+                                        }))}
+                                        value={newItem.equipo_id || ''}
+                                        onChange={(val) => handleEquipoSelect(val as string)}
+                                        placeholder="Buscar Equipo..."
+                                    />
+                                ) : newItem.tipo === 'EPP' ? (
+                                    <SearchableSelect
+                                        options={eppsList.map(e => ({
+                                            value: e.id,
+                                            label: e.descripcion,
+                                            info: `Código: ${e.codigo || 'S/C'}`
+                                        }))}
+                                        value={newItem.epp_id || ''}
+                                        onChange={(val) => handleEppSelect(val as string)}
+                                        placeholder="Buscar EPP..."
+                                    />
+                                ) : (
+                                    <Form.Control
+                                        value={newItem.descripcion}
+                                        onChange={e => setNewItem({ ...newItem, descripcion: e.target.value })}
+                                        placeholder={newItem.tipo === 'Servicio' ? "Descripción del servicio" : "Seleccione categoría primero"}
+                                    />
+                                )}
+                            </Col>
+                            <Col md={1}>
+                                <Form.Label>Unidad</Form.Label>
                                 <Form.Control
-                                    value={newItem.descripcion}
-                                    onChange={e => setNewItem({ ...newItem, descripcion: e.target.value })}
-                                    placeholder={newItem.tipo === 'Servicio' ? "Descripción del servicio" : "Seleccione categoría primero"}
+                                    value={newItem.unidad}
+                                    onChange={e => setNewItem({ ...newItem, unidad: e.target.value.toUpperCase() })}
+                                    readOnly={(newItem.tipo === 'Material' && !!newItem.material_categoria) || newItem.tipo === 'EPP'} // Solo lectura si se auto-rellena
                                 />
-                            )}
-                        </Col>
-                        <Col md={1}>
-                            <Form.Label>Unidad</Form.Label>
-                            <Form.Control
-                                value={newItem.unidad}
-                                onChange={e => setNewItem({ ...newItem, unidad: e.target.value.toUpperCase() })}
-                                readOnly={(newItem.tipo === 'Material' && !!newItem.material_categoria) || newItem.tipo === 'EPP'} // Solo lectura si se auto-rellena
-                            />
-                        </Col>
-                        <Col md={2}>
-                            <Form.Label>Cant. *</Form.Label>
+                            </Col>
+                            <Col md={2}>
+                                <Form.Label>Cant. *</Form.Label>
 
-                            <div className="d-flex align-items-center">
-                                <Form.Control type="number" value={newItem.cantidad_solicitada} onChange={e => setNewItem({ ...newItem, cantidad_solicitada: parseFloat(e.target.value) })} />
-                                <Button variant="success" className="ms-1" onClick={handleAddItem}>+</Button>
-                            </div>
-                            {newItem.descripcion && (
-                                <div className="mt-1">
-                                    {(() => {
-                                        let stock = 0;
-                                        let showStock = false;
-                                        let unit = newItem.unidad;
-
-                                        if (newItem.tipo === 'Material' && selectedMaterialId) {
-                                            const selectedMat = allMaterialesList.find(m => m.id === selectedMaterialId);
-                                            if (selectedMat) {
-                                                stock = stockMap[selectedMat.id] || 0;
-                                                showStock = true;
-                                            }
-                                        } else if (newItem.tipo === 'Equipo' && newItem.equipo_id) {
-                                            const selectedEq = equiposList.find(e => e.id === newItem.equipo_id);
-                                            if (selectedEq) {
-                                                stock = stockMap[selectedEq.id] || 0;
-                                                showStock = true;
-                                                // Ensure unit is correct if needed, but equipment is usually 'und'
-                                            }
-                                        } else if (newItem.tipo === 'EPP' && newItem.epp_id) {
-                                            const selectedEpp = eppsList.find(e => e.id === newItem.epp_id);
-                                            if (selectedEpp) {
-                                                stock = stockMap[selectedEpp.id] || 0;
-                                                showStock = true;
-                                            }
-                                        }
-
-                                        if (showStock) {
-                                            return (
-                                                <small className={stock > 0 ? "text-success fw-bold" : "text-danger fw-bold"}>
-                                                    Stock: {stock} {unit}
-                                                </small>
-                                            );
-                                        }
-                                        return null;
-                                    })()}
+                                <div className="d-flex align-items-center">
+                                    <Form.Control type="number" value={newItem.cantidad_solicitada} onChange={e => setNewItem({ ...newItem, cantidad_solicitada: parseFloat(e.target.value) })} />
+                                    <Button variant="success" className="ms-1" onClick={handleAddItem}>+</Button>
                                 </div>
-                            )}
-                        </Col>
-                    </Row>
+                                {newItem.descripcion && (
+                                    <div className="mt-1">
+                                        {(() => {
+                                            let stock = 0;
+                                            let showStock = false;
+                                            let unit = newItem.unidad;
+
+                                            if (newItem.tipo === 'Material' && selectedMaterialId) {
+                                                const selectedMat = allMaterialesList.find(m => m.id === selectedMaterialId);
+                                                if (selectedMat) {
+                                                    stock = stockMap[selectedMat.id] || 0;
+                                                    showStock = true;
+                                                }
+                                            } else if (newItem.tipo === 'Equipo' && newItem.equipo_id) {
+                                                const selectedEq = equiposList.find(e => e.id === newItem.equipo_id);
+                                                if (selectedEq) {
+                                                    stock = stockMap[selectedEq.id] || 0;
+                                                    showStock = true;
+                                                    // Ensure unit is correct if needed, but equipment is usually 'und'
+                                                }
+                                            } else if (newItem.tipo === 'EPP' && newItem.epp_id) {
+                                                const selectedEpp = eppsList.find(e => e.id === newItem.epp_id);
+                                                if (selectedEpp) {
+                                                    stock = stockMap[selectedEpp.id] || 0;
+                                                    showStock = true;
+                                                }
+                                            }
+
+                                            if (showStock) {
+                                                return (
+                                                    <small className={stock > 0 ? "text-success fw-bold" : "text-danger fw-bold"}>
+                                                        Stock: {stock} {unit}
+                                                    </small>
+                                                );
+                                            }
+                                            return null;
+                                        })()}
+                                    </div>
+                                )}
+                            </Col>
+                        </Row>
+                    )}
 
                     <Table size="sm">
                         <thead>

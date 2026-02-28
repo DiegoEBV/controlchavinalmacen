@@ -210,15 +210,28 @@ export const getMaterialesCatalog = async (forceRefresh: boolean = false) => {
     }
 
     try {
-        const { data, error } = await supabase
-            .from('materiales')
-            .select('id, categoria, descripcion, unidad, informacion_adicional')
-            .order('categoria', { ascending: true })
-            .order('descripcion', { ascending: true });
+        let allMaterials: any[] = [];
+        let from = 0;
+        const step = 1000;
 
-        if (error) throw error;
-        materialsCatalogCache = data;
-        return data || [];
+        while (true) {
+            const { data, error } = await supabase
+                .from('materiales')
+                .select('id, categoria, descripcion, unidad, informacion_adicional')
+                .order('categoria', { ascending: true })
+                .order('descripcion', { ascending: true })
+                .range(from, from + step - 1);
+
+            if (error) throw error;
+            if (!data || data.length === 0) break;
+
+            allMaterials = [...allMaterials, ...data];
+            if (data.length < step) break;
+            from += step;
+        }
+
+        materialsCatalogCache = allMaterials;
+        return allMaterials;
     } catch (error) {
         console.error('Error fetching materials catalog:', error);
         return [];
@@ -248,6 +261,17 @@ export const getMateriales = async (page: number = 1, pageSize: number = 15, sea
     } catch (error) {
         console.error('Error fetching materiales:', error);
         return { data: [], count: 0 };
+    }
+};
+
+export const exportCatalogToCSV = async () => {
+    try {
+        const { data, error } = await supabase.functions.invoke('export-materials');
+        if (error) throw error;
+        return { data, error: null };
+    } catch (error: any) {
+        console.error('Error invoking export-materials:', error);
+        return { data: null, error: error.message || 'Error al invocar la función de exportación' };
     }
 };
 

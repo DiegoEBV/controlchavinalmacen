@@ -4,7 +4,7 @@ import { Card, Button, Table, Badge, Modal, Form, Row, Col, Spinner } from 'reac
 import { RiFileExcel2Line } from 'react-icons/ri';
 
 import { getSolicitudesCompra, createOrdenCompra, getOrdenesCompra, getOrdenCompraById, getSolicitudCompraById } from '../services/comprasService';
-import { getMovimientos } from '../services/almacenService';
+import { getAllMovimientos } from '../services/almacenService';
 import { SolicitudCompra, OrdenCompra, MovimientoAlmacen } from '../types';
 import { exportSolicitudCompra } from '../utils/scExcelExport';
 import { useAuth } from '../context/AuthContext';
@@ -68,7 +68,7 @@ const GestionOrdenes: React.FC = () => {
         const [scs, ocs, movs] = await Promise.all([
             getSolicitudesCompra(selectedObra.id),
             getOrdenesCompra(selectedObra.id),
-            getMovimientos(selectedObra.id)
+            getAllMovimientos(selectedObra.id)
         ]);
 
         if (scs) setAllSolicitudes(scs);
