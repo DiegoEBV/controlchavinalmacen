@@ -163,6 +163,8 @@ export interface OrdenCompra {
     estado: 'Emitida' | 'Anulada' | 'Recepcionada';
     sc_id?: string;
     fecha_aproximada_atencion?: string;
+    n_factura?: string; // Nuevo
+    fecha_vencimiento?: string; // Nuevo
     created_at: string;
     detalles?: DetalleOC[];
 }

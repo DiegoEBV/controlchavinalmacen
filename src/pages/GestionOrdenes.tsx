@@ -3,10 +3,11 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Card, Button, Table, Badge, Modal, Form, Row, Col, Spinner } from 'react-bootstrap';
 import { RiFileExcel2Line } from 'react-icons/ri';
 
-import { getSolicitudesCompra, createOrdenCompra, getOrdenesCompra, getOrdenCompraById, getSolicitudCompraById } from '../services/comprasService';
+import { getSolicitudesCompra, createOrdenCompra, getOrdenesCompra, getOrdenCompraById, getSolicitudCompraById, getOrdenesCompraExport } from '../services/comprasService';
 import { getAllMovimientos } from '../services/almacenService';
 import { SolicitudCompra, OrdenCompra, MovimientoAlmacen } from '../types';
 import { exportSolicitudCompra } from '../utils/scExcelExport';
+import { exportOrdenesCompra } from '../utils/ocExcelExport';
 import { useAuth } from '../context/AuthContext';
 import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription';
 import { mergeUpdates } from '../utils/stateUpdates';
@@ -28,7 +29,14 @@ const GestionOrdenes: React.FC = () => {
     const [proveedor, setProveedor] = useState('');
     const [manualOCNumber, setManualOCNumber] = useState('');
     const [fechaAtencion, setFechaAtencion] = useState('');
+    const [nFactura, setNFactura] = useState('');
+    const [fechaVencimiento, setFechaVencimiento] = useState('');
     const [itemsToOrder, setItemsToOrder] = useState<any[]>([]);
+
+    // Estado para Exportación
+    const [fechaInicialExport, setFechaInicialExport] = useState('');
+    const [fechaFinalExport, setFechaFinalExport] = useState(new Date().toISOString().split('T')[0]);
+    const [isExporting, setIsExporting] = useState(false);
 
     useEffect(() => {
         if (selectedObra) {
@@ -116,8 +124,9 @@ const GestionOrdenes: React.FC = () => {
         setManualOCNumber('');
         // Reiniciar
         setProveedor('');
-        // Reiniciar
         setFechaAtencion('');
+        setNFactura('');
+        setFechaVencimiento('');
         // Pre-llenar con ítems de la SC
         // Lógica: Permitir seleccionar ítems parciales.
         const initialItems = sc.detalles?.map(d => {
@@ -177,6 +186,8 @@ const GestionOrdenes: React.FC = () => {
                 proveedor,
                 fecha_oc: new Date().toISOString().split('T')[0],
                 fecha_aproximada_atencion: fechaAtencion || undefined,
+                n_factura: nFactura || undefined,
+                fecha_vencimiento: fechaVencimiento || undefined,
                 estado: 'Emitida' as const
             };
 
@@ -186,9 +197,8 @@ const GestionOrdenes: React.FC = () => {
             setProveedor('');
             setManualOCNumber('');
             setFechaAtencion('');
-            // No es necesario llamar a loadData() si el tiempo real está funcionando, pero es inofensivo mantenerlo o eliminarlo.
-            // ¿Mejor eliminar para confiar en el tiempo real? O mantener como respaldo.
-            // loadData(); 
+            setNFactura('');
+            setFechaVencimiento('');
             // Confiaremos en el tiempo real + actualización optimista local si es necesario, pero el tiempo real suele ser lo suficientemente rápido.
             // Realmente, para retroalimentación inmediata de nuestra PROPIA acción, tal vez recargar o actualización optimista.
             // El tiempo real también lo capturará.
@@ -207,6 +217,26 @@ const GestionOrdenes: React.FC = () => {
             console.error("Export failed:", error);
         } finally {
             setExportingId(null);
+        }
+    };
+
+    const handleExportOC = async () => {
+        if (!selectedObra) return alert("Seleccione una obra");
+        if (!fechaInicialExport || !fechaFinalExport) return alert("Seleccione un rango de fechas para exportar");
+        if (fechaInicialExport > fechaFinalExport) return alert("La fecha inicial no puede ser mayor que la final");
+
+        setIsExporting(true);
+        try {
+            const dataToExport = await getOrdenesCompraExport(selectedObra.id, fechaInicialExport, fechaFinalExport);
+            if (dataToExport.length === 0) {
+                alert("No hay órdenes de compra en el rango de fechas seleccionado.");
+                return;
+            }
+            await exportOrdenesCompra(dataToExport, fechaInicialExport, fechaFinalExport);
+        } catch (error) {
+            console.error("Export OC failed:", error);
+        } finally {
+            setIsExporting(true);
         }
     };
 
@@ -261,7 +291,37 @@ const GestionOrdenes: React.FC = () => {
                 </Col>
 
                 <Col md={12}>
-                    <h4 className="text-secondary mt-4">Ordenes Emitidas</h4>
+                    <div className="d-flex justify-content-between align-items-center mt-4 mb-2">
+                        <h4 className="text-secondary mb-0">Ordenes Emitidas</h4>
+                        <div className="d-flex align-items-center gap-2">
+                            <Form.Control
+                                type="date"
+                                size="sm"
+                                value={fechaInicialExport}
+                                onChange={e => setFechaInicialExport(e.target.value)}
+                                title="Fecha Inicial"
+                            />
+                            <span className="text-muted">a</span>
+                            <Form.Control
+                                type="date"
+                                size="sm"
+                                value={fechaFinalExport}
+                                onChange={e => setFechaFinalExport(e.target.value)}
+                                title="Fecha Final"
+                            />
+                            <Button
+                                size="sm"
+                                variant="outline-success"
+                                onClick={handleExportOC}
+                                disabled={isExporting || !fechaInicialExport || !fechaFinalExport}
+                                className="d-flex align-items-center gap-1 text-nowrap"
+                            >
+                                {isExporting ? <Spinner animation="border" size="sm" /> : <RiFileExcel2Line size={16} />}
+                                Exportar
+                            </Button>
+                        </div>
+                    </div>
+
                     <Table hover responsive className="table-borderless-custom mt-2">
                         <thead>
                             <tr>
@@ -271,6 +331,8 @@ const GestionOrdenes: React.FC = () => {
                                 <th>Estado</th>
                                 <th>Fecha</th>
                                 <th>Fecha Est. Atención</th>
+                                <th>N° Factura</th>
+                                <th>Fecha Venc.</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -283,6 +345,8 @@ const GestionOrdenes: React.FC = () => {
                                         <td><Badge bg="secondary">{oc.estado}</Badge></td>
                                         <td>{oc.fecha_oc}</td>
                                         <td>{oc.fecha_aproximada_atencion || '-'}</td>
+                                        <td>{oc.n_factura || '-'}</td>
+                                        <td>{oc.fecha_vencimiento || '-'}</td>
                                     </tr>
                                 );
                             })}
@@ -331,6 +395,36 @@ const GestionOrdenes: React.FC = () => {
                             </Form.Group>
                         </Col>
                     </Row>
+
+                    <Card className="mb-4 bg-light">
+                        <Card.Body className="p-3">
+                            <h6 className="text-muted fw-bold mb-3"><i className="bi bi-receipt"></i> Información de Facturación (Opcional)</h6>
+                            <Row>
+                                <Col xs={12} md={6}>
+                                    <Form.Group>
+                                        <Form.Label className="text-sm">N° Factura</Form.Label>
+                                        <Form.Control
+                                            size="sm"
+                                            value={nFactura}
+                                            onChange={e => setNFactura(e.target.value)}
+                                            placeholder="Ej: F001-000123"
+                                        />
+                                    </Form.Group>
+                                </Col>
+                                <Col xs={12} md={6}>
+                                    <Form.Group>
+                                        <Form.Label className="text-sm">Fecha Vencimiento</Form.Label>
+                                        <Form.Control
+                                            type="date"
+                                            size="sm"
+                                            value={fechaVencimiento}
+                                            onChange={e => setFechaVencimiento(e.target.value)}
+                                        />
+                                    </Form.Group>
+                                </Col>
+                            </Row>
+                        </Card.Body>
+                    </Card>
 
                     <Table size="sm">
                         <thead>

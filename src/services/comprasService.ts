@@ -113,7 +113,11 @@ export const createOrdenCompra = async (
     // 1. Crear Cabecera
     const { data: oc, error: ocError } = await supabase
         .from('ordenes_compra')
-        .insert([ocData])
+        .insert([{
+            ...ocData,
+            n_factura: ocData.n_factura || null,
+            fecha_vencimiento: ocData.fecha_vencimiento || null
+        }])
         .select()
         .single();
 
@@ -158,4 +162,29 @@ export const getOrdenCompraById = async (id: string) => {
         return null;
     }
     return data as OrdenCompra;
+};
+
+export const getOrdenesCompraExport = async (obraId: string, fechaInicial: string, fechaFinal: string) => {
+    let query = supabase
+        .from('ordenes_compra')
+        .select(`
+            *,
+            sc:solicitudes_compra!inner(
+                *,
+                requerimiento:requerimientos!inner(id, obra_id, item_correlativo, solicitante, frente:frentes(nombre_frente))
+            ),
+            detalles:detalles_oc(*, detalle_sc:detalles_sc(*, material:materiales(*), equipo:equipos(*), epp:epps_c(*)))
+        `)
+        .eq('sc.requerimiento.obra_id', obraId)
+        .gte('fecha_oc', fechaInicial)
+        .lte('fecha_oc', fechaFinal)
+        .order('fecha_oc', { ascending: true }); // Ordenar cronológicamente
+
+    const { data, error } = await query;
+
+    if (error) {
+        console.error('Error fetching OCs for export:', error);
+        throw error;
+    }
+    return data as OrdenCompra[];
 };
