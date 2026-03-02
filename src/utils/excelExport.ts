@@ -161,6 +161,20 @@ export const exportRequerimiento = async (req: Requerimiento, customFormatUrl?: 
                 }
                 currentSheet.model = model;
                 currentSheet.name = newName;
+
+                // Fix para Bug de ExcelJS: "Shared Formula master must exist..."
+                // Al clonar la hoja con currentSheet.model = model, se copian las celdas con fórmulas compartidas,
+                // pero pierden la referencia al "master" original. 
+                // Solución: Recorrer la nueva hoja y limpiarlas (convirtiéndolas en estáticas o null).
+                currentSheet.eachRow((row) => {
+                    row.eachCell((cell) => {
+                        if (cell.type === ExcelJSModule.ValueType.Formula && cell.formulaType === ExcelJSModule.FormulaType.Shared) {
+                            // Convertimos la fórmula compartida al valor del resultado actual para evitar el crash
+                            const val = cell.result;
+                            cell.value = val;
+                        }
+                    });
+                });
             }
 
             // Datos del chunk actual
@@ -181,6 +195,21 @@ export const exportRequerimiento = async (req: Requerimiento, customFormatUrl?: 
             const sheetToRemove = workbook.worksheets[workbook.worksheets.length - 1];
             workbook.removeWorksheet(sheetToRemove.id);
         }
+
+        // Fix FINAL para Bug de ExcelJS: "Shared Formula master must exist..."
+        // Recorremos TODAS las hojas resultantes justo antes de escribir el archivo
+        // y convertimos cualquier fórmula a un valor estático para estar seguros.
+        workbook.eachSheet((sheet: ExcelJS.Worksheet) => {
+            sheet.eachRow((row: ExcelJS.Row) => {
+                row.eachCell((cell: ExcelJS.Cell) => {
+                    if (cell.type === ExcelJSModule.ValueType.Formula) {
+                        // Forzamos el valor de la celda a ser su resultado precalculado.
+                        // Esto elimina la fórmula (incluyendo las Problemáticas 'Shared') y deja el Excel con el valor final.
+                        cell.value = cell.result;
+                    }
+                });
+            });
+        });
 
         // Generar Blob y Descargar
         const outBuffer = await workbook.xlsx.writeBuffer();
