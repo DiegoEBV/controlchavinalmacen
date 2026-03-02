@@ -284,6 +284,14 @@ export const updateMaterial = async (id: string, updates: any) => {
         .single();
 
     if (error) throw error;
+
+    // Actualización optimista del catálogo
+    if (materialsCatalogCache) {
+        materialsCatalogCache = materialsCatalogCache.map(m =>
+            m.id === id ? { ...m, ...updates } : m
+        );
+    }
+
     return data;
 };
 
@@ -295,6 +303,18 @@ export const createMaterial = async (material: any) => {
         .single();
 
     if (error) throw error;
+
+    // Actualización optimista del catálogo
+    if (materialsCatalogCache) {
+        materialsCatalogCache = [...materialsCatalogCache, data].sort((a, b) => {
+            if (a.categoria < b.categoria) return -1;
+            if (a.categoria > b.categoria) return 1;
+            if (a.descripcion < b.descripcion) return -1;
+            if (a.descripcion > b.descripcion) return 1;
+            return 0;
+        });
+    }
+
     return data;
 };
 
@@ -304,6 +324,11 @@ export const deleteMaterial = async (id: string) => {
         .delete()
         .eq('id', id);
     if (error) throw error;
+
+    // Actualización optimista del catálogo
+    if (materialsCatalogCache) {
+        materialsCatalogCache = materialsCatalogCache.filter(m => m.id !== id);
+    }
 };
 // CRUD de Solicitantes
 export const getSolicitantes = async () => {
