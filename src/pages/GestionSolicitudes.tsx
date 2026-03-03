@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../config/supabaseClient';
 import { Card, Button, Table, Badge, Modal, Form, Row, Col, Accordion, Spinner } from 'react-bootstrap';
 
-import { getRequerimientos, getMateriales, getRequerimientoById } from '../services/requerimientosService';
+import { getRequerimientos, getMaterialesCatalog, getRequerimientoById } from '../services/requerimientosService';
 import { getOrdenesCompra, getSolicitudesCompra, createSolicitudCompra, getSolicitudCompraById } from '../services/comprasService';
 import { getAllMovimientos } from '../services/almacenService';
 import { useAuth } from '../context/AuthContext';
@@ -76,7 +76,7 @@ const GestionSolicitudes: React.FC = () => {
         const [reqs, scs, mats, movs, ocs] = await Promise.all([
             getRequerimientos(selectedObra.id, true), // Excluir servicios
             getSolicitudesCompra(selectedObra.id),
-            getMateriales(1, 10000),
+            getMaterialesCatalog(),
             getAllMovimientos(selectedObra.id),
             getOrdenesCompra(selectedObra.id)
         ]);
@@ -89,7 +89,7 @@ const GestionSolicitudes: React.FC = () => {
             setRequerimientos(pending);
         }
         if (scs) setSolicitudes(scs);
-        if (mats.data) setMateriales(mats.data);
+        if (mats) setMateriales(mats);
         if (movs) setHistorial(movs as any);
         if (ocs) setOrdenes(ocs);
     };
@@ -112,14 +112,20 @@ const GestionSolicitudes: React.FC = () => {
             };
 
             if (d.tipo === 'Material') {
-                // Lógica legacy: Buscar por nombre/categoría
-                const mat = materiales.find(m =>
-                    m.descripcion === d.descripcion &&
-                    m.categoria === d.material_categoria
-                );
-                if (!mat) return null;
-                item.material_id = mat.id;
-                item.descripcion = mat.descripcion;
+                // Priorizar el material_id ya registrado en el detalle
+                if (d.material_id) {
+                    item.material_id = d.material_id;
+                    item.descripcion = d.descripcion;
+                } else {
+                    // Fallback legacy (por si acaso hay reqs antiguos sin ID)
+                    const mat = materiales.find(m =>
+                        m.descripcion === d.descripcion &&
+                        m.categoria === d.material_categoria
+                    );
+                    if (!mat) return null;
+                    item.material_id = mat.id;
+                    item.descripcion = mat.descripcion;
+                }
             } else if (d.tipo === 'Equipo') {
                 if (!d.equipo_id) return null;
                 item.equipo_id = d.equipo_id;
