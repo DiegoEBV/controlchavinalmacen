@@ -9,6 +9,7 @@ import { useAuth } from '../context/AuthContext';
 import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription';
 import { mergeUpdates } from '../utils/stateUpdates';
 import PaginationControls from '../components/PaginationControls';
+import SearchableSelect from '../components/SearchableSelect';
 
 const SalidasAlmacen: React.FC = () => {
     const { selectedObra } = useAuth();
@@ -363,12 +364,11 @@ const SalidasAlmacen: React.FC = () => {
 
                             <Form.Group className="mb-3">
                                 <Form.Label>Seleccionar Bien con Stock</Form.Label>
-                                <Form.Select
+                                <SearchableSelect
                                     value={selectedInventarioId}
-                                    onChange={(e) => setSelectedInventarioId(e.target.value)}
-                                >
-                                    <option value="">Seleccione...</option>
-                                    {inventario
+                                    onChange={(val) => setSelectedInventarioId(val.toString())}
+                                    placeholder="Buscar Bien en Stock..."
+                                    options={inventario
                                         .filter(i => {
                                             if (tipoItem === 'MATERIAL') return !!i.material;
                                             if (tipoItem === 'EQUIPO') return !!i.equipo;
@@ -377,12 +377,21 @@ const SalidasAlmacen: React.FC = () => {
                                         })
                                         .map(i => {
                                             let label = '';
-                                            if (i.material) label = `${i.material.descripcion} (${i.cantidad_actual} ${i.material.unidad})`;
-                                            else if (i.equipo) label = `${i.equipo.nombre} [${i.equipo.codigo}] (${i.cantidad_actual} UND)`;
-                                            else if (i.epp) label = `${i.epp.descripcion} [${i.epp.codigo}] (${i.cantidad_actual} ${i.epp.unidad})`;
-                                            return <option key={i.id} value={i.id}>{label}</option>;
-                                        })}
-                                </Form.Select>
+                                            let info = '';
+                                            if (i.material) {
+                                                label = i.material.descripcion;
+                                                info = `Stock: ${i.cantidad_actual} ${i.material.unidad}`;
+                                            } else if (i.equipo) {
+                                                label = `${i.equipo.nombre} [${i.equipo.codigo}]`;
+                                                info = `Stock: ${i.cantidad_actual} UND`;
+                                            } else if (i.epp) {
+                                                label = `${i.epp.descripcion} [${i.epp.codigo}]`;
+                                                info = `Stock: ${i.cantidad_actual} ${i.epp.unidad}`;
+                                            }
+                                            return { value: i.id, label, info };
+                                        })
+                                    }
+                                />
                             </Form.Group>
 
                             <Form.Group className="mb-3">

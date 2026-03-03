@@ -7,6 +7,7 @@ import { getOrdenesCompra, getOrdenCompraById } from '../services/comprasService
 import { Requerimiento, MovimientoAlmacen, OrdenCompra, DetalleOC } from '../types';
 import { Modal } from 'react-bootstrap';
 import PaginationControls from '../components/PaginationControls';
+import SearchableSelect from '../components/SearchableSelect';
 import { useAuth } from '../context/AuthContext';
 import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription';
 import { mergeUpdates } from '../utils/stateUpdates';
@@ -580,40 +581,40 @@ const EntradasAlmacen: React.FC = () => {
                         <Col xs={12} md={6}>
                             <Form.Group>
                                 <Form.Label>Seleccionar Requerimiento (Solo con pendientes)</Form.Label>
-                                <Form.Select
-                                    onChange={e => handleRequerimientoCajaChicaSelect(e.target.value)}
+                                <SearchableSelect
+                                    onChange={(val) => handleRequerimientoCajaChicaSelect(val.toString())}
                                     value={selectedReqCajaChica?.id || ''}
-                                >
-                                    <option value="">Seleccione Requerimiento...</option>
-                                    {activeRequerimientosCajaChica.map(r => (
-                                        <option key={r.id} value={r.id}>
-                                            Req. #{r.item_correlativo} - {r.frente?.nombre_frente || 'Sin Frente'}
-                                        </option>
-                                    ))}
-                                </Form.Select>
+                                    placeholder="Seleccione Requerimiento..."
+                                    options={activeRequerimientosCajaChica.map(r => ({
+                                        value: r.id,
+                                        label: `Req. #${r.item_correlativo}`,
+                                        info: r.frente?.nombre_frente || 'Sin Frente'
+                                    }))}
+                                />
                             </Form.Group>
                         </Col>
 
                         <Col xs={12} md={6}>
                             <Form.Group>
                                 <Form.Label>Material / Ítem a Ingresar</Form.Label>
-                                <Form.Select
-                                    onChange={e => handleDetalleReqCajaChicaSelect(e.target.value)}
+                                <SearchableSelect
+                                    onChange={(val) => handleDetalleReqCajaChicaSelect(val.toString())}
                                     value={selectedDetalleReqCajaChica?.id || ''}
                                     disabled={!selectedReqCajaChica}
-                                >
-                                    <option value="">Seleccione Ítem...</option>
-                                    {selectedReqCajaChica?.detalles?.map(d => {
-                                        const enOC = getPendingOCForReqDetail(selectedReqCajaChica.id, d);
+                                    placeholder="Seleccione Ítem..."
+                                    options={(selectedReqCajaChica?.detalles || []).reduce((acc, d) => {
+                                        const enOC = getPendingOCForReqDetail(selectedReqCajaChica!.id, d);
                                         const disp = d.cantidad_solicitada - (d.cantidad_atendida || 0) - enOC;
-                                        if (disp <= 0) return null;
-                                        return (
-                                            <option key={d.id} value={d.id}>
-                                                {d.descripcion} (Pendiente libre: {disp} {d.unidad})
-                                            </option>
-                                        );
-                                    })}
-                                </Form.Select>
+                                        if (disp > 0) {
+                                            acc.push({
+                                                value: d.id,
+                                                label: d.descripcion,
+                                                info: `Pendiente libre: ${disp} ${d.unidad}`
+                                            });
+                                        }
+                                        return acc;
+                                    }, [] as { value: string; label: string; info: string }[])}
+                                />
                             </Form.Group>
                         </Col>
                     </Row>

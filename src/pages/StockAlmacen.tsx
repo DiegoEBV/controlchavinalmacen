@@ -16,7 +16,8 @@ import { exportStockToExcel } from '../utils/stockExport';
 import { Toast, ToastContainer } from 'react-bootstrap';
 
 const StockAlmacen: React.FC = () => {
-    const { selectedObra } = useAuth();
+    const { selectedObra, hasRole } = useAuth();
+    const canManageStock = hasRole(['admin', 'almacenero', 'coordinador']);
     const [stockItems, setStockItems] = useState<StockItem[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [loading, setLoading] = useState(false);
@@ -135,20 +136,22 @@ const StockAlmacen: React.FC = () => {
         <div className="fade-in">
             <div className="page-header d-flex justify-content-between align-items-center">
                 <h2>Stock Actual en Obra</h2>
-                <div className="d-flex gap-2">
-                    <Button
-                        variant="success"
-                        onClick={handleExport}
-                        disabled={isExporting || loading || !selectedObra}
-                        className="d-flex align-items-center"
-                    >
-                        <FaFileExcel className="me-2" />
-                        {isExporting ? 'Exportando...' : 'Exportar Stock'}
-                    </Button>
-                    <Button variant="primary" onClick={() => setShowInitialStockModal(true)}>
-                        + Cargar Stock Inicial
-                    </Button>
-                </div>
+                {canManageStock && (
+                    <div className="d-flex gap-2">
+                        <Button
+                            variant="success"
+                            onClick={handleExport}
+                            disabled={isExporting || loading || !selectedObra}
+                            className="d-flex align-items-center"
+                        >
+                            <FaFileExcel className="me-2" />
+                            {isExporting ? 'Exportando...' : 'Exportar Stock'}
+                        </Button>
+                        <Button variant="primary" onClick={() => setShowInitialStockModal(true)}>
+                            + Cargar Stock Inicial
+                        </Button>
+                    </div>
+                )}
             </div>
 
             <Card className="custom-card">
