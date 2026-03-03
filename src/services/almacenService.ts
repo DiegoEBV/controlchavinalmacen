@@ -2,6 +2,26 @@ import { supabase } from '../config/supabaseClient';
 import { Inventario, MovimientoAlmacen } from '../types';
 
 export const getInventario = async (obraId: string, page: number = 1, pageSize: number = 15, searchTerm: string = '') => {
+    if (searchTerm) {
+        // Traer todo y paginar localmente
+        const allData = await getAllInventario(obraId);
+        const term = searchTerm.toLowerCase();
+        const filteredData = allData.filter(item => {
+            const matDesc = item.material?.descripcion?.toLowerCase() || '';
+            const eqNombre = item.equipo?.nombre?.toLowerCase() || '';
+            const eppDesc = item.epp?.descripcion?.toLowerCase() || '';
+            const eqCode = item.equipo?.codigo?.toLowerCase() || '';
+            const eppCode = item.epp?.codigo?.toLowerCase() || '';
+
+            return matDesc.includes(term) || eqNombre.includes(term) || eppDesc.includes(term) || eqCode.includes(term) || eppCode.includes(term);
+        });
+
+        const from = (page - 1) * pageSize;
+        const to = from + pageSize;
+        return { data: filteredData.slice(from, to), count: filteredData.length };
+    }
+
+    // Sin searchTerm: paginación normal en BD
     let query = supabase
         .from('inventario_obra')
         .select(`
@@ -15,12 +35,6 @@ export const getInventario = async (obraId: string, page: number = 1, pageSize: 
         query = query.eq('obra_id', obraId);
     }
 
-    // Filtro polimórfico corregido (solo si hay searchTerm)
-    // Supabase no soporta .or transversal entre tablas relacionadas fácilmente con .ilike
-    // Pero podemos intentar un filtro básico por descripción si se puede o hacerlo post-fetch
-    // Para simplificar y ser eficientes, primero filtramos por obra e id
-
-    // Aplicar paginación
     const from = (page - 1) * pageSize;
     const to = from + pageSize - 1;
 
@@ -35,22 +49,7 @@ export const getInventario = async (obraId: string, page: number = 1, pageSize: 
         return { data: [], count: 0 };
     }
 
-    // Filtrado manual por searchTerm puesto que es polimórfico y complejo para el servidor en una sola query
-    let filteredData = data as Inventario[];
-    if (searchTerm) {
-        const term = searchTerm.toLowerCase();
-        filteredData = filteredData.filter(item => {
-            const matDesc = item.material?.descripcion?.toLowerCase() || '';
-            const eqNombre = item.equipo?.nombre?.toLowerCase() || '';
-            const eppDesc = item.epp?.descripcion?.toLowerCase() || '';
-            const eqCode = item.equipo?.codigo?.toLowerCase() || '';
-            const eppCode = item.epp?.codigo?.toLowerCase() || '';
-
-            return matDesc.includes(term) || eqNombre.includes(term) || eppDesc.includes(term) || eqCode.includes(term) || eppCode.includes(term);
-        });
-    }
-
-    return { data: filteredData, count: count || 0 };
+    return { data: data as Inventario[], count: count || 0 };
 };
 
 export const getAllInventario = async (obraId: string) => {
@@ -206,6 +205,25 @@ export const registrarSalida = async (
 };
 
 export const getMovimientos = async (obraId: string, page: number = 1, pageSize: number = 20, searchTerm: string = '', tipo?: 'ENTRADA' | 'SALIDA') => {
+    if (searchTerm) {
+        const allData = await getAllMovimientos(obraId, tipo);
+        const term = searchTerm.toLowerCase();
+        const filteredData = allData.filter(h => {
+            const mov = h as any;
+            const desc = (mov.material?.descripcion || mov.equipo?.nombre || mov.epp?.descripcion || '').toLowerCase();
+            const doc = (h.documento_referencia || '').toLowerCase();
+            const req = mov.requerimiento ? String(mov.requerimiento.item_correlativo).toLowerCase() : '';
+            const vale = (h.numero_vale || '').toLowerCase();
+            const sol = (h.solicitante || '').toLowerCase();
+
+            return desc.includes(term) || doc.includes(term) || req.includes(term) || vale.includes(term) || sol.includes(term);
+        });
+
+        const from = (page - 1) * pageSize;
+        const to = from + pageSize;
+        return { data: filteredData.slice(from, to), count: filteredData.length };
+    }
+
     let query = supabase
         .from('movimientos_almacen')
         .select(`
@@ -239,22 +257,7 @@ export const getMovimientos = async (obraId: string, page: number = 1, pageSize:
         return { data: [], count: 0 };
     }
 
-    let filteredData = data || [];
-    if (searchTerm) {
-        const term = searchTerm.toLowerCase();
-        filteredData = filteredData.filter(h => {
-            const mov = h as any;
-            const desc = (mov.material?.descripcion || mov.equipo?.nombre || mov.epp?.descripcion || '').toLowerCase();
-            const doc = (h.documento_referencia || '').toLowerCase();
-            const req = mov.requerimiento ? String(mov.requerimiento.item_correlativo).toLowerCase() : '';
-            const vale = (h.numero_vale || '').toLowerCase();
-            const sol = (h.solicitante || '').toLowerCase();
-
-            return desc.includes(term) || doc.includes(term) || req.includes(term) || vale.includes(term) || sol.includes(term);
-        });
-    }
-
-    return { data: filteredData, count: count || 0 };
+    return { data: data || [], count: count || 0 };
 };
 
 export const getAllMovimientos = async (obraId: string, tipo?: 'ENTRADA' | 'SALIDA') => {

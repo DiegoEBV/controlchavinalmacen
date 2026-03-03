@@ -5,7 +5,7 @@ import { Requerimiento, DetalleRequerimiento, Obra, Material, Equipo, EppC } fro
 import { getSolicitantes, getCategorias, getBudgetedMaterials, getMaterialesCatalog } from '../services/requerimientosService';
 import { getEquiposCatalog } from '../services/equiposService';
 import { getBloques } from '../services/frentesService';
-import { getInventario } from '../services/almacenService';
+import { getAllInventario } from '../services/almacenService';
 import { getEppsCatalog } from '../services/eppsService';
 import InsumoSkeleton from './InsumoSkeleton';
 
@@ -176,8 +176,7 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
     };
 
     const loadInventory = async (oid: string) => {
-        const invResult = await getInventario(oid);
-        const inv = invResult?.data || [];
+        const inv = await getAllInventario(oid);
         if (inv) {
             const map: Record<string, number> = {};
             inv.forEach((i: any) => {
