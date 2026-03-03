@@ -7,7 +7,7 @@ export const getRequerimientos = async (obraId?: string, excludeServices: boolea
             .from('requerimientos')
             .select(`
                 *,
-                detalles:detalles_requerimiento${excludeServices ? '!inner' : ''}(*, epp:epps_c(*), equipo:equipos(*)),
+                detalles:detalles_requerimiento${excludeServices ? '!inner' : ''}(*, material:materiales(*), epp:epps_c(*), equipo:equipos(*)),
                 frente:frentes(*),
                 specialty:specialties(*)
             `)
@@ -38,7 +38,7 @@ export const getRequerimientoById = async (id: string) => {
             .from('requerimientos')
             .select(`
                  *,
-                 detalles:detalles_requerimiento(*, epp:epps_c(*), equipo:equipos(*)),
+                 detalles:detalles_requerimiento(*, material:materiales(*), epp:epps_c(*), equipo:equipos(*)),
                  frente:frentes(*),
                  specialty:specialties(*)
              `)
