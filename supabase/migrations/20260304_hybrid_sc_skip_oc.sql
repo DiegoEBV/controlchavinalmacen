@@ -2,7 +2,8 @@
 -- 1. Add columns to detalles_sc
 ALTER TABLE public.detalles_sc 
 ADD COLUMN IF NOT EXISTS enviar_a_oc BOOLEAN DEFAULT TRUE,
-ADD COLUMN IF NOT EXISTS procesado_directo BOOLEAN DEFAULT FALSE;
+ADD COLUMN IF NOT EXISTS procesado_directo BOOLEAN DEFAULT FALSE,
+ADD COLUMN IF NOT EXISTS detalle_requerimiento_id UUID REFERENCES public.detalles_requerimiento(id) ON DELETE SET NULL;
 
 -- 2. Create RPC function for hybrid processing
 CREATE OR REPLACE FUNCTION public.procesar_sc_hibrida(p_sc_id UUID) 
