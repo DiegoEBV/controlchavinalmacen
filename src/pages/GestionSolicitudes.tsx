@@ -15,7 +15,8 @@ import { usePagination } from '../hooks/usePagination';
 import PaginationControls from '../components/PaginationControls';
 
 const GestionSolicitudes: React.FC = () => {
-    const { selectedObra } = useAuth();
+    const { selectedObra, hasRole } = useAuth();
+    const canSkipOC = hasRole(['admin', 'coordinador']);
     const [requerimientos, setRequerimientos] = useState<Requerimiento[]>([]);
     const [solicitudes, setSolicitudes] = useState<SolicitudCompra[]>([]);
     const [materiales, setMateriales] = useState<Material[]>([]);
@@ -108,7 +109,9 @@ const GestionSolicitudes: React.FC = () => {
                 comentario: '',
                 material_id: null,
                 equipo_id: null,
-                epp_id: null
+                epp_id: null,
+                detalle_requerimiento_id: d.id, // Guardar ID para el RPC
+                enviar_a_oc: true // Por defecto siempre enviar a OC
             };
 
             if (d.tipo === 'Material') {
@@ -368,6 +371,7 @@ const GestionSolicitudes: React.FC = () => {
                                 <th>Desc</th>
                                 <th>Cantidad</th>
                                 <th>Comentario</th>
+                                {canSkipOC && <th title="Si se desactiva, el ítem se marca como atendido sin pasar por OC">¿Enviar a OC?</th>}
                             </tr>
                         </thead>
                         <tbody>
@@ -410,6 +414,20 @@ const GestionSolicitudes: React.FC = () => {
                                             size="sm"
                                         />
                                     </td>
+                                    {canSkipOC && (
+                                        <td>
+                                            <Form.Check
+                                                type="switch"
+                                                id={`switch-oc-${idx}`}
+                                                checked={it.enviar_a_oc}
+                                                onChange={(e) => {
+                                                    const newItems = [...items];
+                                                    newItems[idx].enviar_a_oc = e.target.checked;
+                                                    setItems(newItems);
+                                                }}
+                                            />
+                                        </td>
+                                    )}
                                 </tr>
                             ))}
                         </tbody>
