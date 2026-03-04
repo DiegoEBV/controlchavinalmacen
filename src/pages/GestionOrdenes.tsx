@@ -91,6 +91,9 @@ const GestionOrdenes: React.FC = () => {
 
             // Verificar si cada ítem en esta SC está totalmente comprado o cubierto
             const isFullyPurchased = sc.detalles.every(d => {
+                // Si el ítem no se envía a OC (Skip OC), se considera "atendido" para esta vista
+                if ((d as any).enviar_a_oc === false) return true;
+
                 // Total comprometido en OCs
                 const totalPurchased = ordenes.reduce((sum, oc) => {
                     const match = oc.detalles?.find(od => od.detalle_sc_id === d.id);
@@ -127,9 +130,8 @@ const GestionOrdenes: React.FC = () => {
         setFechaAtencion('');
         setNFactura('');
         setFechaVencimiento('');
-        // Pre-llenar con ítems de la SC
-        // Lógica: Permitir seleccionar ítems parciales.
-        const initialItems = sc.detalles?.map(d => {
+        // Pre-llenar con ítems de la SC que sí van a OC
+        const initialItems = sc.detalles?.filter(d => (d as any).enviar_a_oc !== false).map(d => {
             // Calcular lo que ya se ha comprado/comprometido en OCs anteriores
             const totalPurchased = ordenes.reduce((sum, oc) => {
                 const match = oc.detalles?.find(od => od.detalle_sc_id === d.id);
