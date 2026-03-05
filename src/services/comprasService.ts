@@ -60,20 +60,35 @@ export const createSolicitudCompra = async (
     // 2. Crear Detalles
     const detalles = items.map(item => ({
         sc_id: sc.id,
+        detalle_requerimiento_id: item.detalle_requerimiento_id, // Asegurar que pasamos el ID del requerimiento
         material_id: item.material_id,
         equipo_id: item.equipo_id,
         epp_id: item.epp_id,
         cantidad: item.cantidad,
         unidad: item.unidad,
-        estado: 'Pendiente',
-        comentario: item.comentario || ''
+        estado: item.enviar_a_oc === false ? 'Atendido' : 'Pendiente',
+        comentario: item.comentario || '',
+        enviar_a_oc: item.enviar_a_oc !== false, // Por defecto true
+        procesado_directo: item.enviar_a_oc === false
     }));
 
     const { error: detError } = await supabase
         .from('detalles_sc')
         .insert(detalles);
 
-    if (detError) throw detError; // Considerar lógica de reversión aquí en producción
+    if (detError) throw detError;
+
+    // 3. Procesar Automatización Híbrida (Skip OC)
+    try {
+        const { error: rpcError } = await supabase.rpc('procesar_sc_hibrida', { p_sc_id: sc.id });
+        if (rpcError) {
+            console.error('Error in procesar_sc_hibrida RPC:', rpcError);
+            // No lanzamos error fatal para que el usuario sepa que la SC se creó
+            alert("La SC se creó, pero hubo un error procesando la Entrega Directa. Por favor verifique el estado del requerimiento.");
+        }
+    } catch (e) {
+        console.error('Exception calling procesar_sc_hibrida:', e);
+    }
 
     return sc;
 };
