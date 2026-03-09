@@ -346,6 +346,7 @@ const EntradasAlmacen: React.FC = () => {
 
     const activeRequerimientosCajaChica = useMemo(() => {
         return allReqs.filter(req => {
+            if (req.estado === 'Anulado') return false;
             if (!req.detalles || req.detalles.length === 0) return false;
             return req.detalles.some(d => {
                 const enOC = getPendingOCForReqDetail(req.id, d);

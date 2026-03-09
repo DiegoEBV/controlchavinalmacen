@@ -85,8 +85,8 @@ const GestionSolicitudes: React.FC = () => {
         const processedReqIds = new Set(scs?.map(s => s.requerimiento_id));
 
         if (reqs.data) {
-            // Filtrar Requerimientos que ya tienen una SC
-            const pending = reqs.data.filter(r => !processedReqIds.has(r.id));
+            // Filtrar Requerimientos que ya tienen una SC y que no estén Anulados
+            const pending = reqs.data.filter(r => !processedReqIds.has(r.id) && r.estado !== 'Anulado');
             setRequerimientos(pending);
         }
         if (scs) setSolicitudes(scs);
@@ -171,9 +171,17 @@ const GestionSolicitudes: React.FC = () => {
 
     // Filtrar VISTA de Requerimientos Pendientes de nuevo para estar seguros (si llegó SC en tiempo real pero perdimos el evento)
     const processedReqIds = new Set(solicitudes.map(s => s.requerimiento_id));
-    const pendingRequerimientos = requerimientos.filter(r => !processedReqIds.has(r.id));
+    const pendingRequerimientos = requerimientos.filter(r => !processedReqIds.has(r.id) && r.estado !== 'Anulado');
 
     const { currentPage: scPage, totalPages: scTotalPages, totalItems: scTotalItems, pageSize: scPageSize, paginatedItems: pagedSolicitudes, goToPage: goToScPage } = usePagination(solicitudes, 15);
+    const {
+        paginatedItems: pagedPendingReqs,
+        currentPage: pendingPage,
+        totalPages: pendingTotalPages,
+        totalItems: pendingTotalItems,
+        pageSize: pendingPageSize,
+        goToPage: goToPendingPage
+    } = usePagination(pendingRequerimientos, 10);
 
     return (
         <div className="fade-in">
@@ -196,7 +204,7 @@ const GestionSolicitudes: React.FC = () => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {pendingRequerimientos.slice(0, 5).map(req => (
+                                {pagedPendingReqs.map(req => (
                                     <tr key={req.id}>
                                         <td>{req.item_correlativo}</td>
                                         <td>{req.bloque}</td>
@@ -210,6 +218,17 @@ const GestionSolicitudes: React.FC = () => {
                                 {pendingRequerimientos.length === 0 && <tr><td colSpan={5} className="text-muted text-center">No hay requerimientos pendientes.</td></tr>}
                             </tbody>
                         </Table>
+                        {pendingTotalPages > 1 && (
+                            <div className="px-3 pb-3 border-top pt-2 mt-auto">
+                                <PaginationControls
+                                    currentPage={pendingPage}
+                                    totalPages={pendingTotalPages}
+                                    totalItems={pendingTotalItems}
+                                    pageSize={pendingPageSize}
+                                    onPageChange={goToPendingPage}
+                                />
+                            </div>
+                        )}
                     </Card>
                 </Col>
 

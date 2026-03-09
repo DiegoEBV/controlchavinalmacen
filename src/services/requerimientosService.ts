@@ -631,3 +631,18 @@ export const getReporteMaterialesData = async (filters: {
         throw error;
     }
 };
+
+export const anularRequerimiento = async (reqId: string, userId: string, motivo: string) => {
+    try {
+        const { data, error } = await supabase.rpc('anular_requerimiento', {
+            p_req_id: reqId,
+            p_user_id: userId,
+            p_motivo: motivo
+        });
+        if (error) throw error;
+        return data as { success: boolean; message: string };
+    } catch (error: any) {
+        console.error('Error anular requerimiento:', error);
+        return { success: false, message: error.message };
+    }
+};

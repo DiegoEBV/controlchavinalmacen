@@ -51,6 +51,8 @@ export interface Requerimiento {
     solicitante: string;
     fecha_solicitud: string;
     created_at: string;
+    estado?: string;
+    motivo_anulacion?: string;
 
     // Campo virtual para UI
     detalles?: DetalleRequerimiento[];
