@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Button, Table, Badge, Accordion, ProgressBar, Row, Col, Form, Card, Spinner, OverlayTrigger, Tooltip } from 'react-bootstrap';
-import { getRequerimientos, createRequerimiento, updateRequerimiento, getObras, getUserAssignedObras, getRequerimientoById } from '../services/requerimientosService';
+import { getRequerimientos, createRequerimiento, updateRequerimiento, getObras, getUserAssignedObras, getRequerimientoById, anularRequerimiento } from '../services/requerimientosService';
 import { getSolicitudesCompra, getOrdenesCompra, getSolicitudCompraById, getOrdenCompraById } from '../services/comprasService';
 import { Requerimiento, Obra, SolicitudCompra, OrdenCompra } from '../types';
 import RequerimientoForm from '../components/RequerimientoForm';
@@ -8,7 +8,7 @@ import { useAuth } from '../context/AuthContext';
 import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription';
 import { mergeUpdates } from '../utils/stateUpdates';
 import { exportRequerimiento } from '../utils/excelExport';
-import { FaFileExcel, FaEdit } from 'react-icons/fa';
+import { FaFileExcel, FaEdit, FaBan } from 'react-icons/fa';
 import { usePagination } from '../hooks/usePagination';
 import PaginationControls from '../components/PaginationControls';
 
@@ -22,7 +22,7 @@ const GestionRequerimientos: React.FC = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [exportingId, setExportingId] = useState<string | null>(null);
 
-    const { selectedObra, user, isAdmin } = useAuth();
+    const { selectedObra, user, isAdmin, profile } = useAuth();
 
     // --- Suscripciones en Tiempo Real Optimizadas ---
 
@@ -136,6 +136,29 @@ const GestionRequerimientos: React.FC = () => {
         setEditingReq(null);
     };
 
+    const handleAnular = async (req: Requerimiento) => {
+        if (!user) return;
+        const motivo = window.prompt(`¿Por qué deseas anular el requerimiento REQ #${req.item_correlativo}?\nIngresa el motivo (requerido):`);
+
+        if (motivo === null) return; // User cancelled prompt
+        if (motivo.trim().length < 5) {
+            alert("Debes ingresar un motivo válido (mínimo 5 caracteres).");
+            return;
+        }
+
+        try {
+            const res = await anularRequerimiento(req.id, user.id, motivo.trim());
+            if (!res.success) {
+                alert(res.message);
+            } else {
+                alert(res.message);
+                loadData();
+            }
+        } catch (error: any) {
+            alert(error.message || 'Error al anular requerimiento');
+        }
+    };
+
 
     const calculateProgress = (req: Requerimiento) => {
         if (!req.detalles?.length) return 0;
@@ -210,9 +233,12 @@ const GestionRequerimientos: React.FC = () => {
                         return (
                             <Accordion.Item eventKey={String(idx)} key={req.id}>
                                 <Accordion.Header>
-                                    <div className="d-flex flex-column flex-md-row w-100 justify-content-between align-items-center me-3 gap-2">
+                                    <div
+                                        className={`d-flex flex-column flex-md-row w-100 justify-content-between align-items-center me-3 gap-2 ${req.estado === 'Anulado' ? 'text-danger' : ''}`}
+                                        style={req.estado === 'Anulado' ? { backgroundColor: '' } : {}}
+                                    >
                                         <div className="text-center text-md-start">
-                                            <strong>REQ #{req.item_correlativo}</strong>
+                                            <strong>REQ #{req.item_correlativo} {req.estado === 'Anulado' && <Badge bg="danger" className="ms-2">ANULADO</Badge>}</strong>
                                             <span className="mx-2 text-muted d-none d-md-inline">|</span>
                                             <div className="d-md-inline d-block">
                                                 <span className="text-primary fw-bold">Bloque: {req.bloque}</span>
@@ -220,6 +246,11 @@ const GestionRequerimientos: React.FC = () => {
                                             <div className="small text-muted mt-1">
                                                 Solicitado por: <strong>{req.solicitante}</strong> ({req.fecha_solicitud})
                                             </div>
+                                            {req.estado === 'Anulado' && req.motivo_anulacion && (
+                                                <div className="small text-danger mt-1 fw-bold">
+                                                    Motivo anulación: <span className="fw-normal">{req.motivo_anulacion}</span>
+                                                </div>
+                                            )}
                                         </div>
                                         <div className="d-flex align-items-center justify-content-center justify-content-md-start gap-3 mt-2 mt-md-0">
                                             {/* Progress Bar */}
@@ -231,15 +262,15 @@ const GestionRequerimientos: React.FC = () => {
                                             {/* Export Button - Using div to avoid button-in-button warning from AccordionHeader */}
                                             {/* Export Button - Using div to avoid button-in-button warning from AccordionHeader */}
                                             <div
-                                                className={`btn btn-sm btn-outline-success ${exportingId === req.id ? 'disabled' : ''}`}
-                                                style={{ cursor: exportingId === req.id ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                                className={`btn btn-sm btn-outline-success ${exportingId === req.id || req.estado === 'Anulado' ? 'disabled' : ''}`}
+                                                style={{ cursor: (exportingId === req.id || req.estado === 'Anulado') ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                                                 onClick={(e) => {
                                                     e.stopPropagation(); // Avoid toggling accordion
-                                                    if (exportingId !== req.id) {
+                                                    if (exportingId !== req.id && req.estado !== 'Anulado') {
                                                         handleExport(req);
                                                     }
                                                 }}
-                                                title="Exportar a Excel"
+                                                title={req.estado === 'Anulado' ? "No se puede exportar un requerimiento anulado" : "Exportar a Excel"}
                                             >
                                                 {exportingId === req.id ? (
                                                     <Spinner animation="border" size="sm" />
@@ -248,17 +279,56 @@ const GestionRequerimientos: React.FC = () => {
                                                 )}
                                             </div>
 
+                                            {/* Anular Button */}
+                                            {(() => {
+                                                const hasSC = solicitudes.some(s => s.requerimiento_id === req.id && s.estado !== 'Anulada');
+                                                const hasAtencion = req.detalles?.some(d => (d.cantidad_atendida || 0) > 0 || (d.cantidad_caja_chica || 0) > 0);
+                                                const isAnulado = req.estado === 'Anulado';
+
+                                                let tooltipMessage = "Anular Requerimiento";
+                                                let isDisabled = false;
+
+                                                if (isAnulado) {
+                                                    isDisabled = true;
+                                                    tooltipMessage = "El requerimiento ya está anulado";
+                                                } else if (!(isAdmin || profile?.role === 'coordinador')) {
+                                                    isDisabled = true;
+                                                    tooltipMessage = "No tienes permisos para anular requerimientos";
+                                                } else if (hasSC) {
+                                                    isDisabled = true;
+                                                    tooltipMessage = "No se puede anular: Este requerimiento ya posee una Solicitud de Compra vinculada.";
+                                                } else if (hasAtencion) {
+                                                    isDisabled = true;
+                                                    tooltipMessage = "No se puede anular: Este requerimiento tiene ítems con atención.";
+                                                }
+
+                                                return (
+                                                    <OverlayTrigger placement="top" overlay={<Tooltip id={`tooltip-anular-${req.id}`}>{tooltipMessage}</Tooltip>}>
+                                                        <div
+                                                            className={`btn btn-sm btn-outline-danger ${isDisabled ? 'disabled' : ''}`}
+                                                            style={{ cursor: isDisabled ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                if (!isDisabled) handleAnular(req);
+                                                            }}
+                                                        >
+                                                            <FaBan size={18} />
+                                                        </div>
+                                                    </OverlayTrigger>
+                                                );
+                                            })()}
+
                                             {/* Edit Button */}
                                             <div
-                                                className={`btn btn-sm btn-outline-primary ${solicitudes.some(s => s.requerimiento_id === req.id) ? 'disabled' : ''}`}
-                                                style={{ cursor: solicitudes.some(s => s.requerimiento_id === req.id) ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                                className={`btn btn-sm btn-outline-primary ${solicitudes.some(s => s.requerimiento_id === req.id) || req.estado === 'Anulado' ? 'disabled' : ''}`}
+                                                style={{ cursor: (solicitudes.some(s => s.requerimiento_id === req.id) || req.estado === 'Anulado') ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                                                 onClick={(e) => {
                                                     e.stopPropagation();
-                                                    if (!solicitudes.some(s => s.requerimiento_id === req.id)) {
+                                                    if (!solicitudes.some(s => s.requerimiento_id === req.id) && req.estado !== 'Anulado') {
                                                         handleEdit(req);
                                                     }
                                                 }}
-                                                title={solicitudes.some(s => s.requerimiento_id === req.id) ? "No se puede editar con SC generada" : "Editar Requerimiento"}
+                                                title={req.estado === 'Anulado' ? "No se puede editar un requerimiento anulado" : (solicitudes.some(s => s.requerimiento_id === req.id) ? "No se puede editar con SC generada" : "Editar Requerimiento")}
                                             >
                                                 <FaEdit size={18} />
                                             </div>
@@ -410,7 +480,7 @@ const GestionRequerimientos: React.FC = () => {
                 initialData={editingReq}
             />
 
-        </div>
+        </div >
     );
 };
 
