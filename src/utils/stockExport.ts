@@ -11,24 +11,24 @@ const normalizeStockData = (items: any[]) => {
         let categoria = '-';
         let unidad = '-';
 
-        if (item.materiales) {
+        if (item.material) {
             tipo = 'Material';
-            descripcion = item.materiales.descripcion || '-';
+            descripcion = item.material.descripcion || '-';
             detalle = '-';
-            categoria = item.materiales.categoria || '-';
-            unidad = item.materiales.unidad || '-';
-        } else if (item.equipos) {
+            categoria = item.material.categoria || '-';
+            unidad = item.material.unidad || '-';
+        } else if (item.equipo) {
             tipo = 'Equipo';
-            descripcion = item.equipos.nombre || '-';
-            detalle = `${item.equipos.marca || ''} [${item.equipos.codigo || ''}]`.trim();
+            descripcion = item.equipo.nombre || '-';
+            detalle = `${item.equipo.marca || ''} [${item.equipo.codigo || ''}]`.trim();
             categoria = 'Equipo';
             unidad = 'UND';
-        } else if (item.epps_c) {
+        } else if (item.epp) {
             tipo = 'EPP';
-            descripcion = item.epps_c.descripcion || '-';
-            detalle = `${item.epps_c.tipo || ''} [${item.epps_c.codigo || ''}]`.trim();
-            categoria = item.epps_c.tipo || '-';
-            unidad = item.epps_c.unidad || '-';
+            descripcion = item.epp.descripcion || '-';
+            detalle = `${item.epp.tipo || ''} [${item.epp.codigo || ''}]`.trim();
+            categoria = item.epp.tipo || '-';
+            unidad = item.epp.unidad || '-';
         }
 
         return {
