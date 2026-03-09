@@ -152,8 +152,10 @@ export interface DetalleSC {
     epp?: EppC;
     cantidad: number;
     unidad: string;
-    estado: 'Pendiente' | 'En Orden';
+    estado: 'Pendiente' | 'En Orden' | 'Atendido';
     comentario?: string;
+    enviar_a_oc?: boolean;
+    procesado_directo?: boolean;
     created_at: string;
 }
 

@@ -260,6 +260,10 @@ const GestionSolicitudes: React.FC = () => {
                             });
 
                             const headerStatus = allFullyAttended ? 'Atendido' : sc.estado;
+
+                            // Determinar si es una SC puramente interna (sin ítems para OC)
+                            const isPurelyInternal = (sc.detalles?.length ?? 0) > 0 && !sc.detalles?.some(d => d.enviar_a_oc !== false);
+
                             const headerVariant = allFullyAttended ? 'success' : (sc.estado === 'Pendiente' ? 'warning' : 'primary');
 
                             return (
@@ -270,6 +274,7 @@ const GestionSolicitudes: React.FC = () => {
                                                 <span className="fw-bold text-primary me-3">{sc.numero_sc}</span>
                                                 <span className="text-muted small me-3 d-block d-md-inline">Fecha: {sc.fecha_sc}</span>
                                                 <Badge bg={headerVariant}>{headerStatus}</Badge>
+                                                {isPurelyInternal && <Badge bg="info" className="ms-2 text-dark bg-opacity-25 border border-info">Procesamiento Interno</Badge>}
                                             </div>
                                             <div className="text-start text-md-end mt-2 mt-md-0 d-flex align-items-center gap-3">
                                                 <div
@@ -317,7 +322,10 @@ const GestionSolicitudes: React.FC = () => {
                                         </div>
                                     </Accordion.Header>
                                     <Accordion.Body>
-                                        <h6 className="text-muted fw-bold mb-3">Detalle de Materiales</h6>
+                                        <div className="d-flex justify-content-between align-items-center mb-3">
+                                            <h6 className="text-muted fw-bold mb-0">Detalle de Materiales para Compra</h6>
+                                            {isPurelyInternal && <small className="text-info fw-bold">Todos los ítems fueron procesados internamente</small>}
+                                        </div>
                                         <Table size="sm" hover responsive className="table-borderless-custom mb-0">
                                             <thead className="bg-light">
                                                 <tr>
@@ -332,7 +340,7 @@ const GestionSolicitudes: React.FC = () => {
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                {activeDetails?.map(d => {
+                                                {activeDetails?.filter(d => d.enviar_a_oc !== false).map(d => {
                                                     // Encontrar OCs vinculadas para este ítem específico
                                                     const linkedOCs = ordenes.filter(o => o.detalles?.some(od => od.detalle_sc_id === d.id));
 
@@ -365,7 +373,14 @@ const GestionSolicitudes: React.FC = () => {
                                                         </tr>
                                                     );
                                                 })}
-                                                {!sc.detalles?.length && <tr><td colSpan={7} className="text-center text-muted">Sin detalles registrados.</td></tr>}
+                                                {sc.detalles?.some(d => d.enviar_a_oc === false) && activeDetails?.filter(d => d.enviar_a_oc !== false).length === 0 && (
+                                                    <tr>
+                                                        <td colSpan={8} className="text-center text-muted py-3">
+                                                            Esta solicitud no contiene ítems para Orden de Compra (Atención Interna).
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                                {!sc.detalles?.length && <tr><td colSpan={8} className="text-center text-muted">Sin detalles registrados.</td></tr>}
                                             </tbody>
                                         </Table>
                                     </Accordion.Body>

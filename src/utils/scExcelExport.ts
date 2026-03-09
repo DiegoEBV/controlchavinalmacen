@@ -57,7 +57,8 @@ export const exportSolicitudCompra = async (sc: SolicitudCompra, customFormatUrl
 
         // --- PREPARAR DATOS ---
         const ITEMS_PER_PAGE = 23;
-        const detalles = sc.detalles || [];
+        // Filtrar ítems que no se envían a OC para la exportación
+        const detalles = (sc.detalles || []).filter(d => d.enviar_a_oc !== false);
         const totalItems = detalles.length;
         const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE) || 1;
 
