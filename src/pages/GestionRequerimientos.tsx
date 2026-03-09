@@ -376,7 +376,11 @@ const GestionRequerimientos: React.FC = () => {
                                                             {relatedSCItem ? (
                                                                 <div>
                                                                     <div className="fw-bold text-primary">{Number(relatedSCItem.cantidad).toFixed(2)} {relatedSCItem.unidad}</div>
-                                                                    <small className="text-muted">{relatedSC?.numero_sc}</small>
+                                                                    {relatedSCItem.enviar_a_oc !== false ? (
+                                                                        <small className="text-muted">{relatedSC?.numero_sc}</small>
+                                                                    ) : (
+                                                                        <Badge bg="info" className="text-dark bg-opacity-25 border border-info fw-normal" style={{ fontSize: '0.8em' }}>Inter./Stock</Badge>
+                                                                    )}
                                                                 </div>
                                                             ) : '-'}
                                                         </td>
