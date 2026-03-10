@@ -1,9 +1,23 @@
+-- Migration to add detalle_sc_id to movimientos_almacen and create registrar_entrada_directa_v3
+DO $$ 
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'movimientos_almacen' AND column_name = 'detalle_sc_id') THEN
+        ALTER TABLE movimientos_almacen ADD COLUMN detalle_sc_id UUID REFERENCES detalles_sc(id);
+    END IF;
+END $$;
+
+CREATE OR REPLACE FUNCTION registrar_entrada_directa_v3(
+    p_items JSONB,
+    p_doc_ref TEXT,
+    p_obra_id UUID,
+    p_solicitante TEXT
+) RETURNS JSONB AS $$
 DECLARE
     v_item RECORD;
-    v_vintar_code text;
-    v_year int;
-    v_count int;
-    -- Notification variables
+    v_vintar_code TEXT;
+    v_year INT;
+    v_count INT;
+    
     v_req_solicitante TEXT;
     v_req_correlativo INT;
     v_item_desc TEXT;
@@ -21,13 +35,13 @@ BEGIN
 
     -- Iterar e insertar
     FOR v_item IN SELECT * FROM jsonb_to_recordset(p_items) AS x(
-        material_id uuid,
-        equipo_id uuid,
-        epp_id uuid,
-        cantidad numeric,
-        req_id uuid,
-        det_req_id uuid,
-        sc_detail_id uuid
+        material_id UUID,
+        equipo_id UUID,
+        epp_id UUID,
+        cantidad NUMERIC,
+        req_id UUID,
+        det_req_id UUID,
+        detalle_sc_id UUID
     )
     LOOP
         -- Reset variables
@@ -39,17 +53,17 @@ BEGIN
         -- A. Insertar Movimiento
         INSERT INTO movimientos_almacen (
             obra_id, tipo, material_id, equipo_id, epp_id, cantidad,
-            fecha, documento_referencia, requerimiento_id, detalle_requerimiento_id,
+            fecha, documento_referencia, requerimiento_id, detalle_requerimiento_id, detalle_sc_id,
             created_at, vintar_code, destino_o_uso, solicitante
         ) VALUES (
             p_obra_id, 'ENTRADA', v_item.material_id, v_item.equipo_id, v_item.epp_id, v_item.cantidad,
-            now(), p_doc_ref, v_item.req_id, v_item.det_req_id,
+            now(), p_doc_ref, v_item.req_id, v_item.det_req_id, v_item.detalle_sc_id,
             now(), v_vintar_code, 
-            CASE WHEN p_doc_ref = 'STOCK INICIAL' THEN 'Carga de Stock Inicial' ELSE 'Ingreso a Almacen' END,
+            'Ingreso a Almacen (SC Directo)',
             p_solicitante
         );
 
-        -- B. Actualizar detalle requerimiento (si existe)
+        -- B. Actualizar detalle requerimiento
         IF v_item.det_req_id IS NOT NULL THEN
             UPDATE detalles_requerimiento
             SET cantidad_atendida = COALESCE(cantidad_atendida, 0) + v_item.cantidad,
@@ -61,9 +75,7 @@ BEGIN
             WHERE id = v_item.det_req_id;
         END IF;
 
-        -- NOTE: The update to detalles_sc.cantidad_recibida has been REMOVED 
-        -- because that column does not exist in your database schema.
-        -- The system tracks pending OC items dynamically through movement history.
+        -- NO hacemos update al detalle de OC porque esto es Ingreso Directo
 
         -- C. Actualizar INVENTARIO UNIFICADO
         IF v_item.material_id IS NOT NULL THEN
@@ -83,7 +95,7 @@ BEGIN
             DO UPDATE SET cantidad_actual = inventario_obra.cantidad_actual + v_item.cantidad, ultimo_ingreso = now(), updated_at = now();
         END IF;
 
-        -- D. NOTIFICATION LOGIC (SMART MATCHING)
+        -- D. NOTIFICATION LOGIC
         IF v_item.req_id IS NOT NULL THEN
             SELECT solicitante, item_correlativo INTO v_req_solicitante, v_req_correlativo
             FROM public.requerimientos WHERE id = v_item.req_id;
@@ -101,10 +113,11 @@ BEGIN
 
             IF v_solicitante_user_id IS NOT NULL THEN
                 INSERT INTO public.notifications (user_id, title, message, type, read, created_at)
-                VALUES (v_solicitante_user_id, 'Material Atendido', 'Se ha registrado el ingreso de ' || v_item.cantidad || ' de ' || COALESCE(v_item_desc, 'ítem') || ' para su Req. #' || COALESCE(v_req_correlativo::TEXT, '?'), 'ENTRADA', false, now());
+                VALUES (v_solicitante_user_id, 'Material Atendido', 'Se ha registrado el ingreso de ' || v_item.cantidad || ' de ' || COALESCE(v_item_desc, 'ítem') || ' para su Req. #' || COALESCE(v_req_correlativo::TEXT, '?') || ' (SC Directo)', 'ENTRADA', false, now());
             END IF;
         END IF;
     END LOOP;
 
     RETURN jsonb_build_object('vintar_code', v_vintar_code);
 END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;

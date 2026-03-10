@@ -65,4 +65,4 @@ BEGIN
     INSERT INTO public.audit_logs (user_id, target_user_id, action, details)
     VALUES (auth.uid(), target_user_id, 'PASSWORD_RESET', 'Contraseña cambiada. Intent de cierre de sesión realizado.');
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;

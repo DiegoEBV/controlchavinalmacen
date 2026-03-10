@@ -170,6 +170,23 @@ export const registrarEntradaMasiva = async (
     return data;
 };
 
+export const registrarEntradaDirectaV3 = async (
+    items: any[],
+    docRef: string,
+    obraId: string,
+    usuario?: string
+) => {
+    const { data, error } = await supabase.rpc('registrar_entrada_directa_v3', {
+        p_items: items,
+        p_doc_ref: docRef,
+        p_obra_id: obraId,
+        p_solicitante: usuario || null
+    });
+
+    if (error) throw error;
+    return data;
+};
+
 export const registrarSalida = async (
     tipoItem: 'MATERIAL' | 'EQUIPO' | 'EPP',
     itemId: string,
