@@ -66,7 +66,7 @@ export const createSolicitudCompra = async (
         epp_id: item.epp_id,
         cantidad: item.cantidad,
         unidad: item.unidad,
-        estado: item.enviar_a_oc === false ? 'Atendido' : 'Pendiente',
+        estado: 'Pendiente', // Ahora inicia Pendiente hasta que entre por almacén
         comentario: item.comentario || '',
         enviar_a_oc: item.enviar_a_oc !== false, // Por defecto true
         procesado_directo: item.enviar_a_oc === false

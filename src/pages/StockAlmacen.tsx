@@ -14,6 +14,7 @@ import { registrarEntradaMasiva, getAllInventario } from '../services/almacenSer
 import { FaUpload, FaTrash, FaExclamationTriangle, FaFileExcel } from 'react-icons/fa';
 import { exportStockToExcel } from '../utils/stockExport';
 import { Toast, ToastContainer } from 'react-bootstrap';
+import { formatDisplayDate } from '../utils/dateUtils';
 
 const StockAlmacen: React.FC = () => {
     const { selectedObra, hasRole } = useAuth();
@@ -208,7 +209,7 @@ const StockAlmacen: React.FC = () => {
                                 let category = '-';
                                 let unit = '-';
                                 let stock = 0;
-                                let lastIngress = item.data.ultimo_ingreso ? new Date(item.data.ultimo_ingreso).toLocaleDateString() : '-';
+                                let lastIngress = formatDisplayDate(item.data.ultimo_ingreso);
 
                                 if (item.type === 'MATERIAL') {
                                     const d = item.data as Inventario;

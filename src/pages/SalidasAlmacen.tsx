@@ -10,6 +10,7 @@ import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription';
 import { mergeUpdates } from '../utils/stateUpdates';
 import PaginationControls from '../components/PaginationControls';
 import SearchableSelect from '../components/SearchableSelect';
+import { formatDisplayDate } from '../utils/dateUtils';
 
 const SalidasAlmacen: React.FC = () => {
     const { selectedObra } = useAuth();
@@ -542,7 +543,7 @@ const SalidasAlmacen: React.FC = () => {
                                 }
                                 return (
                                     <tr key={h.id}>
-                                        <td>{h.fecha ? new Date(h.fecha).toLocaleDateString() : '-'}</td>
+                                        <td>{formatDisplayDate(h.fecha)}</td>
                                         <td>{h.numero_vale}</td>
                                         <td>{h.solicitante}</td>
                                         <td>{h.encargado?.nombre || '-'}</td>
