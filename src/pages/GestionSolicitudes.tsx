@@ -323,8 +323,8 @@ const GestionSolicitudes: React.FC = () => {
                                     </Accordion.Header>
                                     <Accordion.Body>
                                         <div className="d-flex justify-content-between align-items-center mb-3">
-                                            <h6 className="text-muted fw-bold mb-0">Detalle de Materiales para Compra</h6>
-                                            {isPurelyInternal && <small className="text-info fw-bold">Todos los ítems fueron procesados internamente</small>}
+                                            <h6 className="text-muted fw-bold mb-0">Detalle de Materiales de la SC</h6>
+                                            {isPurelyInternal && <small className="text-info fw-bold">Atención Interna / Stock</small>}
                                         </div>
                                         <Table size="sm" hover responsive className="table-borderless-custom mb-0">
                                             <thead className="bg-light">
@@ -340,14 +340,21 @@ const GestionSolicitudes: React.FC = () => {
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                {activeDetails?.filter(d => d.enviar_a_oc !== false).map(d => {
+                                                {activeDetails?.map(d => {
                                                     // Encontrar OCs vinculadas para este ítem específico
                                                     const linkedOCs = ordenes.filter(o => o.detalles?.some(od => od.detalle_sc_id === d.id));
 
                                                     return (
-                                                        <tr key={d.id}>
+                                                        <tr key={d.id} className={d.enviar_a_oc === false ? 'bg-light bg-opacity-50' : ''}>
                                                             <td>
-                                                                {d.material?.descripcion || d.equipo?.nombre || d.epp?.descripcion || 'Sin descripción'}
+                                                                <div className="d-flex align-items-center gap-2">
+                                                                    {d.material?.descripcion || d.equipo?.nombre || d.epp?.descripcion || 'Sin descripción'}
+                                                                    {d.enviar_a_oc === false && (
+                                                                        <Badge bg="info" className="text-dark bg-opacity-25 border border-info fw-normal" style={{ fontSize: '0.7em' }}>
+                                                                            Interno
+                                                                        </Badge>
+                                                                    )}
+                                                                </div>
                                                             </td>
                                                             <td><small className="text-muted">{d.comentario || '-'}</small></td>
                                                             <td className="text-muted small">{d.material?.categoria}</td>
@@ -355,14 +362,18 @@ const GestionSolicitudes: React.FC = () => {
                                                             <td className={`fw-bold ${d.isAttended ? 'text-success' : 'text-warning'}`}>{d.consumed}</td>
                                                             <td>{d.unidad}</td>
                                                             <td>
-                                                                {linkedOCs.length > 0 ? (
-                                                                    linkedOCs.map(o => (
-                                                                        <Badge key={o.id} bg="info" className="me-1 text-dark bg-opacity-25 border border-info">
-                                                                            {o.numero_oc}
-                                                                        </Badge>
-                                                                    ))
+                                                                {d.enviar_a_oc !== false ? (
+                                                                    linkedOCs.length > 0 ? (
+                                                                        linkedOCs.map(o => (
+                                                                            <Badge key={o.id} bg="info" className="me-1 text-dark bg-opacity-25 border border-info">
+                                                                                {o.numero_oc}
+                                                                            </Badge>
+                                                                        ))
+                                                                    ) : (
+                                                                        <span className="text-muted">-</span>
+                                                                    )
                                                                 ) : (
-                                                                    <span className="text-muted">-</span>
+                                                                    <span className="text-muted small italic">N/A</span>
                                                                 )}
                                                             </td>
                                                             <td>
@@ -373,13 +384,6 @@ const GestionSolicitudes: React.FC = () => {
                                                         </tr>
                                                     );
                                                 })}
-                                                {sc.detalles?.some(d => d.enviar_a_oc === false) && activeDetails?.filter(d => d.enviar_a_oc !== false).length === 0 && (
-                                                    <tr>
-                                                        <td colSpan={8} className="text-center text-muted py-3">
-                                                            Esta solicitud no contiene ítems para Orden de Compra (Atención Interna).
-                                                        </td>
-                                                    </tr>
-                                                )}
                                                 {!sc.detalles?.length && <tr><td colSpan={8} className="text-center text-muted">Sin detalles registrados.</td></tr>}
                                             </tbody>
                                         </Table>

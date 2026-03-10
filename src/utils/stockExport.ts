@@ -1,4 +1,5 @@
 import * as XLSX from 'xlsx';
+import { formatDisplayDate } from './dateUtils';
 
 /**
  * Normaliza los datos polimórficos de inventario_obra para la exportación.
@@ -38,7 +39,7 @@ const normalizeStockData = (items: any[]) => {
             'Categoría': categoria,
             'Unidad': unidad,
             'Stock Actual': Number(item.cantidad_actual || 0).toFixed(2),
-            'Último Ingreso': item.ultimo_ingreso ? new Date(item.ultimo_ingreso).toLocaleDateString() : '-'
+            'Último Ingreso': formatDisplayDate(item.ultimo_ingreso)
         };
     });
 };

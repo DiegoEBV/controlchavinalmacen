@@ -1,6 +1,7 @@
 import type ExcelJS from 'exceljs';
 import { Requerimiento } from '../types';
 import { supabase } from '../config/supabaseClient';
+import { formatDisplayDate } from './dateUtils';
 
 const DEFAULT_TEMPLATE_URL = 'https://hmrytxzwpjmvynjbmdas.supabase.co/storage/v1/object/public/formatos-obras/defaults/FORMATO.xlsx';
 
@@ -48,7 +49,7 @@ const loadInventoryCache = async (): Promise<InventoryCache['items']> => {
                     const key = item.material.descripcion.trim().toLowerCase();
                     map[key] = {
                         stock: item.cantidad_actual,
-                        lastIngreso: item.ultimo_ingreso ? new Date(item.ultimo_ingreso).toLocaleDateString() : '-'
+                        lastIngreso: formatDisplayDate(item.ultimo_ingreso)
                     };
                 }
             });

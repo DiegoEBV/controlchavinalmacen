@@ -10,7 +10,8 @@ CREATE OR REPLACE FUNCTION anular_requerimiento(p_req_id UUID, p_user_id UUID, p
 RETURNS json
 LANGUAGE plpgsql
 SECURITY DEFINER
-AS $$
+SET search_path = public
+AS $function$
 DECLARE
     v_req_estado VARCHAR;
     v_role VARCHAR;
@@ -58,4 +59,4 @@ EXCEPTION
     WHEN OTHERS THEN
         RETURN json_build_object('success', false, 'message', 'Error interno al anular: ' || SQLERRM);
 END;
-$$;
+$function$;

@@ -2,19 +2,21 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card, Form, Table, Button, Row, Col, Alert } from 'react-bootstrap';
 import { supabase } from '../config/supabaseClient';
 import { getRequerimientos } from '../services/requerimientosService';
-import { getMovimientos, registrarEntradaMasiva, registrarEntradaCajaChica, getAllMovimientos } from '../services/almacenService';
-import { getOrdenesCompra, getOrdenCompraById } from '../services/comprasService';
-import { Requerimiento, MovimientoAlmacen, OrdenCompra, DetalleOC } from '../types';
+import { getMovimientos, registrarEntradaMasiva, registrarEntradaCajaChica, getAllMovimientos, registrarEntradaDirectaV3 } from '../services/almacenService';
+import { getOrdenesCompra, getOrdenCompraById, getSolicitudesCompra } from '../services/comprasService';
+import { Requerimiento, MovimientoAlmacen, OrdenCompra, DetalleOC, SolicitudCompra, DetalleSC } from '../types';
 import { Modal } from 'react-bootstrap';
 import PaginationControls from '../components/PaginationControls';
 import SearchableSelect from '../components/SearchableSelect';
 import { useAuth } from '../context/AuthContext';
 import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription';
 import { mergeUpdates } from '../utils/stateUpdates';
+import { formatDisplayDate } from '../utils/dateUtils';
 
 const EntradasAlmacen: React.FC = () => {
     const { selectedObra } = useAuth();
     const [ordenes, setOrdenes] = useState<OrdenCompra[]>([]);
+    const [allSCs, setAllSCs] = useState<SolicitudCompra[]>([]);
 
     const [allReqs, setAllReqs] = useState<Requerimiento[]>([]);
     const [historial, setHistorial] = useState<MovimientoAlmacen[]>([]);
@@ -25,6 +27,10 @@ const EntradasAlmacen: React.FC = () => {
     const [selectedOC, setSelectedOC] = useState<OrdenCompra | null>(null);
     const [selectedItems, setSelectedItems] = useState<Map<string, number>>(new Map());
     const [showModal, setShowModal] = useState(false);
+
+    const [showDirectoModal, setShowDirectoModal] = useState(false);
+    const [selectedSCDirecto, setSelectedSCDirecto] = useState<SolicitudCompra | null>(null);
+    const [directItemsSelected, setDirectItemsSelected] = useState<Map<string, number>>(new Map());
 
     const [loading, setLoading] = useState(false);
     const [successMsg, setSuccessMsg] = useState('');
@@ -60,6 +66,11 @@ const EntradasAlmacen: React.FC = () => {
                     const prevSinNuevos = prev.filter(p => !newMoves.find(n => n.id === p.id));
                     return [...newMoves, ...prevSinNuevos] as MovimientoAlmacen[];
                 });
+                // También actualizar fullHistorial para no tener que recargar todo
+                setFullHistorial(prev => {
+                    const prevSinNuevos = prev.filter(p => !newMoves.find(n => n.id === p.id));
+                    return [...newMoves, ...prevSinNuevos] as MovimientoAlmacen[];
+                });
             }
         }
     }, { table: 'movimientos_almacen', event: 'INSERT', throttleMs: 2000 });
@@ -83,23 +94,40 @@ const EntradasAlmacen: React.FC = () => {
         }
     }, { table: 'ordenes_compra', throttleMs: 2000 });
 
+    useRealtimeSubscription(async ({ upserts }) => {
+        // Basic reload for SC if needed
+        if (upserts.size > 0 && selectedObra) {
+            const scsData = await getSolicitudesCompra(selectedObra.id);
+            if (scsData) setAllSCs(scsData);
+        }
+    }, { table: 'solicitudes_compra', throttleMs: 3000 });
+
+    useRealtimeSubscription(async ({ upserts }) => {
+        if (upserts.size > 0 && selectedObra) {
+            const scsData = await getSolicitudesCompra(selectedObra.id);
+            if (scsData) setAllSCs(scsData);
+        }
+    }, { table: 'detalles_sc', throttleMs: 3000 });
+
     useEffect(() => {
         if (selectedObra) {
             loadData();
         } else {
             setAllReqs([]);
             setOrdenes([]);
+            setAllSCs([]);
             setHistorial([]);
         }
     }, [selectedObra, currentPage, searchTerm]);
 
     const loadData = async (refreshOCId?: string) => {
         if (!selectedObra) return;
-        const [reqsData, movesData, fullMovesData, ocsData] = await Promise.all([
+        const [reqsData, movesData, fullMovesData, ocsData, scsData] = await Promise.all([
             getRequerimientos(selectedObra.id),
             getMovimientos(selectedObra.id, currentPage, pageSize, searchTerm, 'ENTRADA'),
             getAllMovimientos(selectedObra.id, 'ENTRADA'),
-            getOrdenesCompra(selectedObra.id)
+            getOrdenesCompra(selectedObra.id),
+            getSolicitudesCompra(selectedObra.id)
         ]);
 
         if (reqsData.data) setAllReqs(reqsData.data);
@@ -116,6 +144,9 @@ const EntradasAlmacen: React.FC = () => {
                 const updated = ocsData.find((o: OrdenCompra) => o.id === refreshOCId);
                 setSelectedOC(updated || null);
             }
+        }
+        if (scsData) {
+            setAllSCs(scsData);
         }
     };
 
@@ -349,20 +380,115 @@ const EntradasAlmacen: React.FC = () => {
             if (req.estado === 'Anulado') return false;
             if (!req.detalles || req.detalles.length === 0) return false;
             return req.detalles.some(d => {
+                if (d.tipo === 'Servicio') return false; // Ignorar servicios
                 const enOC = getPendingOCForReqDetail(req.id, d);
                 return (d.cantidad_solicitada - (d.cantidad_atendida || 0) - enOC) > 0;
             });
         });
     }, [allReqs, getPendingOCForReqDetail]);
 
+    // --- Lógica de Ingreso Directo (SC Sin OC) ---
+    const getPendingForDirectSCDetail = useCallback((sc_detail: DetalleSC) => {
+        const consumed = fullHistorial
+            .filter(h => h.detalle_sc_id === sc_detail.id)
+            .reduce((sum, h) => sum + h.cantidad, 0);
+
+        return Math.max(0, sc_detail.cantidad - consumed);
+    }, [fullHistorial]);
+
+    const activeDirectSCs = useMemo(() => {
+        return allSCs.filter(sc => {
+            if (!['Aprobada', 'Atendida', 'Pendiente'].includes(sc.estado!)) return false;
+            if (!sc.detalles || sc.detalles.length === 0) return false;
+
+            return sc.detalles.some(d => d.procesado_directo && getPendingForDirectSCDetail(d) > 0);
+        });
+    }, [allSCs, getPendingForDirectSCDetail]);
+
+    const handleSelectSCDirecto = (scId: string) => {
+        const sc = allSCs.find(s => s.id === scId) || null;
+        setSelectedSCDirecto(sc);
+        setDirectItemsSelected(new Map());
+        setDocReferencia('');
+    };
+
+    const toggleDirectItemSelection = (detalle: DetalleSC, pending: number) => {
+        const newMap = new Map(directItemsSelected);
+        if (newMap.has(detalle.id)) {
+            newMap.delete(detalle.id);
+        } else {
+            newMap.set(detalle.id, pending);
+        }
+        setDirectItemsSelected(newMap);
+    };
+
+    const handleRegisterDirecto = async () => {
+        if (!selectedObra || !selectedSCDirecto) return;
+        if (directItemsSelected.size === 0) return alert("Seleccione al menos un ítem.");
+        if (!docReferencia) return alert("Ingrese Documento de Referencia (Guía/Factura).");
+
+        setLoading(true);
+        try {
+            const itemsToProcess = [];
+            const reqId = selectedSCDirecto.requerimiento_id;
+
+            for (const [id, cantidad] of directItemsSelected.entries()) {
+                const detalleSc = selectedSCDirecto.detalles?.find(d => d.id === id);
+                if (!detalleSc) continue;
+
+                const pending = getPendingForDirectSCDetail(detalleSc);
+                if (cantidad > pending) {
+                    throw new Error(`La cantidad ingresada excede el pendiente para el ítem de la SC.`);
+                }
+
+                const parentReq = allReqs.find(r => r.id === reqId);
+                const targetDetReq = parentReq?.detalles?.find(d => {
+                    if (detalleSc.material_id && d.material_categoria === detalleSc.material?.categoria && d.descripcion === detalleSc.material?.descripcion) return true;
+                    if (detalleSc.equipo_id && d.equipo_id === detalleSc.equipo_id) return true;
+                    if (detalleSc.epp_id && d.epp_id === detalleSc.epp_id) return true;
+                    return false;
+                });
+
+                if (!targetDetReq) throw new Error(`No se encontró detalle de requerimiento asociado.`);
+
+                itemsToProcess.push({
+                    material_id: detalleSc.material_id || null,
+                    equipo_id: detalleSc.equipo_id || null,
+                    epp_id: detalleSc.epp_id || null,
+                    cantidad: cantidad,
+                    req_id: reqId,
+                    det_req_id: targetDetReq.id,
+                    detalle_sc_id: detalleSc.id
+                });
+            }
+
+            const result = await registrarEntradaDirectaV3(itemsToProcess, docReferencia, selectedObra.id);
+
+            setSuccessMsg(`¡Ingreso Directo Exitoso! Código VINTAR: ${result.vintar_code}`);
+            setDirectItemsSelected(new Map());
+            setDocReferencia('');
+            setShowDirectoModal(false);
+            setSelectedSCDirecto(null);
+            loadData();
+        } catch (error: any) {
+            console.error(error);
+            alert("Error: " + error.message);
+        }
+        setLoading(false);
+    };
 
     return (
         <div className="fade-in">
             <div className="page-header d-flex justify-content-between align-items-center">
                 <h2>Registrar Entrada (Vía Orden de Compra/Guía)</h2>
-                <Button variant="warning" className="fw-bold" onClick={() => setShowCajaChicaModal(true)}>
-                    <i className="bi bi-wallet2 me-2"></i> Compra con Caja Chica
-                </Button>
+                <div>
+                    <Button variant="info" className="fw-bold me-2 text-white" onClick={() => setShowDirectoModal(true)}>
+                        <i className="bi bi-box-arrow-in-right me-2"></i> Ingreso Directo (SC Sin OC)
+                    </Button>
+                    <Button variant="warning" className="fw-bold" onClick={() => setShowCajaChicaModal(true)}>
+                        <i className="bi bi-wallet2 me-2"></i> Compra con Caja Chica
+                    </Button>
+                </div>
             </div>
             <p className="text-muted mb-4">Seleccione una Orden de Compra (OC) activa para ingresar materiales o use Caja Chica por urgencia.</p>
 
@@ -568,6 +694,159 @@ const EntradasAlmacen: React.FC = () => {
                 </Modal.Footer>
             </Modal>
 
+            {/* Modal Ingreso Directo */}
+            <Modal show={showDirectoModal} onHide={() => setShowDirectoModal(false)} size="lg" backdrop="static">
+                <Modal.Header closeButton className="bg-info text-white">
+                    <Modal.Title><i className="bi bi-box-arrow-in-right me-2"></i> Registrar Entrada Directa (Sin OC)</Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    <Alert variant="info" className="small">
+                        Utilice esta opción para ingresar masivamente ítems de una Solicitud de Compra (SC) que fueron marcados para no requerir Orden de Compra.
+                    </Alert>
+
+                    <Row className="mb-3">
+                        <Col xs={12} md={6}>
+                            <Form.Group>
+                                <Form.Label>Seleccionar SC con ítems directos</Form.Label>
+                                <Form.Select
+                                    value={selectedSCDirecto?.id || ''}
+                                    onChange={(e) => handleSelectSCDirecto(e.target.value)}
+                                >
+                                    <option value="">Seleccione SC...</option>
+                                    {activeDirectSCs.map(sc => (
+                                        <option key={sc.id} value={sc.id}>
+                                            {sc.numero_sc} - Req: #{sc.requerimiento_id ? allReqs.find(r => r.id === sc.requerimiento_id)?.item_correlativo : '-'}
+                                        </option>
+                                    ))}
+                                </Form.Select>
+                            </Form.Group>
+                        </Col>
+                        <Col xs={12} md={6}>
+                            <Form.Group>
+                                <Form.Label>Documento de Referencia (Guía/Factura) <span className="text-danger">*</span></Form.Label>
+                                <Form.Control
+                                    type="text"
+                                    placeholder="Ej. GR-12345"
+                                    value={docReferencia}
+                                    onChange={(e) => setDocReferencia(e.target.value)}
+                                />
+                            </Form.Group>
+                        </Col>
+                    </Row>
+
+                    {selectedSCDirecto && (
+                        <div className="table-responsive">
+                            <h6 className="mt-3 mb-2 fw-bold text-secondary">Items disponibles para ingreso directo:</h6>
+                            <Table hover className="table-sm table-bordered mb-0 align-middle">
+                                <thead className="bg-light">
+                                    <tr>
+                                        <th className="text-center" style={{ width: '40px' }}>
+                                            <Form.Check
+                                                onChange={(e) => {
+                                                    const newMap = new Map();
+                                                    if (e.target.checked) {
+                                                        selectedSCDirecto.detalles?.forEach(d => {
+                                                            if (d.procesado_directo) {
+                                                                const pend = getPendingForDirectSCDetail(d);
+                                                                if (pend > 0) newMap.set(d.id, pend);
+                                                            }
+                                                        });
+                                                    }
+                                                    setDirectItemsSelected(newMap);
+                                                }}
+                                                checked={
+                                                    selectedSCDirecto.detalles?.filter(d => d.procesado_directo && getPendingForDirectSCDetail(d) > 0).length === directItemsSelected.size && directItemsSelected.size > 0
+                                                }
+                                            />
+                                        </th>
+                                        <th>Material / Descripción</th>
+                                        <th className="text-center">Pendiente Real</th>
+                                        <th className="text-center" style={{ width: '120px' }}>A Ingresar</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {selectedSCDirecto.detalles?.map(d => {
+                                        if (!d.procesado_directo) return null;
+
+                                        const pending = getPendingForDirectSCDetail(d);
+                                        if (pending <= 0) return null;
+
+                                        let desc = 'Desconocido';
+                                        let cat = '';
+                                        if (d.material) {
+                                            desc = d.material.descripcion;
+                                            cat = d.material.categoria;
+                                        } else if (d.equipo) {
+                                            desc = d.equipo.nombre;
+                                            cat = 'Equipo';
+                                        } else if (d.epp) {
+                                            desc = d.epp.descripcion;
+                                            cat = 'EPP';
+                                        }
+
+                                        const isSelected = directItemsSelected.has(d.id);
+                                        const qtyValue = directItemsSelected.get(d.id) || 0;
+
+                                        return (
+                                            <tr key={d.id} className={isSelected ? 'table-info' : ''}>
+                                                <td className="text-center">
+                                                    <Form.Check
+                                                        checked={isSelected}
+                                                        onChange={() => toggleDirectItemSelection(d, pending)}
+                                                    />
+                                                </td>
+                                                <td>
+                                                    <div className="fw-bold">{desc}</div>
+                                                    <div className="small text-muted">{cat}</div>
+                                                </td>
+                                                <td className="text-center">
+                                                    <span className="badge bg-secondary">{pending} {d.unidad || 'UND'}</span>
+                                                </td>
+                                                <td>
+                                                    <Form.Control
+                                                        size="sm"
+                                                        type="number"
+                                                        min="0.01"
+                                                        max={pending}
+                                                        step="0.01"
+                                                        disabled={!isSelected}
+                                                        value={isSelected ? qtyValue : ''}
+                                                        onChange={(e) => {
+                                                            let val = parseFloat(e.target.value);
+                                                            if (isNaN(val)) val = 0;
+                                                            const newMap = new Map(directItemsSelected);
+                                                            newMap.set(d.id, val);
+                                                            setDirectItemsSelected(newMap);
+                                                        }}
+                                                        isInvalid={isSelected && (qtyValue <= 0 || qtyValue > pending)}
+                                                    />
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                    {selectedSCDirecto.detalles?.filter(d => d.procesado_directo && getPendingForDirectSCDetail(d) > 0).length === 0 && (
+                                        <tr>
+                                            <td colSpan={4} className="text-center text-muted p-3">No hay ítems pendientes marcados para procesamiento directo en esta SC.</td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </Table>
+                        </div>
+                    )}
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="secondary" onClick={() => setShowDirectoModal(false)}>Cancelar</Button>
+                    <Button
+                        variant="info"
+                        className="text-white"
+                        onClick={handleRegisterDirecto}
+                        disabled={loading || directItemsSelected.size === 0 || !docReferencia}
+                    >
+                        {loading ? 'Procesando...' : `Registrar Entrada (${directItemsSelected.size} ítems)`}
+                    </Button>
+                </Modal.Footer>
+            </Modal>
+
             {/* Modal Caja Chica */}
             <Modal show={showCajaChicaModal} onHide={() => setShowCajaChicaModal(false)} size="lg">
                 <Modal.Header closeButton className="bg-warning text-dark">
@@ -604,6 +883,7 @@ const EntradasAlmacen: React.FC = () => {
                                     disabled={!selectedReqCajaChica}
                                     placeholder="Seleccione Ítem..."
                                     options={(selectedReqCajaChica?.detalles || []).reduce((acc, d) => {
+                                        if (d.tipo === 'Servicio') return acc; // No mostrar servicios en Caja Chica
                                         const enOC = getPendingOCForReqDetail(selectedReqCajaChica!.id, d);
                                         const disp = d.cantidad_solicitada - (d.cantidad_atendida || 0) - enOC;
                                         if (disp > 0) {
@@ -778,7 +1058,7 @@ const EntradasAlmacen: React.FC = () => {
 
                                     return (
                                         <tr key={h.id}>
-                                            <td>{new Date(h.fecha).toLocaleDateString()}</td>
+                                            <td>{formatDisplayDate(h.fecha)}</td>
                                             <td className="fw-bold text-primary">
                                                 {reqNum !== '-' ? `#${reqNum}` : '-'}
                                             </td>

@@ -110,6 +110,7 @@ export interface MovimientoAlmacen {
     fecha: string;
     documento_referencia?: string;
     requerimiento_id?: string;
+    detalle_sc_id?: string;
     vintar_code?: string;
     destino_o_uso?: string;
     solicitante?: string;
@@ -136,7 +137,7 @@ export interface SolicitudCompra {
     requerimiento?: Requerimiento;
     numero_sc: string;
     fecha_sc: string;
-    estado: 'Pendiente' | 'Aprobada' | 'Anulada' | 'Atendida';
+    estado: 'Pendiente' | 'Aprobada' | 'Anulada' | 'Atendida' | 'Atendido';
     created_at: string;
     detalles?: DetalleSC[];
 }
