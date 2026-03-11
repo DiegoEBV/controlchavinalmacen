@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Button, Form, Table, Row, Col, InputGroup, Spinner, Dropdown, Tooltip, OverlayTrigger, Badge } from 'react-bootstrap';
+import { Modal, Button, Form, Table, Row, Col, InputGroup, Spinner, Dropdown, Badge } from 'react-bootstrap';
 import SearchableSelect from './SearchableSelect';
 import { Requerimiento, DetalleRequerimiento, Obra, Material, Equipo, EppC } from '../types';
 import { getSolicitantes, getCategorias, getBudgetedMaterials, getMaterialesCatalog } from '../services/requerimientosService';
@@ -692,17 +692,9 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
                         <Row className="mb-3 g-2 bg-light p-2 rounded">
                             <Col md={2}>
                                 <Form.Label>Tipo</Form.Label>
-                                <OverlayTrigger
-                                    placement="top"
-                                    overlay={
-                                        <Tooltip id="tooltip-tipo">
-                                            No se pueden mezclar Servicios con Materiales, Equipos o EPPs en un mismo requerimiento.
-                                        </Tooltip>
-                                    }
-                                >
-                                    <div>
                                         <Form.Select
                                             value={newItem.tipo}
+                                            title="No se pueden mezclar Servicios con Materiales, Equipos o EPPs en un mismo requerimiento."
                                             onChange={e => {
                                                 const newType = e.target.value as any;
                                                 setNewItem({
@@ -710,7 +702,7 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
                                                     tipo: newType,
                                                     material_categoria: newType === 'Material' ? 'General' : '',
                                                     descripcion: '',
-                                                    unidad: (newType === 'Equipo' || newType === 'EPP') ? 'UND' : newItem.unidad, // Reset unit
+                                                    unidad: (newType === 'Equipo' || newType === 'EPP') ? 'UND' : newItem.unidad || 'UND',
                                                     equipo_id: undefined,
                                                     epp_id: undefined,
                                                     material_id: undefined,
@@ -724,8 +716,6 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
                                             <option value="Equipo" disabled={items.some(i => i.tipo === 'Servicio')}>Equipo</option>
                                             <option value="EPP" disabled={items.some(i => i.tipo === 'Servicio')}>EPP</option>
                                         </Form.Select>
-                                    </div>
-                                </OverlayTrigger>
                             </Col>
                             <Col md={2}>
                                 <Form.Label>Categoría</Form.Label>
@@ -888,9 +878,13 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
                     </Table>
                 </Form>
             </Modal.Body>
-            <Modal.Footer>
-                <Button variant="secondary" onClick={handleClose}>Cancelar</Button>
-                <Button variant="primary" onClick={handleSubmit}>Guardar</Button>
+            <Modal.Footer className="border-0 pb-4">
+                <Button variant="link" className="text-secondary text-decoration-none fw-bold" onClick={handleClose}>
+                    Cancelar
+                </Button>
+                <Button variant="primary" className="rounded-pill px-4 fw-bold shadow-sm" onClick={handleSubmit}>
+                    Guardar Requerimiento
+                </Button>
             </Modal.Footer>
         </Modal>
     );

@@ -24,6 +24,32 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+@media (min-width: 992px) {
+  body {
+    zoom: 0.75;
+    transform-origin: top left;
+  }
+  
+  .sidebar {
+    height: 133.33vh !important;
+    position: sticky;
+    top: 0;
+  }
+
+  .modal-backdrop, .modal {
+    width: 133.33vw !important;
+    height: 133.33vh !important;
+  }
+
+  .app-container, .main-content {
+    min-height: 133.33vh;
+  }
+}
+
+.modal-dialog {
+  margin-top: 10vh;
+}
+
 h1,
 h2,
 h3,
@@ -54,10 +80,12 @@ h6 {
   .main-content {
     width: 100%;
     padding: 20px;
+    min-height: auto;
   }
 
   .app-container {
     flex-direction: column;
+    min-height: auto;
   }
 }
 

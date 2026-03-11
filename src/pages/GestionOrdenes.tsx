@@ -1,6 +1,6 @@
 /* /src/pages/GestionOrdenes.tsx */
 import React, { useState, useEffect, useMemo } from 'react';
-import { Card, Button, Table, Badge, Modal, Form, Row, Col, Spinner } from 'react-bootstrap';
+import { Card, Button, Table, Badge, Modal, Form, Row, Col, Spinner, Accordion } from 'react-bootstrap';
 import { RiFileExcel2Line } from 'react-icons/ri';
 
 import { getSolicitudesCompra, createOrdenCompra, getOrdenesCompra, getOrdenCompraById, getSolicitudCompraById, getOrdenesCompraExport } from '../services/comprasService';
@@ -244,6 +244,8 @@ const GestionOrdenes: React.FC = () => {
 
     const { currentPage: ocPage, totalPages: ocTotalPages, totalItems: ocTotalItems, pageSize: ocPageSize, paginatedItems: pagedOrdenes, goToPage: goToOcPage } = usePagination(ordenes, 15);
 
+    const { currentPage: availablePage, totalPages: availableTotalPages, totalItems: availableTotalItems, pageSize: availablePageSize, paginatedItems: pagedAvailableSolicitudes, goToPage: goToAvailablePage } = usePagination(availableSolicitudes, 10);
+
     return (
         <div className="fade-in">
             <div className="page-header">
@@ -264,7 +266,7 @@ const GestionOrdenes: React.FC = () => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {availableSolicitudes.map(sc => (
+                                {pagedAvailableSolicitudes.map(sc => (
                                     <tr key={sc.id}>
                                         <td>{sc.numero_sc}</td>
                                         <td>{sc.fecha_sc}</td>
@@ -287,8 +289,22 @@ const GestionOrdenes: React.FC = () => {
                                         </td>
                                     </tr>
                                 ))}
+                                {availableSolicitudes.length === 0 && (
+                                    <tr><td colSpan={4} className="text-center text-muted">No hay solicitudes disponibles.</td></tr>
+                                )}
                             </tbody>
                         </Table>
+                        {availableTotalPages > 1 && (
+                            <div className="px-3 pb-3 border-top pt-2 mt-auto">
+                                <PaginationControls
+                                    currentPage={availablePage}
+                                    totalPages={availableTotalPages}
+                                    totalItems={availableTotalItems}
+                                    pageSize={availablePageSize}
+                                    onPageChange={goToAvailablePage}
+                                />
+                            </div>
+                        )}
                     </Card>
                 </Col>
 
@@ -324,36 +340,106 @@ const GestionOrdenes: React.FC = () => {
                         </div>
                     </div>
 
-                    <Table hover responsive className="table-borderless-custom mt-2">
-                        <thead>
-                            <tr>
-                                <th>OC #</th>
-                                <th>Proveedor</th>
-                                <th>SC Ref</th>
-                                <th>Estado</th>
-                                <th>Fecha</th>
-                                <th>Fecha Est. Atención</th>
-                                <th>N° Factura</th>
-                                <th>Fecha Venc.</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {pagedOrdenes.map(oc => {
-                                return (
-                                    <tr key={oc.id}>
-                                        <td className="fw-bold text-success">{oc.numero_oc}</td>
-                                        <td>{oc.proveedor}</td>
-                                        <td>{(oc as any).sc?.numero_sc || '-'}</td>
-                                        <td><Badge bg="secondary">{oc.estado}</Badge></td>
-                                        <td>{oc.fecha_oc}</td>
-                                        <td>{oc.fecha_aproximada_atencion || '-'}</td>
-                                        <td>{oc.n_factura || '-'}</td>
-                                        <td>{oc.fecha_vencimiento || '-'}</td>
-                                    </tr>
-                                );
-                            })}
-                        </tbody>
-                    </Table>
+                    <Accordion defaultActiveKey="0" flush className="custom-card p-0 overflow-hidden mt-3">
+                        {pagedOrdenes.map((oc, idx) => {
+                            const detalles = oc.detalles || [];
+                            const subtotalOC = detalles.reduce((sum, d) => sum + (d.cantidad * (d.precio_unitario || 0)), 0);
+                            const igvOC = subtotalOC * 0.18;
+                            const totalOC = subtotalOC + igvOC;
+
+                            return (
+                                <Accordion.Item eventKey={String(idx)} key={oc.id}>
+                                    <Accordion.Header>
+                                        <div className="d-flex flex-column flex-md-row w-100 justify-content-between align-items-center me-3 gap-2">
+                                            <div className="text-center text-md-start">
+                                                <strong className="text-success" style={{ fontSize: '1.1em' }}>{oc.numero_oc}</strong>
+                                                <span className="mx-2 text-muted d-none d-md-inline">|</span>
+                                                <div className="d-md-inline d-block">
+                                                    <span className="fw-bold">{oc.proveedor}</span>
+                                                </div>
+                                                <div className="small text-muted mt-1">
+                                                    SC Ref: <strong>{(oc as any).sc?.numero_sc || '-'}</strong> ({oc.fecha_oc})
+                                                </div>
+                                            </div>
+                                            <div className="d-flex align-items-center justify-content-center justify-content-md-start gap-4 mt-2 mt-md-0">
+                                                <div className="text-end">
+                                                    <small className="d-block text-muted" style={{ fontSize: '0.7em', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Total OC + IGV</small>
+                                                    <strong className="text-success fs-6">S/. {totalOC.toFixed(2)}</strong>
+                                                </div>
+                                                
+                                                <div className="text-center px-3 border-start text-muted">
+                                                    <small className="d-block text-muted" style={{ fontSize: '0.7em', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Fechas y Docs</small>
+                                                    <div style={{ fontSize: '0.85em' }}>
+                                                        <i className="bi bi-calendar-check me-1"></i> {oc.fecha_aproximada_atencion || 'S/F Aten.'}
+                                                        <span className="mx-2">|</span>
+                                                        <i className="bi bi-receipt me-1"></i> Fac: <strong>{oc.n_factura || '-'}</strong>
+                                                    </div>
+                                                </div>
+
+                                                <Badge bg="secondary" className="px-3 py-2 fs-6 rounded-pill">{oc.estado}</Badge>
+                                            </div>
+                                        </div>
+                                    </Accordion.Header>
+                                    <Accordion.Body>
+                                        <div className="p-2">
+                                            <h6 className="text-muted fw-bold mb-3 ps-2">
+                                                <i className="bi bi-box-seam me-1 mt-1"></i> Detalle de Materiales
+                                            </h6>
+                                            <Table size="sm" hover responsive className="table-borderless-custom mb-0" style={{ backgroundColor: '#fff', borderRadius: '12px' }}>
+                                                <thead style={{ backgroundColor: '#f8fafc' }}>
+                                                    <tr>
+                                                        <th style={{ width: 40, borderTopLeftRadius: '12px' }} className="py-3">#</th>
+                                                        <th className="py-3">Descripción</th>
+                                                        <th className="text-center py-3" style={{ width: 80 }}>Und</th>
+                                                        <th className="text-end py-3" style={{ width: 100 }}>Cantidad</th>
+                                                        <th className="text-end py-3" style={{ width: 120 }}>P.U. (S/.)</th>
+                                                        <th className="text-end py-3" style={{ width: 130, borderTopRightRadius: '12px' }}>Sub Total (S/.)</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {detalles.map((det, detailIdx) => {
+                                                        const desc = det.detalle_sc?.material?.descripcion
+                                                            || det.detalle_sc?.equipo?.nombre
+                                                            || det.detalle_sc?.epp?.descripcion
+                                                            || 'Sin descripción';
+                                                        const unidad = det.detalle_sc?.unidad || '-';
+                                                        const pu = det.precio_unitario || 0;
+                                                        const subtotal = det.cantidad * pu;
+
+                                                        return (
+                                                            <tr key={det.id}>
+                                                                <td className="text-center text-muted fw-bold">{detailIdx + 1}</td>
+                                                                <td className="fw-bold">{desc}</td>
+                                                                <td className="text-center text-muted">{unidad}</td>
+                                                                <td className="text-end fw-bold">{Number(det.cantidad).toFixed(2)}</td>
+                                                                <td className="text-end text-muted">S/. {pu.toFixed(2)}</td>
+                                                                <td className="text-end fw-bold text-success">S/. {subtotal.toFixed(2)}</td>
+                                                            </tr>
+                                                        );
+                                                    })}
+                                                </tbody>
+                                                <tfoot>
+                                                    <tr>
+                                                        <td colSpan={5} className="text-end text-muted fw-bold py-2">SUBTOTAL:</td>
+                                                        <td className="text-end fw-bold text-dark fs-6 py-2">S/. {subtotalOC.toFixed(2)}</td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td colSpan={5} className="text-end text-muted fw-bold py-2">IGV (18%):</td>
+                                                        <td className="text-end fw-bold text-dark fs-6 py-2">S/. {igvOC.toFixed(2)}</td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td colSpan={5} className="text-end text-muted fw-bold py-3" style={{ borderBottomLeftRadius: '12px' }}>TOTAL:</td>
+                                                        <td className="text-end fw-bold text-success fs-6 py-3" style={{ borderBottomRightRadius: '12px' }}>S/. {totalOC.toFixed(2)}</td>
+                                                    </tr>
+                                                </tfoot>
+                                            </Table>
+                                        </div>
+                                    </Accordion.Body>
+                                </Accordion.Item>
+                            );
+                        })}
+                        {pagedOrdenes.length === 0 && <p className="text-center text-muted p-4">No se encontraron órdenes de compra emitidas.</p>}
+                    </Accordion>
                     <PaginationControls currentPage={ocPage} totalPages={ocTotalPages} totalItems={ocTotalItems} pageSize={ocPageSize} onPageChange={goToOcPage} />
                 </Col>
             </Row>
