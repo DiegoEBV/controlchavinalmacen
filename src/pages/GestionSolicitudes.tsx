@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../config/supabaseClient';
-import { Card, Button, Table, Badge, Modal, Form, Row, Col, Accordion, Spinner } from 'react-bootstrap';
+import { Card, Button, Table, Badge, Modal, Form, Row, Col, Accordion, Spinner, InputGroup } from 'react-bootstrap';
 
 import { getRequerimientos, getMaterialesCatalog, getRequerimientoById } from '../services/requerimientosService';
 import { getOrdenesCompra, getSolicitudesCompra, createSolicitudCompra, getSolicitudCompraById } from '../services/comprasService';
@@ -397,28 +397,28 @@ const GestionSolicitudes: React.FC = () => {
                 </Col>
             </Row>
 
-            <Modal show={showModal} onHide={() => setShowModal(false)} size="lg">
+            <Modal show={showModal} onHide={() => setShowModal(false)} size="xl">
                 <Modal.Header closeButton>
                     <Modal.Title>Generar SC para Req #{selectedReq?.item_correlativo}</Modal.Title>
                 </Modal.Header>
                 <Modal.Body>
                     <p className="text-muted small">Se han filtrado automáticamente solo los materiales válidos del catálogo.</p>
-                    <Table size="sm">
-                        <thead>
+                    <Table responsive hover className="table-borderless-custom align-middle">
+                        <thead className="bg-light">
                             <tr>
-                                <th>Desc</th>
-                                <th>Cantidad</th>
-                                <th>Comentario</th>
-                                {canSkipOC && <th title="Si se desactiva, el ítem se marca como atendido sin pasar por OC">¿Enviar a OC?</th>}
+                                <th style={{ width: '40%' }}>Descripción del Item</th>
+                                <th style={{ width: '25%' }}>Cantidad</th>
+                                <th style={{ width: '25%' }}>Comentario / Marca</th>
+                                {canSkipOC && <th className="text-center" style={{ width: '10%' }} title="Si se desactiva, el ítem se marca como atendido sin pasar por OC">¿Enviar a OC?</th>}
                             </tr>
                         </thead>
                         <tbody>
                             {items.map((it, idx) => (
                                 <tr key={idx}>
-                                    <td>{it.descripcion}</td>
+                                    <td className="fw-medium text-dark">{it.descripcion}</td>
                                     <td>
-                                        <div className="d-flex flex-column align-items-start">
-                                            <div className="d-flex align-items-center mb-1">
+                                        <div className="d-flex flex-column">
+                                            <InputGroup>
                                                 <Form.Control
                                                     type="number"
                                                     value={it.cantidad}
@@ -427,14 +427,15 @@ const GestionSolicitudes: React.FC = () => {
                                                         newItems[idx].cantidad = parseFloat(e.target.value);
                                                         setItems(newItems);
                                                     }}
-                                                    size="sm"
-                                                    style={{ maxWidth: '100px', marginRight: '5px' }}
+                                                    className="border-end-0"
                                                 />
-                                                <span>{it.unidad}</span>
-                                            </div>
+                                                <InputGroup.Text className="bg-white text-muted px-3">
+                                                    {it.unidad}
+                                                </InputGroup.Text>
+                                            </InputGroup>
                                             {it.cantidad_caja_chica > 0 && (
-                                                <small className="text-danger fw-bold mt-1" style={{ fontSize: '0.75em', lineHeight: 1.1 }}>
-                                                    *Descontado Caja Chica: {it.cantidad_caja_chica}
+                                                <small className="text-danger fw-bold mt-1" style={{ fontSize: '0.7em', lineHeight: 1.1 }}>
+                                                    *Ya descontado Caja Chica: {it.cantidad_caja_chica}
                                                 </small>
                                             )}
                                         </div>
@@ -449,21 +450,23 @@ const GestionSolicitudes: React.FC = () => {
                                                 newItems[idx].comentario = e.target.value;
                                                 setItems(newItems);
                                             }}
-                                            size="sm"
+                                            className="bg-light bg-opacity-10"
                                         />
                                     </td>
                                     {canSkipOC && (
-                                        <td>
-                                            <Form.Check
-                                                type="switch"
-                                                id={`switch-oc-${idx}`}
-                                                checked={it.enviar_a_oc}
-                                                onChange={(e) => {
-                                                    const newItems = [...items];
-                                                    newItems[idx].enviar_a_oc = e.target.checked;
-                                                    setItems(newItems);
-                                                }}
-                                            />
+                                        <td className="text-center">
+                                            <div className="d-flex justify-content-center">
+                                                <Form.Check
+                                                    type="switch"
+                                                    id={`switch-oc-${idx}`}
+                                                    checked={it.enviar_a_oc}
+                                                    onChange={(e) => {
+                                                        const newItems = [...items];
+                                                        newItems[idx].enviar_a_oc = e.target.checked;
+                                                        setItems(newItems);
+                                                    }}
+                                                />
+                                            </div>
                                         </td>
                                     )}
                                 </tr>
