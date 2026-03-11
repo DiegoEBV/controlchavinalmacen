@@ -226,7 +226,7 @@ const GestionFrentes: React.FC = () => {
     };
 
     return (
-        <Container className="mt-4 fade-in">
+        <Container fluid className="p-4 fade-in">
             <h2>Gestión de Frentes de Trabajo</h2>
             <p className="text-secondary">Administre las Unidades de Trabajo (Frentes) por Obra.</p>
 

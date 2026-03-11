@@ -30,6 +30,7 @@ const Navigation: React.FC = () => {
     const canViewMateriales = hasRole(['coordinador', 'logistica', 'admin']);
     const canViewAlmacen = hasRole(['almacenero', 'produccion', 'coordinador', 'logistica', 'admin']); // Visualización de stock
     const canEditAlmacen = hasRole(['almacenero', 'admin']); // Entradas/Salidas
+    const canViewCierreValorizado = hasRole(['admin', 'almacenero', 'coordinador']);
     const canViewReportes = hasRole(['produccion', 'coordinador', 'logistica', 'almacenero', 'admin']);
 
     // Permisos de configuración
@@ -130,9 +131,16 @@ const Navigation: React.FC = () => {
                         )}
 
                         {canViewAlmacen && (
-                            <Nav.Link as={Link} to="/almacen/stock" className={`nav-link ${isActive('/almacen/stock') ? 'active' : ''}`} onClick={closeNav}>
-                                <span className="me-2">📊</span> Stock Actual
-                            </Nav.Link>
+                            <>
+                                <Nav.Link as={Link} to="/almacen/stock" className={`nav-link ${isActive('/almacen/stock') ? 'active' : ''}`} onClick={closeNav}>
+                                    <span className="me-2">📊</span> Stock Actual
+                                </Nav.Link>
+                                {canViewCierreValorizado && (
+                                    <Nav.Link as={Link} to="/almacen/cierre-valorizado" className={`nav-link ${isActive('/almacen/cierre-valorizado') ? 'active' : ''}`} onClick={closeNav}>
+                                        <span className="me-2">💰</span> Cierre Valorizado
+                                    </Nav.Link>
+                                )}
+                            </>
                         )}
 
                         {canViewReportes && (

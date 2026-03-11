@@ -95,6 +95,7 @@ export interface Inventario {
     equipo?: Equipo;
     epp?: EppC;
     cantidad_actual: number;
+    costo_promedio: number;
     ultimo_ingreso?: string;
     updated_at: string;
 }
@@ -120,6 +121,9 @@ export interface MovimientoAlmacen {
     encargado_id?: string;
     bloque_id?: string;
     numero_vale?: string;
+
+    // Cierre Valorizado
+    costo_unitario?: number;
 
     created_at: string;
 

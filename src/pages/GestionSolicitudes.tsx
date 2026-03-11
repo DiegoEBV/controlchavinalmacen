@@ -211,7 +211,7 @@ const GestionSolicitudes: React.FC = () => {
                                         <td>{req.solicitante}</td>
                                         <td>{req.fecha_solicitud}</td>
                                         <td>
-                                            <Button size="sm" onClick={() => handleOpenCreate(req)}>Generar SC</Button>
+                                            <Button size="sm" className="rounded-pill px-3 fw-bold shadow-sm" onClick={() => handleOpenCreate(req)}>Generar SC</Button>
                                         </td>
                                     </tr>
                                 ))}
@@ -278,7 +278,7 @@ const GestionSolicitudes: React.FC = () => {
                                             </div>
                                             <div className="text-start text-md-end mt-2 mt-md-0 d-flex align-items-center gap-3">
                                                 <div
-                                                    className={`btn btn-sm btn-outline-success ${exportingId === sc.id ? 'disabled' : ''}`}
+                                                    className={`btn btn-sm btn-outline-success rounded-pill ${exportingId === sc.id ? 'disabled' : ''}`}
                                                     style={{ cursor: exportingId === sc.id ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                                                     onClick={async (e) => {
                                                         e.stopPropagation();
@@ -311,7 +311,7 @@ const GestionSolicitudes: React.FC = () => {
                                                     {exportingId === sc.id ? (
                                                         <Spinner animation="border" size="sm" />
                                                     ) : (
-                                                        <FaFileExcel size={18} />
+                                                        <FaFileExcel size={16} />
                                                     )}
                                                 </div>
                                                 <div>
@@ -471,9 +471,13 @@ const GestionSolicitudes: React.FC = () => {
                         </tbody>
                     </Table>
                 </Modal.Body>
-                <Modal.Footer>
-                    <Button variant="secondary" onClick={() => setShowModal(false)}>Cancelar</Button>
-                    <Button variant="primary" onClick={handleSaveSC}>Guardar SC</Button>
+                <Modal.Footer className="border-0 pb-4">
+                    <Button variant="link" className="text-secondary text-decoration-none fw-bold" onClick={() => setShowModal(false)}>
+                        Cancelar
+                    </Button>
+                    <Button variant="primary" className="rounded-pill px-4 fw-bold shadow-sm" onClick={handleSaveSC}>
+                        Guardar Solicitud de Compra
+                    </Button>
                 </Modal.Footer>
             </Modal>
         </div>

@@ -172,7 +172,7 @@ const GestionTerceros = () => {
     };
 
     return (
-        <Container className="mt-4 fade-in">
+        <Container fluid className="p-4 fade-in">
             <div className="d-flex justify-content-between align-items-center mb-4">
                 <div>
                     <h2>Gestión de Terceros</h2>

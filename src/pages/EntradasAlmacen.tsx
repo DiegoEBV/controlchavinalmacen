@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Card, Form, Table, Button, Row, Col, Alert } from 'react-bootstrap';
+import { Card, Form, Table, Button, Row, Col, Alert, Badge } from 'react-bootstrap';
 import { supabase } from '../config/supabaseClient';
 import { getRequerimientos } from '../services/requerimientosService';
 import { getMovimientos, registrarEntradaMasiva, registrarEntradaCajaChica, getAllMovimientos, registrarEntradaDirectaV3 } from '../services/almacenService';
@@ -23,6 +23,7 @@ const EntradasAlmacen: React.FC = () => {
     const [fullHistorial, setFullHistorial] = useState<MovimientoAlmacen[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [filterType, setFilterType] = useState('todo');
+    const [filterMes, setFilterMes] = useState('actual');
 
     const [selectedOC, setSelectedOC] = useState<OrdenCompra | null>(null);
     const [selectedItems, setSelectedItems] = useState<Map<string, number>>(new Map());
@@ -41,6 +42,7 @@ const EntradasAlmacen: React.FC = () => {
     const [selectedDetalleReqCajaChica, setSelectedDetalleReqCajaChica] = useState<any | null>(null);
     const [cajaChicaFactura, setCajaChicaFactura] = useState('');
     const [cajaChicaCantidad, setCajaChicaCantidad] = useState<number | ''>('');
+    const [cajaChicaPrecioUnitario, setCajaChicaPrecioUnitario] = useState<number | ''>('');
 
     // Paginación para historial
     const [currentPage, setCurrentPage] = useState(1);
@@ -321,6 +323,7 @@ const EntradasAlmacen: React.FC = () => {
         setSelectedDetalleReqCajaChica(null);
         setCajaChicaCantidad('');
         setCajaChicaFactura('');
+        setCajaChicaPrecioUnitario('');
     };
 
     const handleDetalleReqCajaChicaSelect = (detalleId: string) => {
@@ -360,7 +363,8 @@ const EntradasAlmacen: React.FC = () => {
                 cajaChicaFactura,
                 "Usuario Local",
                 selectedObra.id,
-                selectedReqCajaChica.frente_id || null
+                selectedReqCajaChica.frente_id || null,
+                cajaChicaPrecioUnitario !== '' ? Number(cajaChicaPrecioUnitario) : null
             );
 
             setSuccessMsg(`¡Entrada por Caja Chica Registrada Correctamente! Código VINTAR generado: ${vintarCode}`);
@@ -373,6 +377,15 @@ const EntradasAlmacen: React.FC = () => {
             alert("Error al registrar caja chica: " + error.message);
         }
         setLoading(false);
+    };
+
+    const resetCajaChicaForm = () => {
+        setSelectedReqCajaChica(null);
+        setSelectedDetalleReqCajaChica(null);
+        setCajaChicaFactura('');
+        setCajaChicaCantidad('');
+        setCajaChicaPrecioUnitario('');
+        setSuccessMsg('');
     };
 
     const activeRequerimientosCajaChica = useMemo(() => {
@@ -477,15 +490,22 @@ const EntradasAlmacen: React.FC = () => {
         setLoading(false);
     };
 
+    const resetDirectoForm = () => {
+        setSelectedSCDirecto(null);
+        setDirectItemsSelected(new Map());
+        setDocReferencia('');
+        setSuccessMsg('');
+    };
+
     return (
         <div className="fade-in">
             <div className="page-header d-flex justify-content-between align-items-center">
                 <h2>Registrar Entrada (Vía Orden de Compra/Guía)</h2>
-                <div>
-                    <Button variant="info" className="fw-bold me-2 text-white" onClick={() => setShowDirectoModal(true)}>
+                <div className="d-flex gap-2">
+                    <Button variant="primary" className="fw-bold shadow-sm rounded-pill px-3" onClick={() => setShowDirectoModal(true)}>
                         <i className="bi bi-box-arrow-in-right me-2"></i> Ingreso Directo (SC Sin OC)
                     </Button>
-                    <Button variant="warning" className="fw-bold" onClick={() => setShowCajaChicaModal(true)}>
+                    <Button variant="warning" className="fw-bold shadow-sm rounded-pill px-3" onClick={() => setShowCajaChicaModal(true)}>
                         <i className="bi bi-wallet2 me-2"></i> Compra con Caja Chica
                     </Button>
                 </div>
@@ -597,6 +617,7 @@ const EntradasAlmacen: React.FC = () => {
                     <div className="mt-4 d-flex justify-content-end">
                         <Button
                             variant="success"
+                            className="rounded-pill px-4 fw-bold"
                             disabled={selectedItems.size === 0}
                             onClick={() => setShowModal(true)}
                         >
@@ -607,7 +628,7 @@ const EntradasAlmacen: React.FC = () => {
             )}
 
             {/* Modal de Confirmación */}
-            <Modal show={showModal} onHide={() => setShowModal(false)} size="lg">
+            <Modal show={showModal} onHide={() => { setShowModal(false); setDocReferencia(''); }} size="lg">
                 <Modal.Header closeButton>
                     <Modal.Title>Confirmar Entrada Masiva</Modal.Title>
                 </Modal.Header>
@@ -685,22 +706,25 @@ const EntradasAlmacen: React.FC = () => {
                     </Table>
                 </Modal.Body>
                 <Modal.Footer>
-                    <Button variant="secondary" onClick={() => setShowModal(false)}>
+                    <Button variant="secondary" onClick={() => { setShowModal(false); setDocReferencia(''); }}>
                         Cancelar
                     </Button>
-                    <Button variant="primary" onClick={handleBatchRegister} disabled={loading}>
+                    <Button variant="primary" className="rounded-pill px-4 fw-bold" onClick={handleBatchRegister} disabled={loading}>
                         {loading ? 'Procesando...' : 'Generar VINTAR y Guardar'}
                     </Button>
                 </Modal.Footer>
             </Modal>
 
             {/* Modal Ingreso Directo */}
-            <Modal show={showDirectoModal} onHide={() => setShowDirectoModal(false)} size="lg" backdrop="static">
-                <Modal.Header closeButton className="bg-info text-white">
-                    <Modal.Title><i className="bi bi-box-arrow-in-right me-2"></i> Registrar Entrada Directa (Sin OC)</Modal.Title>
+            <Modal show={showDirectoModal} onHide={() => { setShowDirectoModal(false); resetDirectoForm(); }} size="lg" backdrop="static" className="premium-modal">
+                <Modal.Header closeButton className="bg-dark text-white border-0 py-3">
+                    <Modal.Title className="fs-5 fw-bold">
+                        <i className="bi bi-box-arrow-in-right me-2 text-primary"></i> 
+                        Registrar Entrada Directa (Sin OC)
+                    </Modal.Title>
                 </Modal.Header>
                 <Modal.Body>
-                    <Alert variant="info" className="small">
+                    <Alert variant="secondary" className="small border-0 shadow-sm">
                         Utilice esta opción para ingresar masivamente ítems de una Solicitud de Compra (SC) que fueron marcados para no requerir Orden de Compra.
                     </Alert>
 
@@ -735,9 +759,8 @@ const EntradasAlmacen: React.FC = () => {
                     </Row>
 
                     {selectedSCDirecto && (
-                        <div className="table-responsive">
-                            <h6 className="mt-3 mb-2 fw-bold text-secondary">Items disponibles para ingreso directo:</h6>
-                            <Table hover className="table-sm table-bordered mb-0 align-middle">
+                        <div className="table-responsive mt-3 rounded border overflow-hidden shadow-sm">
+                            <Table hover className="table-sm mb-0 align-middle">
                                 <thead className="bg-light">
                                     <tr>
                                         <th className="text-center" style={{ width: '40px' }}>
@@ -788,8 +811,8 @@ const EntradasAlmacen: React.FC = () => {
                                         const qtyValue = directItemsSelected.get(d.id) || 0;
 
                                         return (
-                                            <tr key={d.id} className={isSelected ? 'table-info' : ''}>
-                                                <td className="text-center">
+                                            <tr key={d.id} className={isSelected ? 'bg-light' : ''}>
+                                                <td className="text-center py-3">
                                                     <Form.Check
                                                         checked={isSelected}
                                                         onChange={() => toggleDirectItemSelection(d, pending)}
@@ -799,13 +822,17 @@ const EntradasAlmacen: React.FC = () => {
                                                     <div className="fw-bold">{desc}</div>
                                                     <div className="small text-muted">{cat}</div>
                                                 </td>
-                                                <td className="text-center">
-                                                    <span className="badge bg-secondary">{pending} {d.unidad || 'UND'}</span>
+                                                <td className="text-center py-3">
+                                                    <Badge bg="secondary" className="px-3 py-2 fw-medium" style={{ fontSize: '0.8rem' }}>
+                                                        {pending} {d.unidad || 'UND'}
+                                                    </Badge>
                                                 </td>
-                                                <td>
+                                                <td className="py-3">
                                                     <Form.Control
                                                         size="sm"
                                                         type="number"
+                                                        className="text-center fw-bold border-primary shadow-sm"
+                                                        style={{ maxWidth: '100px', margin: '0 auto' }}
                                                         min="0.01"
                                                         max={pending}
                                                         step="0.01"
@@ -834,11 +861,13 @@ const EntradasAlmacen: React.FC = () => {
                         </div>
                     )}
                 </Modal.Body>
-                <Modal.Footer>
-                    <Button variant="secondary" onClick={() => setShowDirectoModal(false)}>Cancelar</Button>
+                <Modal.Footer className="bg-light border-0 py-3">
+                    <Button variant="link" className="text-secondary text-decoration-none fw-bold" onClick={() => { setShowDirectoModal(false); resetDirectoForm(); }}>
+                        Cancelar
+                    </Button>
                     <Button
-                        variant="info"
-                        className="text-white"
+                        variant="primary"
+                        className="px-4 fw-bold shadow-sm rounded-pill"
                         onClick={handleRegisterDirecto}
                         disabled={loading || directItemsSelected.size === 0 || !docReferencia}
                     >
@@ -848,7 +877,7 @@ const EntradasAlmacen: React.FC = () => {
             </Modal>
 
             {/* Modal Caja Chica */}
-            <Modal show={showCajaChicaModal} onHide={() => setShowCajaChicaModal(false)} size="lg">
+            <Modal show={showCajaChicaModal} onHide={() => { setShowCajaChicaModal(false); resetCajaChicaForm(); }} size="lg">
                 <Modal.Header closeButton className="bg-warning text-dark">
                     <Modal.Title><i className="bi bi-wallet2 me-2"></i> Registrar Compra por Caja Chica</Modal.Title>
                 </Modal.Header>
@@ -930,7 +959,7 @@ const EntradasAlmacen: React.FC = () => {
                     )}
 
                     <Row>
-                        <Col md={6}>
+                        <Col md={4}>
                             <Form.Group className="mb-3">
                                 <Form.Label>Número de Factura / Ticket <span className="text-danger">*</span></Form.Label>
                                 <Form.Control
@@ -942,7 +971,7 @@ const EntradasAlmacen: React.FC = () => {
                                 />
                             </Form.Group>
                         </Col>
-                        <Col md={6}>
+                        <Col md={4}>
                             <Form.Group className="mb-3">
                                 <Form.Label>Cantidad a Ingresar <span className="text-danger">*</span></Form.Label>
                                 <Form.Control
@@ -964,15 +993,31 @@ const EntradasAlmacen: React.FC = () => {
                                 )}
                             </Form.Group>
                         </Col>
+                        <Col md={4}>
+                            <Form.Group className="mb-3">
+                                <Form.Label>Precio Unitario (S/) <span className="text-muted small">(Opcional)</span></Form.Label>
+                                <Form.Control
+                                    type="number"
+                                    placeholder="Ej. 12.50"
+                                    min="0"
+                                    step="0.01"
+                                    value={cajaChicaPrecioUnitario}
+                                    onChange={(e) => setCajaChicaPrecioUnitario(e.target.value === '' ? '' : Number(e.target.value))}
+                                    disabled={!selectedDetalleReqCajaChica}
+                                />
+                                <Form.Text className="text-muted">Si no se ingresa, se mantiene el CPP actual.</Form.Text>
+                            </Form.Group>
+                        </Col>
                     </Row>
 
                 </Modal.Body>
                 <Modal.Footer>
-                    <Button variant="secondary" onClick={() => setShowCajaChicaModal(false)}>
+                    <Button variant="secondary" onClick={() => { setShowCajaChicaModal(false); resetCajaChicaForm(); }}>
                         Cancelar
                     </Button>
                     <Button
                         variant="warning"
+                        className="rounded-pill px-4 fw-bold"
                         onClick={handleRegisterCajaChica}
                         disabled={loading || !selectedDetalleReqCajaChica || !cajaChicaFactura || !cajaChicaCantidad || Number(cajaChicaCantidad) <= 0 || Number(cajaChicaCantidad) > (selectedDetalleReqCajaChica.cantidad_solicitada - (selectedDetalleReqCajaChica.cantidad_atendida || 0) - getPendingOCForReqDetail(selectedReqCajaChica!.id, selectedDetalleReqCajaChica))}
                     >
@@ -1014,6 +1059,17 @@ const EntradasAlmacen: React.FC = () => {
                             </Form.Select>
                         </Form.Group>
                     </Col>
+                    <Col xs={12} md={2}>
+                        <Form.Group>
+                            <Form.Select
+                                value={filterMes}
+                                onChange={(e) => setFilterMes(e.target.value)}
+                            >
+                                <option value="actual">Mes Actual</option>
+                                <option value="todos">Todos los meses</option>
+                            </Form.Select>
+                        </Form.Group>
+                    </Col>
                 </Row>
 
                 <Card className="custom-card">
@@ -1029,12 +1085,18 @@ const EntradasAlmacen: React.FC = () => {
                             </tr>
                         </thead>
                         <tbody>
-                            {historial.length === 0 ? (
+                            {(() => {
+                            const nowDate = new Date();
+                            const filtered = filterMes === 'actual' ? historial.filter(h => {
+                                const d = new Date(h.fecha || h.created_at);
+                                return d.getFullYear() === nowDate.getFullYear() && d.getMonth() === nowDate.getMonth();
+                            }) : historial;
+                            return filtered.length === 0 ? (
                                 <tr>
                                     <td colSpan={6} className="text-center text-muted p-4">No hay entradas registradas.</td>
                                 </tr>
                             ) : (
-                                historial.map(h => {
+                                filtered.map(h => {
                                     const mov = h as any;
                                     let desc = 'Desconocido';
                                     let cat = '';
@@ -1072,7 +1134,8 @@ const EntradasAlmacen: React.FC = () => {
                                         </tr>
                                     );
                                 })
-                            )}
+                            );
+                            })()}
                         </tbody>
                     </Table>
                 </Card>
