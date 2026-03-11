@@ -9,6 +9,7 @@ import GestionPresupuesto from './pages/GestionPresupuesto';
 import EntradasAlmacen from './pages/EntradasAlmacen';
 import SalidasAlmacen from './pages/SalidasAlmacen';
 import StockAlmacen from './pages/StockAlmacen';
+import CierreValorizado from './pages/CierreValorizado';
 import GestionCategorias from './pages/GestionCategorias';
 import GestionUsuarios from './pages/GestionUsuarios';
 import GestionSolicitudes from './pages/GestionSolicitudes';
@@ -106,6 +107,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
 
                                 <Route element={<ProtectedRoute allowedRoles={['almacenero', 'produccion', 'coordinador', 'logistica']} />}>
                                     <Route path="/almacen/stock" element={<StockAlmacen />} />
+                                    <Route path="/almacen/cierre-valorizado" element={<CierreValorizado />} />
                                 </Route>
 
                                 <Route element={<ProtectedRoute allowedRoles={['produccion', 'coordinador', 'logistica', 'almacenero']} />}>

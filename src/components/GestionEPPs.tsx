@@ -203,7 +203,7 @@ const GestionEPPs: React.FC = () => {
     const totalPages = Math.ceil(totalItems / pageSize);
 
     return (
-        <Container className="mt-4">
+        <Container fluid className="p-4">
             <div className="d-flex justify-content-between align-items-center mb-4 fade-in">
                 <h2 className="mb-0 fw-bold text-dark">Gestión de EPPs y Colectivos</h2>
             </div>

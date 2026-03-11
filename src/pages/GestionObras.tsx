@@ -263,7 +263,7 @@ const GestionObras = () => {
     };
 
     return (
-        <Container className="mt-4">
+        <Container fluid className="p-4">
             {/* ... (existing JSX) */}
             <div className="d-flex justify-content-between align-items-center mb-4">
                 <h2>Gestión de Obras</h2>

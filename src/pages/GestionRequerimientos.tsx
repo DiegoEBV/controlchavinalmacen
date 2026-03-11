@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Button, Table, Badge, Accordion, ProgressBar, Row, Col, Form, Card, Spinner, OverlayTrigger, Tooltip } from 'react-bootstrap';
+import { Button, Table, Badge, Accordion, ProgressBar, Row, Col, Form, Card, Spinner } from 'react-bootstrap';
 import { getRequerimientos, createRequerimiento, updateRequerimiento, getObras, getUserAssignedObras, getRequerimientoById, anularRequerimiento } from '../services/requerimientosService';
 import { getSolicitudesCompra, getOrdenesCompra, getSolicitudCompraById, getOrdenCompraById } from '../services/comprasService';
 import { Requerimiento, Obra, SolicitudCompra, OrdenCompra } from '../types';
@@ -208,7 +208,7 @@ const GestionRequerimientos: React.FC = () => {
         <div className="fade-in">
             <div className="page-header">
                 <h2>Control de Requerimientos</h2>
-                <Button onClick={() => setShowForm(true)} className="btn-primary">+ Nuevo Requerimiento</Button>
+                <Button onClick={() => setShowForm(true)} className="btn-primary rounded-pill px-4 shadow-sm">+ Nuevo Requerimiento</Button>
             </div>
 
             <Card className="custom-card">
@@ -262,10 +262,10 @@ const GestionRequerimientos: React.FC = () => {
                                             {/* Export Button - Using div to avoid button-in-button warning from AccordionHeader */}
                                             {/* Export Button - Using div to avoid button-in-button warning from AccordionHeader */}
                                             <div
-                                                className={`btn btn-sm btn-outline-success ${exportingId === req.id || req.estado === 'Anulado' ? 'disabled' : ''}`}
+                                                className={`btn btn-sm btn-outline-success rounded-pill ${exportingId === req.id || req.estado === 'Anulado' ? 'disabled' : ''}`}
                                                 style={{ cursor: (exportingId === req.id || req.estado === 'Anulado') ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                                                 onClick={(e) => {
-                                                    e.stopPropagation(); // Avoid toggling accordion
+                                                    e.stopPropagation();
                                                     if (exportingId !== req.id && req.estado !== 'Anulado') {
                                                         handleExport(req);
                                                     }
@@ -275,7 +275,7 @@ const GestionRequerimientos: React.FC = () => {
                                                 {exportingId === req.id ? (
                                                     <Spinner animation="border" size="sm" />
                                                 ) : (
-                                                    <FaFileExcel size={18} />
+                                                    <FaFileExcel size={16} />
                                                 )}
                                             </div>
 
@@ -303,24 +303,23 @@ const GestionRequerimientos: React.FC = () => {
                                                 }
 
                                                 return (
-                                                    <OverlayTrigger placement="top" overlay={<Tooltip id={`tooltip-anular-${req.id}`}>{tooltipMessage}</Tooltip>}>
-                                                        <div
-                                                            className={`btn btn-sm btn-outline-danger ${isDisabled ? 'disabled' : ''}`}
-                                                            style={{ cursor: isDisabled ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                if (!isDisabled) handleAnular(req);
-                                                            }}
-                                                        >
-                                                            <FaBan size={18} />
-                                                        </div>
-                                                    </OverlayTrigger>
+                                                    <div
+                                                        className={`btn btn-sm btn-outline-danger rounded-pill ${isDisabled ? 'disabled' : ''}`}
+                                                        style={{ cursor: isDisabled ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            if (!isDisabled) handleAnular(req);
+                                                        }}
+                                                        title={tooltipMessage}
+                                                    >
+                                                        <FaBan size={16} />
+                                                    </div>
                                                 );
                                             })()}
 
                                             {/* Edit Button */}
                                             <div
-                                                className={`btn btn-sm btn-outline-primary ${solicitudes.some(s => s.requerimiento_id === req.id) || req.estado === 'Anulado' ? 'disabled' : ''}`}
+                                                className={`btn btn-sm btn-outline-primary rounded-pill ${solicitudes.some(s => s.requerimiento_id === req.id) || req.estado === 'Anulado' ? 'disabled' : ''}`}
                                                 style={{ cursor: (solicitudes.some(s => s.requerimiento_id === req.id) || req.estado === 'Anulado') ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                                                 onClick={(e) => {
                                                     e.stopPropagation();
@@ -330,7 +329,7 @@ const GestionRequerimientos: React.FC = () => {
                                                 }}
                                                 title={req.estado === 'Anulado' ? "No se puede editar un requerimiento anulado" : (solicitudes.some(s => s.requerimiento_id === req.id) ? "No se puede editar con SC generada" : "Editar Requerimiento")}
                                             >
-                                                <FaEdit size={18} />
+                                                <FaEdit size={16} />
                                             </div>
                                         </div>
                                     </div>
@@ -388,39 +387,29 @@ const GestionRequerimientos: React.FC = () => {
                                                             <div className="d-flex align-items-center">
                                                                 <span className="me-2">{d.cantidad_atendida}</span>
                                                                 {d.cantidad_caja_chica ? (
-                                                                    <OverlayTrigger
-                                                                        placement="top"
-                                                                        overlay={<Tooltip>{d.cantidad_caja_chica} ingresado por Caja Chica</Tooltip>}
-                                                                    >
-                                                                        <Badge bg="warning" text="dark" className="ms-1" style={{ cursor: 'help' }}>
+                                                                        <Badge 
+                                                                            bg="warning" 
+                                                                            text="dark" 
+                                                                            className="ms-1" 
+                                                                            style={{ cursor: 'help' }}
+                                                                            title={`${d.cantidad_caja_chica} ingresado por Caja Chica`}
+                                                                        >
                                                                             <i className="bi bi-wallet2 me-1"></i>
                                                                             {d.cantidad_caja_chica}
                                                                         </Badge>
-                                                                    </OverlayTrigger>
                                                                 ) : null}
                                                             </div>
                                                         </td>
                                                         <td>
                                                             {relatedSCItem && Number(relatedSCItem.cantidad) === 0 ? (
-                                                                <OverlayTrigger
-                                                                    placement="top"
-                                                                    overlay={
-                                                                        <Tooltip id={`tooltip-anulado-${d.id}`}>
-                                                                            <strong>Anulado en SC</strong>
-                                                                            {relatedSCItem.comentario
-                                                                                ? <><br />{relatedSCItem.comentario}</>
-                                                                                : <><br /><em>Sin comentario</em></>}
-                                                                        </Tooltip>
-                                                                    }
+                                                                <Badge
+                                                                    bg="secondary"
+                                                                    style={{ cursor: 'help', opacity: 0.75 }}
+                                                                    className="d-inline-flex align-items-center gap-1"
+                                                                    title={`Anulado en SC${relatedSCItem.comentario ? ': ' + relatedSCItem.comentario : ''}`}
                                                                 >
-                                                                    <Badge
-                                                                        bg="secondary"
-                                                                        style={{ cursor: 'help', opacity: 0.75 }}
-                                                                        className="d-inline-flex align-items-center gap-1"
-                                                                    >
-                                                                        Sin Atención
-                                                                    </Badge>
-                                                                </OverlayTrigger>
+                                                                    Sin Atención
+                                                                </Badge>
                                                             ) : (
                                                                 <Badge bg={getStatusColor(d.estado)}>{d.estado}</Badge>
                                                             )}

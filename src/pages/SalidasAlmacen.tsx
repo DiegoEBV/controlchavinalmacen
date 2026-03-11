@@ -58,6 +58,7 @@ const SalidasAlmacen: React.FC = () => {
     const [historial, setHistorial] = useState<MovimientoAlmacen[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [filterType, setFilterType] = useState('todo');
+    const [filterMes, setFilterMes] = useState('actual');
 
     const loadData = async () => {
         if (!selectedObra) return;
@@ -501,6 +502,17 @@ const SalidasAlmacen: React.FC = () => {
                         </Form.Select>
                     </Form.Group>
                 </Col>
+                <Col xs={12} md={2}>
+                    <Form.Group>
+                        <Form.Select
+                            value={filterMes}
+                            onChange={(e) => setFilterMes(e.target.value)}
+                        >
+                            <option value="actual">Mes Actual</option>
+                            <option value="todos">Todos los meses</option>
+                        </Form.Select>
+                    </Form.Group>
+                </Col>
             </Row>
 
             <Card className="custom-card p-0 overflow-hidden">
@@ -518,12 +530,18 @@ const SalidasAlmacen: React.FC = () => {
                         </tr>
                     </thead>
                     <tbody>
-                        {historial.length === 0 ? (
+                        {(() => {
+                            const now = new Date();
+                            const filtered = filterMes === 'actual' ? historial.filter(h => {
+                                const d = new Date(h.fecha || h.created_at);
+                                return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+                            }) : historial;
+                            return filtered.length === 0 ? (
                             <tr>
                                 <td colSpan={8} className="text-center p-4 text-muted">No hay salidas registradas.</td>
                             </tr>
                         ) : (
-                            historial.map(h => {
+                            filtered.map(h => {
                                 const mov = h as any;
                                 let desc = 'Desconocido';
                                 let unit = '';
@@ -557,7 +575,8 @@ const SalidasAlmacen: React.FC = () => {
                                     </tr>
                                 );
                             })
-                        )}
+                        );
+                        })()}
                     </tbody>
                 </Table>
                 <div className="p-3 border-top">

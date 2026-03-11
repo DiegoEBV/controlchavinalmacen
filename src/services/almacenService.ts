@@ -134,7 +134,8 @@ export const registrarEntradaCajaChica = async (
     factura: string,
     usuario: string,
     obraId: string,
-    frenteId: string | null
+    frenteId: string | null,
+    precioUnitario?: number | null
 ) => {
     const { data, error } = await supabase.rpc('registrar_entrada_caja_chica', {
         p_requerimiento_id: reqId,
@@ -146,7 +147,8 @@ export const registrarEntradaCajaChica = async (
         p_factura: factura,
         p_usuario: usuario,
         p_obra_id: obraId,
-        p_frente_id: frenteId || null
+        p_frente_id: frenteId || null,
+        p_precio_unitario: precioUnitario || null
     });
 
     if (error) throw error;
@@ -336,4 +338,78 @@ export const getMovimientoById = async (id: string) => {
         return null;
     }
     return data;
+};
+
+export const registrarAjusteInventario = async (
+    obraId: string,
+    materialId: string | null,
+    equipoId: string | null,
+    eppId: string | null,
+    cantidadFisica: number,
+    motivo: string,
+    usuario: string
+) => {
+    const { data, error } = await supabase.rpc('registrar_ajuste_inventario', {
+        p_obra_id: obraId,
+        p_material_id: materialId || null,
+        p_equipo_id: equipoId || null,
+        p_epp_id: eppId || null,
+        p_cantidad_fisica: cantidadFisica,
+        p_motivo: motivo,
+        p_usuario: usuario
+    });
+
+    if (error) throw error;
+    return data;
+};
+
+export const ejecutarCierreMensual = async (
+    obraId: string,
+    anio: number,
+    mes: number,
+    usuario: string
+) => {
+    const { data, error } = await supabase.rpc('ejecutar_cierre_mensual', {
+        p_obra_id: obraId,
+        p_anio: anio,
+        p_mes: mes,
+        p_usuario: usuario
+    });
+
+    if (error) throw error;
+    return data;
+};
+
+export const getCierresMensuales = async (obraId: string) => {
+    const { data, error } = await supabase
+        .from('cierres_mensuales')
+        .select('*')
+        .eq('obra_id', obraId)
+        .order('anio', { ascending: false })
+        .order('mes', { ascending: false });
+
+    if (error) {
+        console.error('Error fetching cierres:', error);
+        return [];
+    }
+    return data || [];
+};
+
+export const getCierreDetalle = async (cierreId: string) => {
+    const { data, error } = await supabase
+        .from('cierres_mensuales_detalle')
+        .select(`
+            *,
+            material:materiales(descripcion, categoria, unidad),
+            equipo:equipos(nombre, codigo),
+            epp:epps_c(descripcion, codigo, unidad)
+        `)
+        .eq('cierre_id', cierreId)
+        .order('subtotal', { ascending: false });
+
+    if (error) {
+        console.error('Error fetching cierre detalle:', error);
+        return [];
+    }
+    return data || [];
 };

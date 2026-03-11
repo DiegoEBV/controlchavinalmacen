@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Card, Form, Table } from 'react-bootstrap';
+import { Card, Form, Table, Row, Col } from 'react-bootstrap';
 import { supabase } from '../config/supabaseClient';
 import { getInventario } from '../services/almacenService';
 import { StockItem, Inventario } from '../types';
@@ -11,10 +11,11 @@ import { getMaterialesCatalog } from '../services/requerimientosService';
 import { getEquipos } from '../services/equiposService';
 import { getEpps } from '../services/eppsService';
 import { registrarEntradaMasiva, getAllInventario } from '../services/almacenService';
-import { FaUpload, FaTrash, FaExclamationTriangle, FaFileExcel } from 'react-icons/fa';
+import { FaUpload, FaTrash, FaExclamationTriangle, FaFileExcel, FaPencilAlt } from 'react-icons/fa';
 import { exportStockToExcel } from '../utils/stockExport';
 import { Toast, ToastContainer } from 'react-bootstrap';
 import { formatDisplayDate } from '../utils/dateUtils';
+import { registrarAjusteInventario } from '../services/almacenService';
 
 const StockAlmacen: React.FC = () => {
     const { selectedObra, hasRole } = useAuth();
@@ -31,6 +32,13 @@ const StockAlmacen: React.FC = () => {
     const [isExporting, setIsExporting] = useState(false);
     const [showToast, setShowToast] = useState(false);
     const [toastMsg, setToastMsg] = useState('');
+
+    // Ajuste de Inventario
+    const [showAjusteModal, setShowAjusteModal] = useState(false);
+    const [ajusteItem, setAjusteItem] = useState<StockItem | null>(null);
+    const [ajusteCantidadFisica, setAjusteCantidadFisica] = useState<number | ''>('');
+    const [ajusteMotivo, setAjusteMotivo] = useState('');
+    const [ajusteLoading, setAjusteLoading] = useState(false);
 
     useEffect(() => {
         if (selectedObra) {
@@ -133,6 +141,53 @@ const StockAlmacen: React.FC = () => {
         }
     };
 
+    const handleOpenAjuste = (item: StockItem) => {
+        setAjusteItem(item);
+        setAjusteCantidadFisica('');
+        setAjusteMotivo('');
+        setShowAjusteModal(true);
+    };
+
+    const handleAjusteSubmit = async () => {
+        if (!ajusteItem || !selectedObra || ajusteCantidadFisica === '' || !ajusteMotivo) return;
+        setAjusteLoading(true);
+        try {
+            const inv = ajusteItem.data as Inventario;
+            const result = await registrarAjusteInventario(
+                selectedObra.id,
+                inv.material_id || null,
+                (inv as any).equipo_id || null,
+                (inv as any).epp_id || null,
+                Number(ajusteCantidadFisica),
+                ajusteMotivo,
+                'Almacenero'
+            );
+            const res = result as any;
+            if (res?.diferencia === 0) {
+                setToastMsg('Sin diferencia. No se registró ajuste.');
+            } else {
+                setToastMsg(`Ajuste registrado: ${res?.tipo === 'AJUSTE_ENTRADA' ? '+' : '-'}${Math.abs(res?.diferencia || 0)} unidades`);
+            }
+            setShowToast(true);
+            setShowAjusteModal(false);
+            loadStock();
+        } catch (err: any) {
+            console.error(err);
+            alert('Error al registrar ajuste: ' + (err.message || 'Error desconocido'));
+        } finally {
+            setAjusteLoading(false);
+        }
+    };
+
+    const getAjusteItemInfo = () => {
+        if (!ajusteItem) return { desc: '', stock: 0, unit: '' };
+        const inv = ajusteItem.data as Inventario;
+        if (ajusteItem.type === 'MATERIAL') return { desc: inv.material?.descripcion || '', stock: inv.cantidad_actual, unit: inv.material?.unidad || '' };
+        if (ajusteItem.type === 'EQUIPO') return { desc: (inv as any).equipo?.nombre || '', stock: inv.cantidad_actual, unit: 'UND' };
+        if (ajusteItem.type === 'EPP') return { desc: (inv as any).epp?.descripcion || '', stock: inv.cantidad_actual, unit: (inv as any).epp?.unidad || '' };
+        return { desc: '', stock: 0, unit: '' };
+    };
+
     return (
         <div className="fade-in">
             <div className="page-header d-flex justify-content-between align-items-center">
@@ -143,13 +198,13 @@ const StockAlmacen: React.FC = () => {
                             variant="success"
                             onClick={handleExport}
                             disabled={isExporting || loading || !selectedObra}
-                            className="d-flex align-items-center"
+                            className="d-flex align-items-center rounded-pill px-4 fw-bold shadow-sm"
                         >
                             <FaFileExcel className="me-2" />
                             {isExporting ? 'Exportando...' : 'Exportar Stock'}
                         </Button>
-                        <Button variant="primary" onClick={() => setShowInitialStockModal(true)}>
-                            + Cargar Stock Inicial
+                        <Button variant="primary" className="rounded-pill px-4 fw-bold shadow-sm" onClick={() => setShowInitialStockModal(true)}>
+                            <i className="bi bi-plus-lg me-2"></i> Cargar Stock Inicial
                         </Button>
                     </div>
                 )}
@@ -193,14 +248,17 @@ const StockAlmacen: React.FC = () => {
                             <th>Categoría / Tipo</th>
                             <th className="text-center">Unidad</th>
                             <th className="text-center">Stock Actual</th>
+                            <th className="text-end">CPP (S/)</th>
+                            <th className="text-end">Subtotal (S/)</th>
                             <th>Último Ingreso</th>
+                            {canManageStock && <th style={{width: '80px'}}></th>}
                         </tr>
                     </thead>
                     <tbody>
                         {loading ? (
-                            <tr><td colSpan={7} className="text-center p-5">Cargando inventario...</td></tr>
+                            <tr><td colSpan={9} className="text-center p-5">Cargando inventario...</td></tr>
                         ) : pagedStock.length === 0 ? (
-                            <tr><td colSpan={7} className="text-center p-5 text-muted">No hay ítems en stock.</td></tr>
+                            <tr><td colSpan={9} className="text-center p-5 text-muted">No hay ítems en stock.</td></tr>
                         ) : (
                             pagedStock.map((item, index) => {
                                 let typeLabel = '';
@@ -209,6 +267,7 @@ const StockAlmacen: React.FC = () => {
                                 let category = '-';
                                 let unit = '-';
                                 let stock = 0;
+                                let cpp = 0;
                                 let lastIngress = formatDisplayDate(item.data.ultimo_ingreso);
 
                                 if (item.type === 'MATERIAL') {
@@ -219,6 +278,7 @@ const StockAlmacen: React.FC = () => {
                                     category = d.material?.categoria || '';
                                     unit = d.material?.unidad || '';
                                     stock = d.cantidad_actual;
+                                    cpp = d.costo_promedio || 0;
                                 } else if (item.type === 'EQUIPO') {
                                     const d = (item.data as any).equipo;
                                     typeLabel = 'Equipo';
@@ -227,6 +287,7 @@ const StockAlmacen: React.FC = () => {
                                     category = 'Equipo';
                                     unit = 'UND';
                                     stock = item.data.cantidad_actual;
+                                    cpp = item.data.costo_promedio || 0;
                                 } else if (item.type === 'EPP') {
                                     const d = (item.data as any).epp;
                                     typeLabel = 'EPP';
@@ -235,7 +296,10 @@ const StockAlmacen: React.FC = () => {
                                     category = d.tipo;
                                     unit = d.unidad;
                                     stock = item.data.cantidad_actual;
+                                    cpp = item.data.costo_promedio || 0;
                                 }
+
+                                const subtotal = stock * cpp;
 
                                 return (
                                     <tr key={`${item.type}-${index}`}>
@@ -253,7 +317,23 @@ const StockAlmacen: React.FC = () => {
                                                 {Number(stock).toFixed(2)}
                                             </strong>
                                         </td>
+                                        <td className="text-end">{cpp > 0 ? `S/ ${Number(cpp).toFixed(2)}` : '-'}</td>
+                                        <td className="text-end fw-bold">{subtotal > 0 ? `S/ ${Number(subtotal).toFixed(2)}` : '-'}</td>
                                         <td className="small text-muted">{lastIngress}</td>
+                                        {canManageStock && (
+                                            <td className="text-center align-middle">
+                                                <Button 
+                                                    variant="warning" 
+                                                    size="sm" 
+                                                    className="fw-bold rounded-pill px-3 shadow-sm" 
+                                                    style={{ fontSize: '10px', height: '24px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                                                    title="Ajustar inventario" 
+                                                    onClick={() => handleOpenAjuste(item)}
+                                                >
+                                                    AJUSTAR
+                                                </Button>
+                                            </td>
+                                        )}
                                     </tr>
                                 );
                             })
@@ -285,6 +365,83 @@ const StockAlmacen: React.FC = () => {
                     </Toast.Body>
                 </Toast>
             </ToastContainer>
+
+            {/* Modal Ajuste de Inventario */}
+            <Modal show={showAjusteModal} onHide={() => setShowAjusteModal(false)} centered>
+                <Modal.Header closeButton className="bg-warning text-dark">
+                    <Modal.Title><FaPencilAlt className="me-2" />Ajuste de Inventario</Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    {ajusteItem ? (() => {
+                        const info = getAjusteItemInfo();
+                        const diff = ajusteCantidadFisica !== '' ? Number(ajusteCantidadFisica) - info.stock : 0;
+                        return (
+                            <>
+                                <Alert variant="info" className="small">
+                                    Ingrese la cantidad real (conteo físico) para <strong>{info.desc}</strong>. El sistema calculará y registrará la diferencia automáticamente.
+                                </Alert>
+                                <div className="p-3 bg-light rounded border mb-3">
+                                    <Row>
+                                        <Col xs={6}>
+                                            <span className="text-muted small">Stock en Sistema</span>
+                                            <h4 className="mb-0">{info.stock} {info.unit}</h4>
+                                        </Col>
+                                        <Col xs={6} className="text-end">
+                                            {ajusteCantidadFisica !== '' && diff !== 0 && (
+                                                <>
+                                                    <span className="text-muted small">Diferencia</span>
+                                                    <h4 className={`mb-0 ${diff > 0 ? 'text-success' : 'text-danger'}`}>
+                                                        {diff > 0 ? '+' : ''}{diff.toFixed(2)} {info.unit}
+                                                    </h4>
+                                                </>
+                                            )}
+                                        </Col>
+                                    </Row>
+                                </div>
+                                <Form.Group className="mb-3">
+                                    <Form.Label>Cantidad Física (Conteo Real) <span className="text-danger">*</span></Form.Label>
+                                    <Form.Control
+                                        type="number"
+                                        min="0"
+                                        step="0.01"
+                                        placeholder="Ingrese cantidad física..."
+                                        value={ajusteCantidadFisica}
+                                        onChange={(e) => setAjusteCantidadFisica(e.target.value === '' ? '' : Number(e.target.value))}
+                                        autoFocus
+                                    />
+                                </Form.Group>
+                                <Form.Group className="mb-3">
+                                    <Form.Label>Motivo del Ajuste <span className="text-danger">*</span></Form.Label>
+                                    <Form.Select value={ajusteMotivo} onChange={(e) => setAjusteMotivo(e.target.value)}>
+                                        <option value="">Seleccione motivo...</option>
+                                        <option value="Diferencia en conteo físico">Diferencia en conteo físico</option>
+                                        <option value="Merma por manipulación">Merma por manipulación</option>
+                                        <option value="Rotura o deterioro">Rotura o deterioro</option>
+                                        <option value="Error de registro anterior">Error de registro anterior</option>
+                                        <option value="Sobrante encontrado">Sobrante encontrado</option>
+                                        <option value="Otro">Otro</option>
+                                    </Form.Select>
+                                </Form.Group>
+                            </>
+                        );
+                    })() : (
+                        <p className="text-muted text-center">Seleccione un ítem del stock para ajustar usando el ícono <FaPencilAlt className="text-warning" /> en la tabla.</p>
+                    )}
+                </Modal.Body>
+                <Modal.Footer className="border-0 pb-4">
+                    <Button variant="link" className="text-secondary text-decoration-none fw-bold" onClick={() => setShowAjusteModal(false)}>
+                        Cancelar
+                    </Button>
+                    <Button
+                        variant="warning"
+                        className="rounded-pill px-4 fw-bold shadow-sm"
+                        onClick={handleAjusteSubmit}
+                        disabled={ajusteLoading || !ajusteItem || ajusteCantidadFisica === '' || !ajusteMotivo || Number(ajusteCantidadFisica) < 0}
+                    >
+                        {ajusteLoading ? 'Procesando...' : 'Registrar Ajuste'}
+                    </Button>
+                </Modal.Footer>
+            </Modal>
         </div>
     );
 };
