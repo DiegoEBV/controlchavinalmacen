@@ -159,6 +159,7 @@ const GestionOrdenes: React.FC = () => {
                 detalle_sc_id: d.id,
                 material_desc: d.material?.descripcion || d.equipo?.nombre || d.epp?.descripcion || 'Sin descripción',
                 cantidad_sc: d.cantidad,
+                unidad: d.unidad || '-',
                 cantidad_pendiente: remaining,
                 cantidad_compra: remaining,
                 precio_unitario: 0,
@@ -169,6 +170,12 @@ const GestionOrdenes: React.FC = () => {
         setItemsToOrder(initialItems);
         setShowModal(true);
     };
+
+    const toggleSelectAll = (checked: boolean) => {
+        setItemsToOrder(prev => prev.map(it => ({ ...it, selected: checked })));
+    };
+
+    const isAllSelected = itemsToOrder.length > 0 && itemsToOrder.every(it => it.selected);
 
     const handleSaveOC = async () => {
         if (!selectedSC || !proveedor || !manualOCNumber) return alert("Ingrese proveedor y número de OC");
@@ -449,7 +456,7 @@ const GestionOrdenes: React.FC = () => {
                     <Modal.Title>Crear OC para {selectedSC?.numero_sc}</Modal.Title>
                 </Modal.Header>
                 <Modal.Body>
-                    <Row className="mb-3">
+                           <Row className="mb-3">
                         <Col xs={12} md={6}>
                             <Form.Group>
                                 <Form.Label>Número de Orden de Compra</Form.Label>
@@ -492,7 +499,6 @@ const GestionOrdenes: React.FC = () => {
                                     <Form.Group>
                                         <Form.Label className="text-sm">N° Factura</Form.Label>
                                         <Form.Control
-                                            size="sm"
                                             value={nFactura}
                                             onChange={e => setNFactura(e.target.value)}
                                             placeholder="Ej: F001-000123"
@@ -504,7 +510,6 @@ const GestionOrdenes: React.FC = () => {
                                         <Form.Label className="text-sm">Fecha Vencimiento</Form.Label>
                                         <Form.Control
                                             type="date"
-                                            size="sm"
                                             value={fechaVencimiento}
                                             onChange={e => setFechaVencimiento(e.target.value)}
                                         />
@@ -514,15 +519,20 @@ const GestionOrdenes: React.FC = () => {
                         </Card.Body>
                     </Card>
 
-                    <Table size="sm">
-                        <thead>
+                    <Table responsive hover className="table-borderless-custom align-middle">
+                        <thead className="bg-light">
                             <tr>
-                                <th style={{ width: 50 }}>Sel.</th>
-                                <th>Item</th>
-
-                                <th>Cant. SC</th>
-                                <th>A Comprar</th>
-                                <th>P. Unit S/.</th>
+                                <th style={{ width: '50px' }}>
+                                    <Form.Check
+                                        type="checkbox"
+                                        checked={isAllSelected}
+                                        onChange={e => toggleSelectAll(e.target.checked)}
+                                    />
+                                </th>
+                                <th style={{ width: '40%' }}>Descripción del Item</th>
+                                <th style={{ width: '15%' }}>Cant. SC</th>
+                                <th style={{ width: '20%' }}>A Comprar</th>
+                                <th style={{ width: '20%' }}>P. Unit S/.</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -530,6 +540,7 @@ const GestionOrdenes: React.FC = () => {
                                 <tr key={idx}>
                                     <td>
                                         <Form.Check
+                                            type="checkbox"
                                             checked={it.selected}
                                             onChange={e => {
                                                 const newItems = [...itemsToOrder];
@@ -538,34 +549,36 @@ const GestionOrdenes: React.FC = () => {
                                             }}
                                         />
                                     </td>
-                                    <td>{it.material_desc}</td>
+                                    <td className="fw-medium text-dark">{it.material_desc}</td>
                                     <td>
-                                        <div className="d-flex flex-column">
-                                            <span>{Number(it.cantidad_sc).toFixed(2)}</span>
+                                        <div className="d-flex flex-column text-muted">
+                                            <span className="fw-bold">{Number(it.cantidad_sc).toFixed(2)} <small className="text-secondary fw-normal ms-1">{it.unidad}</small></span>
                                             {it.cantidad_caja_chica > 0 && (
-                                                <small className="text-danger fw-bold mt-1" style={{ fontSize: '0.75em', lineHeight: 1.1 }}>
-                                                    *Descontado Caja Chica: {it.cantidad_caja_chica}
+                                                <small className="text-danger fw-bold" style={{ fontSize: '0.7em', lineHeight: 1.1 }}>
+                                                    *Caja Chica: {it.cantidad_caja_chica}
                                                 </small>
                                             )}
                                         </div>
                                     </td>
                                     <td>
-                                        <Form.Control
-                                            type="number"
-                                            size="sm"
-                                            value={it.cantidad_compra}
-                                            onChange={e => {
-                                                const val = parseFloat(e.target.value) || 0;
-                                                const newItems = [...itemsToOrder];
-                                                newItems[idx].cantidad_compra = parseFloat(val.toFixed(2));
-                                                setItemsToOrder(newItems);
-                                            }}
-                                        />
+                                        <div className="input-group">
+                                            <Form.Control
+                                                type="number"
+                                                value={it.cantidad_compra}
+                                                onChange={e => {
+                                                    const val = parseFloat(e.target.value) || 0;
+                                                    const newItems = [...itemsToOrder];
+                                                    newItems[idx].cantidad_compra = parseFloat(val.toFixed(2));
+                                                    setItemsToOrder(newItems);
+                                                }}
+                                                className="bg-light bg-opacity-10"
+                                            />
+                                            <span className="input-group-text bg-white text-muted">{it.unidad}</span>
+                                        </div>
                                     </td>
                                     <td>
                                         <Form.Control
                                             type="number"
-                                            size="sm"
                                             value={it.precio_unitario}
                                             onChange={e => {
                                                 const val = parseFloat(e.target.value) || 0;
@@ -574,6 +587,7 @@ const GestionOrdenes: React.FC = () => {
                                                 setItemsToOrder(newItems);
                                             }}
                                             placeholder="0.00"
+                                            className="bg-light bg-opacity-10"
                                         />
                                     </td>
                                 </tr>
