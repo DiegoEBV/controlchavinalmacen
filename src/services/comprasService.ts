@@ -100,16 +100,16 @@ export const getOrdenesCompra = async (obraId?: string) => {
         .from('ordenes_compra')
         .select(`
             *,
-            sc:solicitudes_compra!inner(
+            sc:solicitudes_compra(
                 *,
-                requerimiento:requerimientos!inner(id, obra_id, item_correlativo, solicitante, frente:frentes(nombre_frente))
+                requerimiento:requerimientos(id, obra_id, item_correlativo, solicitante, frente:frentes(nombre_frente))
             ),
-            detalles:detalles_oc(*, detalle_sc:detalles_sc(*, material:materiales(*), equipo:equipos(*), epp:epps_c(*)))
+            detalles:detalles_oc!inner(*, detalle_sc:detalles_sc!inner(*, material:materiales(*), equipo:equipos(*), epp:epps_c(*), sc:solicitudes_compra!inner(*, requerimiento:requerimientos!inner(obra_id))))
         `)
         .order('created_at', { ascending: false });
 
     if (obraId) {
-        query = query.eq('sc.requerimiento.obra_id', obraId);
+        query = query.eq('detalles.detalle_sc.sc.requerimiento.obra_id', obraId);
     }
 
     const { data, error } = await query;
@@ -118,7 +118,12 @@ export const getOrdenesCompra = async (obraId?: string) => {
         console.error('Error getting OC:', error);
         return [];
     }
-    return data as OrdenCompra[];
+
+    // El inner join puede duplicar la cabecera si hay múltiples detalles. 
+    // Supabase JS 'select' con relaciones anidadas suele manejar esto, pero nos aseguramos de que los datos sean únicos por ID.
+    const uniqueOCs = Array.from(new Map(data.map(item => [item.id, item])).values());
+    
+    return uniqueOCs as OrdenCompra[];
 };
 
 export const createOrdenCompra = async (
@@ -152,8 +157,16 @@ export const createOrdenCompra = async (
 
     if (detError) throw detError;
 
-    // 3. Actualizar estado del ítem de SC (Opcional: Marcar como 'En Orden' si se ordenó completamente)
-    // Esta lógica puede ser compleja dependiendo de órdenes parciales. Por ahora, inserción simple.
+    // 3. Actualizar estado del ítem de SC
+    const idsDetallesSC = items.map(item => item.detalle_sc_id);
+    const { error: scDetError } = await supabase
+        .from('detalles_sc')
+        .update({ estado: 'En Orden' })
+        .in('id', idsDetallesSC);
+
+    if (scDetError) {
+        console.error('Error updating detalles_sc status:', scDetError);
+    }
 
     return oc;
 };
@@ -163,9 +176,9 @@ export const getOrdenCompraById = async (id: string) => {
         .from('ordenes_compra')
         .select(`
             *,
-            sc:solicitudes_compra!inner(
+            sc:solicitudes_compra(
                 *,
-                requerimiento:requerimientos!inner(id, obra_id, item_correlativo, solicitante, frente:frentes(nombre_frente))
+                requerimiento:requerimientos(id, obra_id, item_correlativo, solicitante, frente:frentes(nombre_frente))
             ),
             detalles:detalles_oc(*, detalle_sc:detalles_sc(*, material:materiales(*), equipo:equipos(*), epp:epps_c(*)))
         `)
@@ -184,13 +197,13 @@ export const getOrdenesCompraExport = async (obraId: string, fechaInicial: strin
         .from('ordenes_compra')
         .select(`
             *,
-            sc:solicitudes_compra!inner(
+            sc:solicitudes_compra(
                 *,
-                requerimiento:requerimientos!inner(id, obra_id, item_correlativo, solicitante, frente:frentes(nombre_frente))
+                requerimiento:requerimientos(id, obra_id, item_correlativo, solicitante, frente:frentes(nombre_frente))
             ),
-            detalles:detalles_oc(*, detalle_sc:detalles_sc(*, material:materiales(*), equipo:equipos(*), epp:epps_c(*)))
+            detalles:detalles_oc!inner(*, detalle_sc:detalles_sc!inner(*, material:materiales(*), equipo:equipos(*), epp:epps_c(*), sc:solicitudes_compra!inner(*, requerimiento:requerimientos!inner(obra_id))))
         `)
-        .eq('sc.requerimiento.obra_id', obraId)
+        .eq('detalles.detalle_sc.sc.requerimiento.obra_id', obraId)
         .gte('fecha_oc', fechaInicial)
         .lte('fecha_oc', fechaFinal)
         .order('fecha_oc', { ascending: true }); // Ordenar cronológicamente
@@ -201,5 +214,7 @@ export const getOrdenesCompraExport = async (obraId: string, fechaInicial: strin
         console.error('Error fetching OCs for export:', error);
         throw error;
     }
-    return data as OrdenCompra[];
+
+    const uniqueOCs = Array.from(new Map(data.map(item => [item.id, item])).values());
+    return uniqueOCs as OrdenCompra[];
 };
