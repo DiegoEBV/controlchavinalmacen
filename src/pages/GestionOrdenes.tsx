@@ -22,7 +22,8 @@ const GestionOrdenes: React.FC = () => {
 
     // Estado del Modal
     const [showModal, setShowModal] = useState(false);
-    const [selectedSC, setSelectedSC] = useState<SolicitudCompra | null>(null);
+    const [selectedSCs, setSelectedSCs] = useState<SolicitudCompra[]>([]);
+    const [selectedSCIds, setSelectedSCIds] = useState<Set<string>>(new Set());
     const [exportingId, setExportingId] = useState<string | null>(null);
 
     // Entradas del Formulario
@@ -32,6 +33,7 @@ const GestionOrdenes: React.FC = () => {
     const [nFactura, setNFactura] = useState('');
     const [fechaVencimiento, setFechaVencimiento] = useState('');
     const [itemsToOrder, setItemsToOrder] = useState<any[]>([]);
+    const [showOnlySelected, setShowOnlySelected] = useState(false);
 
     // Estado para Exportación
     const [fechaInicialExport, setFechaInicialExport] = useState('');
@@ -121,55 +123,79 @@ const GestionOrdenes: React.FC = () => {
         });
     }, [allSolicitudes, ordenes, historial]);
 
-    const handleOpenCreate = (sc: SolicitudCompra) => {
-        setSelectedSC(sc);
-        // Reiniciar
+    const handleOpenCreateMulti = () => {
+        const scs = allSolicitudes.filter(sc => selectedSCIds.has(sc.id));
+        if (scs.length === 0) return alert("Seleccione al menos una solicitud");
+        
+        setSelectedSCs(scs);
         setManualOCNumber('');
-        // Reiniciar
         setProveedor('');
         setFechaAtencion('');
         setNFactura('');
         setFechaVencimiento('');
-        // Pre-llenar con ítems de la SC que sí van a OC
-        const initialItems = sc.detalles?.filter(d => (d as any).enviar_a_oc !== false).map(d => {
-            // Calcular lo que ya se ha comprado/comprometido en OCs anteriores
-            const totalPurchased = ordenes.reduce((sum, oc) => {
-                const match = oc.detalles?.find(od => od.detalle_sc_id === d.id);
-                return sum + (match ? match.cantidad : 0);
-            }, 0);
 
-            // Calcular ingresos exclusivamente por CAJA CHICA
-            const totalCajaChica = historial
-                .filter(h =>
-                    h.tipo === 'ENTRADA' &&
-                    (h as any).destino_o_uso === 'COMPRA CAJA CHICA' &&
-                    String(h.requerimiento_id) === String(sc.requerimiento_id) &&
-                    (
-                        (h.material_id && d.material_id === h.material_id) ||
-                        (h.equipo_id && d.equipo_id === h.equipo_id) ||
-                        (h.epp_id && d.epp_id === h.epp_id)
+        const allItems: any[] = [];
+        scs.forEach(sc => {
+            const scItems = sc.detalles?.filter(d => (d as any).enviar_a_oc !== false).map(d => {
+                const totalPurchased = ordenes.reduce((sum, oc) => {
+                    const match = oc.detalles?.find(od => od.detalle_sc_id === d.id);
+                    return sum + (match ? match.cantidad : 0);
+                }, 0);
+
+                const totalCajaChica = historial
+                    .filter(h =>
+                        h.tipo === 'ENTRADA' &&
+                        (h as any).destino_o_uso === 'COMPRA CAJA CHICA' &&
+                        String(h.requerimiento_id) === String(sc.requerimiento_id) &&
+                        (
+                            (h.material_id && d.material_id === h.material_id) ||
+                            (h.equipo_id && d.equipo_id === h.equipo_id) ||
+                            (h.epp_id && d.epp_id === h.epp_id)
+                        )
                     )
-                )
-                .reduce((sum, h) => sum + h.cantidad, 0);
+                    .reduce((sum, h) => sum + h.cantidad, 0);
 
-            // Lo pendiente = SC original - (comprometido en OCs) - (cubierto por caja chica)
-            const remaining = Math.max(0, d.cantidad - totalPurchased - totalCajaChica);
+                const remaining = Math.max(0, d.cantidad - totalPurchased - totalCajaChica);
 
-            return {
-                detalle_sc_id: d.id,
-                material_desc: d.material?.descripcion || d.equipo?.nombre || d.epp?.descripcion || 'Sin descripción',
-                cantidad_sc: d.cantidad,
-                unidad: d.unidad || '-',
-                cantidad_pendiente: remaining,
-                cantidad_compra: remaining,
-                precio_unitario: 0,
-                selected: remaining > 0,
-                cantidad_caja_chica: totalCajaChica  // Solo lo genuinamente de Caja Chica
-            };
-        }) || [];
-        setItemsToOrder(initialItems);
+                return {
+                    sc_id: sc.id,
+                    numero_sc: sc.numero_sc,
+                    detalle_sc_id: d.id,
+                    material_desc: d.material?.descripcion || d.equipo?.nombre || d.epp?.descripcion || 'Sin descripción',
+                    cantidad_sc: d.cantidad,
+                    unidad: d.unidad || '-',
+                    cantidad_pendiente: remaining,
+                    cantidad_compra: remaining,
+                    precio_unitario: 0,
+                    selected: remaining > 0,
+                    cantidad_caja_chica: totalCajaChica
+                };
+            }) || [];
+            allItems.push(...scItems);
+        });
+
+        setItemsToOrder(allItems);
         setShowModal(true);
     };
+
+    const toggleSelectSC = (scId: string) => {
+        setSelectedSCIds(prev => {
+            const next = new Set(prev);
+            if (next.has(scId)) next.delete(scId);
+            else next.add(scId);
+            return next;
+        });
+    };
+
+    const toggleSelectAllSCs = (checked: boolean) => {
+        if (checked) {
+            setSelectedSCIds(new Set(availableSolicitudes.map(sc => sc.id)));
+        } else {
+            setSelectedSCIds(new Set());
+        }
+    };
+
+    const isAllSCsSelected = availableSolicitudes.length > 0 && availableSolicitudes.every(sc => selectedSCIds.has(sc.id));
 
     const toggleSelectAll = (checked: boolean) => {
         setItemsToOrder(prev => prev.map(it => ({ ...it, selected: checked })));
@@ -178,7 +204,7 @@ const GestionOrdenes: React.FC = () => {
     const isAllSelected = itemsToOrder.length > 0 && itemsToOrder.every(it => it.selected);
 
     const handleSaveOC = async () => {
-        if (!selectedSC || !proveedor || !manualOCNumber) return alert("Ingrese proveedor y número de OC");
+        if (selectedSCs.length === 0 || !proveedor || !manualOCNumber) return alert("Ingrese proveedor y número de OC");
 
         const selectedItems = itemsToOrder.filter(i => i.selected && i.cantidad_compra > 0).map(i => ({
             detalle_sc_id: i.detalle_sc_id,
@@ -190,7 +216,7 @@ const GestionOrdenes: React.FC = () => {
 
         try {
             const ocPayload = {
-                sc_id: selectedSC.id,
+                sc_id: selectedSCs[0].id, // Referencia a la primera SC
                 numero_oc: manualOCNumber,
                 proveedor,
                 fecha_oc: new Date().toISOString().split('T')[0],
@@ -203,14 +229,13 @@ const GestionOrdenes: React.FC = () => {
             await createOrdenCompra(ocPayload, selectedItems);
             alert("Orden de Compra creada!");
             setShowModal(false);
+            setSelectedSCIds(new Set());
             setProveedor('');
             setManualOCNumber('');
             setFechaAtencion('');
             setNFactura('');
             setFechaVencimiento('');
             // Confiaremos en el tiempo real + actualización optimista local si es necesario, pero el tiempo real suele ser lo suficientemente rápido.
-            // Realmente, para retroalimentación inmediata de nuestra PROPIA acción, tal vez recargar o actualización optimista.
-            // El tiempo real también lo capturará.
             loadData(); // Mantener por seguridad
         } catch (e: any) {
             console.error(e);
@@ -261,29 +286,71 @@ const GestionOrdenes: React.FC = () => {
 
             <Row>
                 <Col xs={12} className="mb-4">
-                    <Card className="custom-card">
-                        <Card.Header className="bg-white fw-bold">Solicitudes Disponibles</Card.Header>
-                        <Table hover responsive className="table-borderless-custom mb-0">
-                            <thead>
+                    <Card className="custom-card shadow-sm">
+                        <Card.Header className="bg-white fw-bold d-flex justify-content-between align-items-center py-3">
+                            <span className="fs-5 text-primary">Solicitudes Disponibles</span>
+                            <Button
+                                variant="primary"
+                                className="rounded-pill px-4 fw-bold shadow-sm"
+                                disabled={selectedSCIds.size === 0}
+                                onClick={handleOpenCreateMulti}
+                            >
+                                <i className="bi bi-plus-circle me-2"></i>
+                                Crear OC ({selectedSCIds.size})
+                            </Button>
+                        </Card.Header>
+                        <Table hover responsive className="table-borderless-custom mb-0 align-middle">
+                            <thead className="bg-light">
                                 <tr>
+                                    <th className="ps-3" style={{ width: '40px' }}>
+                                        <Form.Check
+                                            type="checkbox"
+                                            checked={isAllSCsSelected}
+                                            onChange={e => toggleSelectAllSCs(e.target.checked)}
+                                        />
+                                    </th>
                                     <th>SC #</th>
+                                    <th>Requerimiento</th>
+                                    <th>Solicitante</th>
                                     <th>Fecha</th>
                                     <th>Estado</th>
-                                    <th>Acción</th>
+                                    <th className="text-end pe-3">Acción</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {pagedAvailableSolicitudes.map(sc => (
                                     <tr key={sc.id}>
-                                        <td>{sc.numero_sc}</td>
-                                        <td>{sc.fecha_sc}</td>
-                                        <td><Badge bg="info">{sc.estado}</Badge></td>
+                                        <td className="ps-3">
+                                            <Form.Check
+                                                type="checkbox"
+                                                checked={selectedSCIds.has(sc.id)}
+                                                onChange={() => toggleSelectSC(sc.id)}
+                                            />
+                                        </td>
+                                        <td className="fw-bold text-primary">{sc.numero_sc}</td>
                                         <td>
-                                            <Button size="sm" variant="success" onClick={() => handleOpenCreate(sc)}>Crear OC</Button>
+                                            <div className="fw-medium">REQ #{sc.requerimiento?.item_correlativo}</div>
+                                            <small className="text-muted">{sc.requerimiento?.frente?.nombre_frente} / {sc.requerimiento?.bloque}</small>
+                                        </td>
+                                        <td className="text-muted">{sc.requerimiento?.solicitante}</td>
+                                        <td>{sc.fecha_sc}</td>
+                                        <td><Badge bg="info" className="fw-normal">{sc.estado}</Badge></td>
+                                        <td className="text-end pe-3">
+                                            <Button
+                                                size="sm"
+                                                variant="outline-primary"
+                                                className="rounded-pill px-3"
+                                                onClick={() => {
+                                                    setSelectedSCIds(new Set([sc.id]));
+                                                    setTimeout(handleOpenCreateMulti, 0);
+                                                }}
+                                            >
+                                                Crear OC
+                                            </Button>
                                             <Button
                                                 size="sm"
                                                 variant="outline-success"
-                                                className="ms-2"
+                                                className="ms-2 rounded-circle"
                                                 onClick={() => handleExportSC(sc)}
                                                 disabled={exportingId === sc.id}
                                             >
@@ -297,7 +364,7 @@ const GestionOrdenes: React.FC = () => {
                                     </tr>
                                 ))}
                                 {availableSolicitudes.length === 0 && (
-                                    <tr><td colSpan={4} className="text-center text-muted">No hay solicitudes disponibles.</td></tr>
+                                    <tr><td colSpan={7} className="text-center text-muted py-4">No hay solicitudes disponibles.</td></tr>
                                 )}
                             </tbody>
                         </Table>
@@ -452,11 +519,19 @@ const GestionOrdenes: React.FC = () => {
             </Row>
 
             <Modal show={showModal} onHide={() => setShowModal(false)} size="xl">
-                <Modal.Header closeButton>
-                    <Modal.Title>Crear OC para {selectedSC?.numero_sc}</Modal.Title>
+                <Modal.Header closeButton className="bg-light border-bottom-0 pt-4 px-4">
+                    <Modal.Title className="fw-bold">
+                        <i className="bi bi-file-earmark-plus me-2 text-primary"></i>
+                        Generar Orden de Compra
+                        {selectedSCs.length > 0 && <small className="text-muted ms-2 fw-normal">({selectedSCs.length} Solicitudes)</small>}
+                    </Modal.Title>
                 </Modal.Header>
-                <Modal.Body>
-                           <Row className="mb-3">
+                <Modal.Body className="px-4 pb-4">
+                    <div className="alert alert-info py-2 small mb-4 border-0 bg-opacity-10 d-flex align-items-center">
+                        <i className="bi bi-info-circle-fill me-2 fs-5"></i>
+                        Se agruparán los materiales seleccionados en una sola OC manteniendo la trazabilidad por cada solicitud.
+                    </div>
+                    <Row className="mb-3">
                         <Col xs={12} md={6}>
                             <Form.Group>
                                 <Form.Label>Número de Orden de Compra</Form.Label>
@@ -529,69 +604,106 @@ const GestionOrdenes: React.FC = () => {
                                         onChange={e => toggleSelectAll(e.target.checked)}
                                     />
                                 </th>
-                                <th style={{ width: '40%' }}>Descripción del Item</th>
+                                <th style={{ width: '40%' }}>
+                                    <div className="d-flex align-items-center justify-content-between">
+                                        <span>Descripción del Item</span>
+                                        <Form.Check 
+                                            type="switch"
+                                            id="filter-selected-switch"
+                                            label={<small className="fw-bold text-primary">Ver solo seleccionados</small>}
+                                            checked={showOnlySelected}
+                                            onChange={(e) => setShowOnlySelected(e.target.checked)}
+                                            className="ms-3"
+                                        />
+                                    </div>
+                                </th>
                                 <th style={{ width: '15%' }}>Cant. SC</th>
                                 <th style={{ width: '20%' }}>A Comprar</th>
                                 <th style={{ width: '20%' }}>P. Unit S/.</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {itemsToOrder.map((it, idx) => (
-                                <tr key={idx}>
-                                    <td>
-                                        <Form.Check
-                                            type="checkbox"
-                                            checked={it.selected}
-                                            onChange={e => {
-                                                const newItems = [...itemsToOrder];
-                                                newItems[idx].selected = e.target.checked;
-                                                setItemsToOrder(newItems);
-                                            }}
-                                        />
-                                    </td>
-                                    <td className="fw-medium text-dark">{it.material_desc}</td>
-                                    <td>
-                                        <div className="d-flex flex-column text-muted">
-                                            <span className="fw-bold">{Number(it.cantidad_sc).toFixed(2)} <small className="text-secondary fw-normal ms-1">{it.unidad}</small></span>
-                                            {it.cantidad_caja_chica > 0 && (
-                                                <small className="text-danger fw-bold" style={{ fontSize: '0.7em', lineHeight: 1.1 }}>
-                                                    *Caja Chica: {it.cantidad_caja_chica}
-                                                </small>
-                                            )}
-                                        </div>
-                                    </td>
-                                    <td>
-                                        <div className="input-group">
-                                            <Form.Control
-                                                type="number"
-                                                value={it.cantidad_compra}
-                                                onChange={e => {
-                                                    const val = parseFloat(e.target.value) || 0;
-                                                    const newItems = [...itemsToOrder];
-                                                    newItems[idx].cantidad_compra = parseFloat(val.toFixed(2));
-                                                    setItemsToOrder(newItems);
-                                                }}
-                                                className="bg-light bg-opacity-10"
-                                            />
-                                            <span className="input-group-text bg-white text-muted">{it.unidad}</span>
-                                        </div>
-                                    </td>
-                                    <td>
-                                        <Form.Control
-                                            type="number"
-                                            value={it.precio_unitario}
-                                            onChange={e => {
-                                                const val = parseFloat(e.target.value) || 0;
-                                                const newItems = [...itemsToOrder];
-                                                newItems[idx].precio_unitario = val;
-                                                setItemsToOrder(newItems);
-                                            }}
-                                            placeholder="0.00"
-                                            className="bg-light bg-opacity-10"
-                                        />
-                                    </td>
-                                </tr>
-                            ))}
+                            {selectedSCs.map(sc => {
+                                let scItems = itemsToOrder.filter(it => it.sc_id === sc.id);
+                                if (showOnlySelected) {
+                                    scItems = scItems.filter(it => it.selected);
+                                }
+                                if (scItems.length === 0) return null;
+
+                                return (
+                                    <React.Fragment key={sc.id}>
+                                        <tr className="bg-light border-top">
+                                            <td colSpan={5} className="py-2 px-3 fw-bold text-secondary" style={{ fontSize: '0.85em' }}>
+                                                SOLICITUD: <span className="text-primary">{sc.numero_sc}</span>
+                                                <span className="mx-2">|</span>
+                                                REQ: <span className="text-dark">#{sc.requerimiento?.item_correlativo}</span>
+                                                <span className="mx-2">|</span>
+                                                BLOQUE: <span className="text-dark">{sc.requerimiento?.bloque}</span>
+                                            </td>
+                                        </tr>
+                                        {scItems.map((it) => {
+                                            const globalIdx = itemsToOrder.findIndex(item => item.detalle_sc_id === it.detalle_sc_id);
+                                            return (
+                                                <tr key={it.detalle_sc_id}>
+                                                    <td>
+                                                        <Form.Check
+                                                            type="checkbox"
+                                                            checked={it.selected}
+                                                            onChange={e => {
+                                                                const newItems = [...itemsToOrder];
+                                                                newItems[globalIdx].selected = e.target.checked;
+                                                                setItemsToOrder(newItems);
+                                                            }}
+                                                        />
+                                                    </td>
+                                                    <td className="fw-medium text-dark">{it.material_desc}</td>
+                                                    <td>
+                                                        <div className="d-flex flex-column text-muted">
+                                                            <span className="fw-bold">{Number(it.cantidad_sc).toFixed(2)} <small className="text-secondary fw-normal ms-1">{it.unidad}</small></span>
+                                                            {it.cantidad_caja_chica > 0 && (
+                                                                <small className="text-danger fw-bold" style={{ fontSize: '0.7em', lineHeight: 1.1 }}>
+                                                                    *Caja Chica: {it.cantidad_caja_chica}
+                                                                </small>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                    <td>
+                                                        <div className="input-group input-group-sm">
+                                                            <Form.Control
+                                                                type="number"
+                                                                value={it.cantidad_compra}
+                                                                onChange={e => {
+                                                                    const val = parseFloat(e.target.value) || 0;
+                                                                    const newItems = [...itemsToOrder];
+                                                                    newItems[globalIdx].cantidad_compra = parseFloat(val.toFixed(2));
+                                                                    setItemsToOrder(newItems);
+                                                                }}
+                                                                className="bg-light bg-opacity-10 border-end-0"
+                                                            />
+                                                            <span className="input-group-text bg-white text-muted py-0">{it.unidad}</span>
+                                                        </div>
+                                                    </td>
+                                                    <td>
+                                                        <Form.Control
+                                                            type="number"
+                                                            size="sm"
+                                                            value={it.precio_unitario}
+                                                            onChange={e => {
+                                                                const val = parseFloat(e.target.value) || 0;
+                                                                const newItems = [...itemsToOrder];
+                                                                newItems[globalIdx].precio_unitario = val;
+                                                                setItemsToOrder(newItems);
+                                                            }}
+                                                            placeholder="0.00"
+                                                            className="bg-light bg-opacity-10"
+                                                        />
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </React.Fragment>
+                                );
+                            })}
                         </tbody>
                     </Table>
                 </Modal.Body>
