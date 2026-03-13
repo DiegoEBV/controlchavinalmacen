@@ -167,10 +167,10 @@ const GestionOrdenes: React.FC = () => {
                     cantidad_pendiente: remaining,
                     cantidad_compra: remaining,
                     precio_unitario: 0,
-                    selected: remaining > 0,
+                    selected: remaining > 0.01,
                     cantidad_caja_chica: totalCajaChica
                 };
-            }) || [];
+            }).filter(it => it.cantidad_pendiente > 0.01) || [];
             allItems.push(...scItems);
         });
 
@@ -624,7 +624,7 @@ const GestionOrdenes: React.FC = () => {
                         </thead>
                         <tbody>
                             {selectedSCs.map(sc => {
-                                let scItems = itemsToOrder.filter(it => it.sc_id === sc.id);
+                                let scItems = itemsToOrder.filter(it => it.sc_id === sc.id && it.cantidad_pendiente > 0.01);
                                 if (showOnlySelected) {
                                     scItems = scItems.filter(it => it.selected);
                                 }
