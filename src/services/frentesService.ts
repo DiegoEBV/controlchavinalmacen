@@ -63,6 +63,21 @@ export const getBloques = async (frenteId: string) => {
     return data as Bloque[];
 };
 
+export const getAllBloquesByObra = async (obraId: string) => {
+    // Join with frentes to filter by obra_id
+    const { data, error } = await supabase
+        .from('bloques')
+        .select('*, frentes!inner(*)')
+        .eq('frentes.obra_id', obraId)
+        .order('nombre_bloque');
+
+    if (error) {
+        console.error('Error fetching all bloques:', error);
+        return [];
+    }
+    return data as Bloque[];
+};
+
 export const createBloque = async (bloque: Partial<Bloque>) => {
     const { data, error } = await supabase
         .from('bloques')

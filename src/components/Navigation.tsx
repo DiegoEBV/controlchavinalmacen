@@ -54,6 +54,7 @@ const Navigation: React.FC = () => {
         }
     };
 
+
     return (
         <Navbar
             expand="lg"
@@ -94,6 +95,9 @@ const Navigation: React.FC = () => {
                             <>
                                 <Nav.Link as={Link} to="/requerimientos" className={`nav-link ${isActive('/requerimientos') ? 'active' : ''}`} onClick={closeNav}>
                                     <span className="me-2">📋</span> Requerimientos
+                                </Nav.Link>
+                                <Nav.Link as={Link} to="/pedidos-salida" className={`nav-link ${isActive('/pedidos-salida') ? 'active' : ''}`} onClick={closeNav}>
+                                    <span className="me-2">📝</span> Pedidos Salida
                                 </Nav.Link>
                             </>
                         )}
