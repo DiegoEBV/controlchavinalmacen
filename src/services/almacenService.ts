@@ -301,8 +301,6 @@ export const getPedidosSalida = async (obraId: string, estado?: string) => {
 
     if (estado) {
         query = query.eq('estado', estado);
-    } else {
-        query = query.in('estado', ['Pendiente', 'Parcial']);
     }
 
     const { data, error } = await query.order('created_at', { ascending: false });
