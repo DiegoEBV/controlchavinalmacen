@@ -23,6 +23,7 @@ import GestionEquipos from './pages/GestionEquipos';
 import GestionEPPs from './components/GestionEPPs';
 import GestionEspecialidades from './pages/GestionEspecialidades';
 import GestionTerceros from './pages/GestionTerceros';
+import GestionPedidosSalida from './pages/GestionPedidosSalida';
 import Layout from './components/Layout';
 import Login from './pages/Login';
 import ObraSelector from './pages/ObraSelector';
@@ -84,6 +85,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
 
                                 <Route element={<ProtectedRoute allowedRoles={['produccion', 'coordinador']} />}>
                                     <Route path="/requerimientos" element={<GestionRequerimientos />} />
+                                    <Route path="/pedidos-salida" element={<GestionPedidosSalida />} />
                                     <Route path="/presupuesto" element={<GestionPresupuesto />} />
                                 </Route>
 

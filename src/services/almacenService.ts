@@ -1,258 +1,94 @@
 import { supabase } from '../config/supabaseClient';
-import { Inventario, MovimientoAlmacen } from '../types';
+import { PedidoSalida } from '../types';
 
 export const getInventario = async (obraId: string, page: number = 1, pageSize: number = 15, searchTerm: string = '') => {
     if (searchTerm) {
-        // Traer todo y paginar localmente
-        const allData = await getAllInventario(obraId);
-        const term = searchTerm.toLowerCase();
-        const filteredData = allData.filter(item => {
-            const matDesc = item.material?.descripcion?.toLowerCase() || '';
-            const eqNombre = item.equipo?.nombre?.toLowerCase() || '';
-            const eppDesc = item.epp?.descripcion?.toLowerCase() || '';
-            const eqCode = item.equipo?.codigo?.toLowerCase() || '';
-            const eppCode = item.epp?.codigo?.toLowerCase() || '';
+        // Find matching item IDs first to build a safe OR query
+        const [mats, eqs, epps] = await Promise.all([
+            supabase.from('materiales').select('id').ilike('descripcion', `%${searchTerm}%`),
+            supabase.from('equipos').select('id').ilike('nombre', `%${searchTerm}%`),
+            supabase.from('epps_c').select('id').ilike('descripcion', `%${searchTerm}%`)
+        ]);
 
-            return matDesc.includes(term) || eqNombre.includes(term) || eppDesc.includes(term) || eqCode.includes(term) || eppCode.includes(term);
-        });
+        const matIds = mats.data?.map(m => m.id).slice(0, 50) || [];
+        const eqIds = eqs.data?.map(e => e.id).slice(0, 50) || [];
+        const eppIds = epps.data?.map(e => e.id).slice(0, 50) || [];
 
-        const from = (page - 1) * pageSize;
-        const to = from + pageSize;
-        return { data: filteredData.slice(from, to), count: filteredData.length };
-    }
+        let orParts = [];
+        if (matIds.length) orParts.push(`material_id.in.(${matIds.join(',')})`);
+        if (eqIds.length) orParts.push(`equipo_id.in.(${eqIds.join(',')})`);
+        if (eppIds.length) orParts.push(`epp_id.in.(${eppIds.join(',')})`);
 
-    // Sin searchTerm: paginación normal en BD
-    let query = supabase
-        .from('inventario_obra')
-        .select(`
-            *,
-            material:materiales(*),
-            equipo:equipos(*),
-            epp:epps_c(*)
-        `, { count: 'exact' });
+        if (orParts.length === 0) {
+            return { data: [], count: 0 }; // No items match the search text
+        }
 
-    if (obraId) {
-        query = query.eq('obra_id', obraId);
-    }
-
-    const from = (page - 1) * pageSize;
-    const to = from + pageSize - 1;
-
-    query = query
-        .order('id', { ascending: true })
-        .range(from, to);
-
-    const { data, error, count } = await query;
-
-    if (error) {
-        console.error('Error fetching inventario:', error);
-        return { data: [], count: 0 };
-    }
-
-    return { data: data as Inventario[], count: count || 0 };
-};
-
-export const getAllInventario = async (obraId: string) => {
-    let allItems: Inventario[] = [];
-    let from = 0;
-    const step = 1000;
-
-    while (true) {
-        const { data, error } = await supabase
+        const { data, error, count } = await supabase
             .from('inventario_obra')
             .select(`
                 *,
-                material:materiales(*),
-                equipo:equipos(*),
-                epp:epps_c(*)
-            `)
+                material:materiales(descripcion, categoria, unidad),
+                equipo:equipos(nombre, codigo),
+                epp:epps_c(descripcion, codigo, unidad)
+            `, { count: 'exact' })
             .eq('obra_id', obraId)
-            .order('id', { ascending: true })
-            .range(from, from + step - 1);
+            .or(orParts.join(','))
+            .range((page - 1) * pageSize, page * pageSize - 1)
+            .order('updated_at', { ascending: false });
 
-        if (error) {
-            console.error('Error fetching all inventario:', error);
-            throw error;
-        }
-
-        if (!data || data.length === 0) break;
-
-        allItems = allItems.concat(data as Inventario[]);
-        if (data.length < step) break;
-        from += step;
+        if (error) throw error;
+        return { data: data || [], count: count || 0 };
     }
-    return allItems;
+
+    const { data, error, count } = await supabase
+        .from('inventario_obra')
+        .select(`
+            *,
+            material:materiales(descripcion, categoria, unidad),
+            equipo:equipos(nombre, codigo),
+            epp:epps_c(descripcion, codigo, unidad)
+        `, { count: 'exact' })
+        .eq('obra_id', obraId)
+        .range((page - 1) * pageSize, page * pageSize - 1)
+        .order('updated_at', { ascending: false });
+
+    if (error) throw error;
+    return { data: data || [], count: count || 0 };
 };
 
-export const getInventarioById = async (id: string) => {
+export const getAllInventario = async (obraId: string) => {
     const { data, error } = await supabase
         .from('inventario_obra')
         .select(`
             *,
-            material:materiales(*)
+            material:materiales(descripcion, categoria, unidad),
+            equipo:equipos(nombre, codigo),
+            epp:epps_c(descripcion, codigo, unidad)
         `)
-        .eq('id', id)
-        .single();
-
-    if (error) {
-        console.error('Error fetching inventario by id:', error);
-        return null;
-    }
-    return data as Inventario;
-};
-
-export const registrarEntrada = async (
-    materialId: string | null,
-    cantidad: number,
-    reqId: string,
-    detReqId: string,
-    docRef: string,
-    obraId: string,
-    extra?: { equipoId?: string; eppId?: string }
-) => {
-    const { error } = await supabase.rpc('registrar_entrada_almacen', {
-        p_material_id: materialId || null,
-        p_equipo_id: extra?.equipoId || null,
-        p_epp_id: extra?.eppId || null,
-        p_cantidad: cantidad,
-        p_req_id: reqId,
-        p_det_req_id: detReqId,
-        p_doc_ref: docRef,
-        p_obra_id: obraId
-    });
+        .eq('obra_id', obraId)
+        .order('updated_at', { ascending: false });
 
     if (error) throw error;
+    return data || [];
 };
 
-export const registrarEntradaCajaChica = async (
-    reqId: string,
-    detReqId: string,
-    materialId: string | null,
-    equipoId: string | null,
-    eppId: string | null,
-    cantidad: number,
-    factura: string,
-    usuario: string,
+export const getMovimientos = async (
     obraId: string,
-    frenteId: string | null,
-    precioUnitario?: number | null
+    page: number = 1,
+    pageSize: number = 15,
+    searchTerm: string = '',
+    tipo?: 'ENTRADA' | 'SALIDA'
 ) => {
-    const { data, error } = await supabase.rpc('registrar_entrada_caja_chica', {
-        p_requerimiento_id: reqId,
-        p_detalle_req_id: detReqId,
-        p_material_id: materialId || null,
-        p_equipo_id: equipoId || null,
-        p_epp_id: eppId || null,
-        p_cantidad: cantidad,
-        p_factura: factura,
-        p_usuario: usuario,
-        p_obra_id: obraId,
-        p_frente_id: frenteId || null,
-        p_precio_unitario: precioUnitario || null
-    });
-
-    if (error) throw error;
-    return data;
-};
-
-export const registrarEntradaMasiva = async (
-    items: any[],
-    docRef: string,
-    obraId: string,
-    usuario?: string
-) => {
-    const { data, error } = await supabase.rpc('registrar_entrada_masiva_v2', {
-        p_items: items,
-        p_doc_ref: docRef,
-        p_obra_id: obraId,
-        p_solicitante: usuario || null
-    });
-
-    if (error) throw error;
-    return data;
-};
-
-export const registrarEntradaDirectaV3 = async (
-    items: any[],
-    docRef: string,
-    obraId: string,
-    usuario?: string
-) => {
-    const { data, error } = await supabase.rpc('registrar_entrada_directa_v3', {
-        p_items: items,
-        p_doc_ref: docRef,
-        p_obra_id: obraId,
-        p_solicitante: usuario || null
-    });
-
-    if (error) throw error;
-    return data;
-};
-
-export const registrarSalida = async (
-    tipoItem: 'MATERIAL' | 'EQUIPO' | 'EPP',
-    itemId: string,
-    cantidad: number,
-    destino: string,
-    solicitante: string,
-    obraId: string,
-    extraData: {
-        terceroId?: string | null,
-        encargadoId?: string | null,
-        bloqueId?: string | null,
-        numeroVale?: string
-    }
-) => {
-    // Mapear el ID al campo correcto según el tipo
-    const params = {
-        p_material_id: tipoItem === 'MATERIAL' ? itemId : null,
-        p_equipo_id: tipoItem === 'EQUIPO' ? itemId : null,
-        p_epp_id: tipoItem === 'EPP' ? itemId : null,
-        p_cantidad: cantidad,
-        p_destino: destino,
-        p_solicitante: solicitante,
-        p_obra_id: obraId,
-        p_tercero_id: extraData.terceroId || null,
-        p_encargado_id: extraData.encargadoId || null,
-        p_bloque_id: extraData.bloqueId || null,
-        p_numero_vale: extraData.numeroVale || null
-    };
-
-    const { error } = await supabase.rpc('registrar_salida_almacen', params);
-
-    if (error) throw error;
-};
-
-export const getMovimientos = async (obraId: string, page: number = 1, pageSize: number = 20, searchTerm: string = '', tipo?: 'ENTRADA' | 'SALIDA') => {
-    if (searchTerm) {
-        const allData = await getAllMovimientos(obraId, tipo);
-        const term = searchTerm.toLowerCase();
-        const filteredData = allData.filter(h => {
-            const mov = h as any;
-            const desc = (mov.material?.descripcion || mov.equipo?.nombre || mov.epp?.descripcion || '').toLowerCase();
-            const doc = (h.documento_referencia || '').toLowerCase();
-            const req = mov.requerimiento ? String(mov.requerimiento.item_correlativo).toLowerCase() : '';
-            const vale = (h.numero_vale || '').toLowerCase();
-            const sol = (h.solicitante || '').toLowerCase();
-
-            return desc.includes(term) || doc.includes(term) || req.includes(term) || vale.includes(term) || sol.includes(term);
-        });
-
-        const from = (page - 1) * pageSize;
-        const to = from + pageSize;
-        return { data: filteredData.slice(from, to), count: filteredData.length };
-    }
-
     let query = supabase
         .from('movimientos_almacen')
         .select(`
             *,
-            material:materiales(descripcion, categoria, unidad),
-            equipo:equipos(nombre, marca, codigo),
+            material:materiales(descripcion, unidad),
+            equipo:equipos(nombre, codigo, marca),
             epp:epps_c(descripcion, codigo, unidad),
-            requerimiento:requerimientos(item_correlativo),
+            requerimiento:requerimientos(id, item_correlativo),
             tercero:terceros(nombre_completo),
-            encargado:profiles(nombre),
+            encargado:profiles!encargado_id(nombre),
             bloque:bloques(nombre_bloque)
         `, { count: 'exact' })
         .eq('obra_id', obraId);
@@ -261,124 +97,145 @@ export const getMovimientos = async (obraId: string, page: number = 1, pageSize:
         query = query.eq('tipo', tipo);
     }
 
-    // Paginación
-    const from = (page - 1) * pageSize;
-    const to = from + pageSize - 1;
+    if (searchTerm) {
+        // Get matching item IDs for search first
+        const [mats, eqs, epps] = await Promise.all([
+            supabase.from('materiales').select('id').ilike('descripcion', `%${searchTerm}%`),
+            supabase.from('equipos').select('id').ilike('nombre', `%${searchTerm}%`),
+            supabase.from('epps_c').select('id').ilike('descripcion', `%${searchTerm}%`)
+        ]);
 
-    query = query
-        .order('created_at', { ascending: false })
-        .range(from, to);
+        const matIds = mats.data?.map(m => m.id).slice(0, 50) || [];
+        const eqIds = eqs.data?.map(e => e.id).slice(0, 50) || [];
+        const eppIds = epps.data?.map(e => e.id).slice(0, 50) || [];
 
-    const { data, error, count } = await query;
+        let orParts = [];
+        if (matIds.length) orParts.push(`material_id.in.(${matIds.join(',')})`);
+        if (eqIds.length) orParts.push(`equipo_id.in.(${eqIds.join(',')})`);
+        if (eppIds.length) orParts.push(`epp_id.in.(${eppIds.join(',')})`);
 
-    if (error) {
-        console.error('Error fetching movimientos:', error);
-        return { data: [], count: 0 };
+        // Always add base table columns that match
+        orParts.push(`numero_vale.ilike.%${searchTerm}%`);
+        orParts.push(`solicitante.ilike.%${searchTerm}%`);
+        orParts.push(`destino_o_uso.ilike.%${searchTerm}%`);
+
+        query = query.or(orParts.join(','));
     }
 
+    const { data, error, count } = await query
+        .range((page - 1) * pageSize, page * pageSize - 1)
+        .order('fecha', { ascending: false });
+
+    if (error) throw error;
     return { data: data || [], count: count || 0 };
 };
 
-export const getAllMovimientos = async (obraId: string, tipo?: 'ENTRADA' | 'SALIDA') => {
-    let allMoves: any[] = [];
-    let from = 0;
-    const step = 1000;
+export const registrarEntrada = async (
+    tipo: 'MATERIAL' | 'EQUIPO' | 'EPP',
+    itemId: string,
+    cantidad: number,
+    guia: string,
+    selectedObraId: string,
+    requerimientoId?: string
+) => {
+    const { error } = await supabase.rpc('registrar_entrada_almacen', {
+        p_tipo: tipo,
+        p_item_id: itemId,
+        p_cantidad: cantidad,
+        p_guia: guia,
+        p_obra_id: selectedObraId,
+        p_req_id: requerimientoId || null
+    });
 
-    while (true) {
-        let query = supabase
-            .from('movimientos_almacen')
-            .select(`
-                *,
-                material:materiales(descripcion, categoria, unidad),
-                equipo:equipos(nombre, marca, codigo),
-                epp:epps_c(descripcion, codigo, unidad),
-                requerimiento:requerimientos(item_correlativo),
-                tercero:terceros(nombre_completo),
-                encargado:profiles(nombre),
-                bloque:bloques(nombre_bloque)
-            `)
-            .eq('obra_id', obraId)
-            .order('created_at', { ascending: false })
-            .range(from, from + step - 1);
-
-        if (tipo) {
-            query = query.eq('tipo', tipo);
-        }
-
-        const { data, error } = await query;
-
-        if (error) {
-            console.error('Error in getAllMovimientos:', error);
-            break;
-        }
-
-        if (!data || data.length === 0) break;
-
-        allMoves = [...allMoves, ...data];
-        if (data.length < step) break;
-        from += step;
-    }
-
-    return allMoves as MovimientoAlmacen[];
+    if (error) throw error;
 };
 
-export const getMovimientoById = async (id: string) => {
+export const registrarSalida = async (
+    tipo: 'MATERIAL' | 'EQUIPO' | 'EPP',
+    itemId: string,
+    cantidad: number,
+    destino: string,
+    solicitante: string,
+    selectedObraId: string,
+    options?: {
+        terceroId?: string;
+        encargadoId?: string;
+        bloqueId?: string;
+        numeroVale?: string;
+        solicitanteDni?: string;
+    }
+) => {
+    const { error } = await supabase.rpc('registrar_salida_almacen', {
+        p_tipo: tipo,
+        p_item_id: itemId,
+        p_cantidad: cantidad,
+        p_destino: destino,
+        p_solicitante: solicitante,
+        p_obra_id: selectedObraId,
+        p_tercero_id: options?.terceroId || null,
+        p_encargado_id: options?.encargadoId || null,
+        p_bloque_id: options?.bloqueId || null,
+        p_vale: options?.numeroVale || null,
+        p_solicitante_dni: options?.solicitanteDni || null
+    });
+
+    if (error) throw error;
+};
+
+export const getNextValeSalida = async (obraId: string) => {
+    const { data, error } = await supabase.rpc('get_next_vale_salida', {
+        p_obra_id: obraId
+    });
+
+    if (error) throw error;
+    return data as string;
+};
+
+export const peekNextValeSalida = async (obraId: string) => {
+    const { data, error } = await supabase.rpc('get_peek_vale_salida', {
+        p_obra_id: obraId
+    });
+
+    if (error) throw error;
+    return data as string;
+};
+
+export const getInventarioResumen = async (obraId: string) => {
+    const { data, error } = await supabase.rpc('get_inventario_resumen', {
+        p_obra_id: obraId
+    });
+
+    if (error) throw error;
+    return data;
+};
+
+export const getMovimientosPorMes = async (obraId: string, tipo: 'ENTRADA' | 'SALIDA', mes: number, anio: number) => {
+    const startDate = new Date(anio, mes - 1, 1).toISOString();
+    const endDate = new Date(anio, mes, 0, 23, 59, 59).toISOString();
+
     const { data, error } = await supabase
         .from('movimientos_almacen')
         .select(`
             *,
             material:materiales(descripcion, categoria, unidad),
-            requerimiento:requerimientos(item_correlativo)
+            equipo:equipos(nombre, marca, codigo),
+            epp:epps_c(descripcion, codigo, unidad),
+            requerimiento:requerimientos(id, item_correlativo),
+            tercero:terceros(nombre_completo),
+            encargado:profiles(nombre),
+            bloque:bloques(nombre_bloque)
         `)
-        .eq('id', id)
-        .single();
-
-    if (error) {
-        console.error('Error fetching movimiento by id:', error);
-        return null;
-    }
-    return data;
-};
-
-export const registrarAjusteInventario = async (
-    obraId: string,
-    materialId: string | null,
-    equipoId: string | null,
-    eppId: string | null,
-    cantidadFisica: number,
-    motivo: string,
-    usuario: string
-) => {
-    const { data, error } = await supabase.rpc('registrar_ajuste_inventario', {
-        p_obra_id: obraId,
-        p_material_id: materialId || null,
-        p_equipo_id: equipoId || null,
-        p_epp_id: eppId || null,
-        p_cantidad_fisica: cantidadFisica,
-        p_motivo: motivo,
-        p_usuario: usuario
-    });
+        .eq('obra_id', obraId)
+        .eq('tipo', tipo)
+        .gte('fecha', startDate)
+        .lte('fecha', endDate)
+        .order('fecha', { ascending: false });
 
     if (error) throw error;
-    return data;
+    return data || [];
 };
 
-export const ejecutarCierreMensual = async (
-    obraId: string,
-    anio: number,
-    mes: number,
-    usuario: string
-) => {
-    const { data, error } = await supabase.rpc('ejecutar_cierre_mensual', {
-        p_obra_id: obraId,
-        p_anio: anio,
-        p_mes: mes,
-        p_usuario: usuario
-    });
-
-    if (error) throw error;
-    return data;
-};
+// --- CIERRE MENSUAL ---
 
 export const getCierresMensuales = async (obraId: string) => {
     const { data, error } = await supabase
@@ -388,11 +245,20 @@ export const getCierresMensuales = async (obraId: string) => {
         .order('anio', { ascending: false })
         .order('mes', { ascending: false });
 
-    if (error) {
-        console.error('Error fetching cierres:', error);
-        return [];
-    }
+    if (error) throw error;
     return data || [];
+};
+
+export const ejecutarCierreMensual = async (obraId: string, anio: number, mes: number, userId: string) => {
+    const { data, error } = await supabase.rpc('ejecutar_cierre_mensual', {
+        p_obra_id: obraId,
+        p_anio: anio,
+        p_mes: mes,
+        p_usuario: userId
+    });
+
+    if (error) throw error;
+    return data;
 };
 
 export const getCierreDetalle = async (cierreId: string) => {
@@ -412,4 +278,225 @@ export const getCierreDetalle = async (cierreId: string) => {
         return [];
     }
     return data || [];
+};
+
+// --- PEDIDOS DE SALIDA (PRODUCCIÓN) ---
+
+export const getPedidosSalida = async (obraId: string, estado?: string) => {
+    let query = supabase
+        .from('pedidos_salida')
+        .select(`
+            *,
+            encargado:profiles!pedidos_salida_encargado_id_fkey(nombre),
+            bloque:bloques(nombre_bloque),
+            tercero:terceros(nombre_completo),
+            detalles:pedidos_salida_detalle(
+                *,
+                material:materiales(descripcion, unidad),
+                equipo:equipos(nombre, codigo),
+                epp:epps_c(descripcion, unidad)
+            )
+        `)
+        .eq('obra_id', obraId);
+
+    if (estado) {
+        query = query.eq('estado', estado);
+    } else {
+        query = query.in('estado', ['Pendiente', 'Parcial']);
+    }
+
+    const { data, error } = await query.order('created_at', { ascending: false });
+
+    if (error) {
+        console.error('Error fetching pedidos salida:', error);
+        return [];
+    }
+    return data as PedidoSalida[];
+};
+
+export const crearPedidoSalida = async (
+    obraId: string,
+    solicitanteDni: string,
+    solicitanteNombre: string,
+    encargadoId: string,
+    destino: string,
+    bloqueId: string,
+    terceroId: string,
+    items: {
+        material_id?: string | null;
+        equipo_id?: string | null;
+        epp_id?: string | null;
+        cantidad: number;
+    }[]
+): Promise<any> => {
+    const { data, error } = await supabase.rpc('crear_pedido_salida', {
+        p_obra_id: obraId,
+        p_solicitante_dni: solicitanteDni,
+        p_solicitante_nombre: solicitanteNombre,
+        p_encargado_id: encargadoId,
+        p_destino: destino,
+        p_bloque_id: bloqueId,
+        p_tercero_id: terceroId,
+        p_items: items
+    });
+
+    if (error) throw error;
+    return data;
+};
+
+export const aprobarPedidoSalida = async (
+    pedidoId: string,
+    itemsEntrega: { detalle_id: string; cantidad_entregada: number }[]
+) => {
+    const { error } = await supabase.rpc('aprobar_pedido_salida', {
+        p_pedido_id: pedidoId,
+        p_items_entrega: itemsEntrega
+    });
+
+    if (error) throw error;
+};
+
+export const actualizarPedidoSalida = async (
+    pedidoId: string,
+    destino: string,
+    bloqueId: string,
+    terceroId: string,
+    encargadoId: string,
+    solicitanteDni: string,
+    solicitanteNombre: string,
+    items: {
+        material_id?: string | null;
+        equipo_id?: string | null;
+        epp_id?: string | null;
+        cantidad: number;
+    }[]
+) => {
+    const { error } = await supabase.rpc('actualizar_pedido_salida', {
+        p_pedido_id: pedidoId,
+        p_destino: destino,
+        p_bloque_id: bloqueId,
+        p_tercero_id: terceroId,
+        p_encargado_id: encargadoId,
+        p_solicitante_dni: solicitanteDni,
+        p_solicitante_nombre: solicitanteNombre,
+        p_items: items
+    });
+
+    if (error) throw error;
+};
+
+export const anularPedidoSalida = async (pedidoId: string) => {
+    const { error } = await supabase.rpc('anular_pedido_salida', {
+        p_pedido_id: pedidoId
+    });
+
+    if (error) throw error;
+};
+
+export const rechazarPedidoSalida = async (pedidoId: string) => {
+    const { error } = await supabase
+        .from('pedidos_salida')
+        .update({ estado: 'Rechazado', updated_at: new Date().toISOString() })
+        .eq('id', pedidoId);
+
+    if (error) throw error;
+};
+
+export const getAllMovimientos = async (obraId: string, tipo?: 'ENTRADA' | 'SALIDA') => {
+    let query = supabase
+        .from('movimientos_almacen')
+        .select(`
+            *,
+            material:materiales(descripcion, unidad),
+            equipo:equipos(nombre, codigo, marca),
+            epp:epps_c(descripcion, codigo, unidad),
+            requerimiento:requerimientos(id, item_correlativo)
+        `)
+        .eq('obra_id', obraId);
+
+    if (tipo) {
+        query = query.eq('tipo', tipo);
+    }
+
+    const { data, error } = await query.order('fecha', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+};
+
+export const registrarEntradaMasiva = async (items: any[], docRef: string, obraId: string, solicitante?: string) => {
+    const { data, error } = await supabase.rpc('registrar_entrada_masiva_v2', {
+        p_items: items,
+        p_doc_ref: docRef,
+        p_obra_id: obraId,
+        p_solicitante: solicitante || null
+    });
+
+    if (error) throw error;
+    return data;
+};
+
+export const registrarEntradaCajaChica = async (
+    reqId: string,
+    detReqId: string,
+    materialId: string | null,
+    equipoId: string | null,
+    eppId: string | null,
+    cantidad: number,
+    factura: string,
+    solicitante: string,
+    obraId: string,
+    frenteId: string | null,
+    precioUnitario: number | null
+) => {
+    const { data, error } = await supabase.rpc('registrar_entrada_caja_chica', {
+        p_req_id: reqId,
+        p_det_req_id: detReqId,
+        p_material_id: materialId,
+        p_equipo_id: equipoId,
+        p_epp_id: eppId,
+        p_cantidad: cantidad,
+        p_factura: factura,
+        p_solicitante: solicitante,
+        p_obra_id: obraId,
+        p_frente_id: frenteId,
+        p_precio_unitario: precioUnitario
+    });
+
+    if (error) throw error;
+    return data;
+};
+
+export const registrarEntradaDirectaV3 = async (items: any[], docRef: string, obraId: string) => {
+    const { data, error } = await supabase.rpc('registrar_entrada_directa_v3', {
+        p_items: items,
+        p_doc_ref: docRef,
+        p_obra_id: obraId
+    });
+
+    if (error) throw error;
+    return data;
+};
+
+export const registrarAjusteInventario = async (
+    obraId: string,
+    materialId: string | null,
+    equipoId: string | null,
+    eppId: string | null,
+    cantidadFisica: number,
+    motivo: string,
+    usuario: string
+) => {
+    const { data, error } = await supabase.rpc('registrar_ajuste_inventario', {
+        p_obra_id: obraId,
+        p_material_id: materialId,
+        p_equipo_id: equipoId,
+        p_epp_id: eppId,
+        p_cantidad_fisica: cantidadFisica,
+        p_motivo: motivo,
+        p_usuario: usuario
+    });
+
+    if (error) throw error;
+    return data;
 };

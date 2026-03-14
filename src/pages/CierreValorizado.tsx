@@ -5,7 +5,6 @@ import { useAuth } from '../context/AuthContext';
 import { formatDisplayDate } from '../utils/dateUtils';
 import { ejecutarCierreMensual, getCierresMensuales } from '../services/almacenService';
 import { FaLock, FaFileExcel } from 'react-icons/fa';
-import * as XLSX from 'xlsx';
 
 interface MonthOption {
     label: string;
@@ -183,7 +182,8 @@ const CierreValorizado: React.FC = () => {
         }
     };
 
-    const handleExportExcel = () => {
+    const handleExportExcel = async () => {
+        const XLSX = await import('xlsx');
         const monthLabel = `${MONTH_NAMES[selectedMonth - 1]} ${selectedYear}`;
         const rows = monthMovimientos.map(m => {
             const item = getItemDescription(m);

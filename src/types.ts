@@ -249,3 +249,38 @@ export type StockItem =
     | { type: 'MATERIAL'; data: Inventario & { material: Material } }
     | { type: 'EQUIPO'; data: Inventario & { equipo: Equipo } }
     | { type: 'EPP'; data: Inventario & { epp: EppC } };
+
+export interface PedidoSalidaDetalle {
+    id: string;
+    pedido_id: string;
+    material_id?: string;
+    equipo_id?: string;
+    epp_id?: string;
+    cantidad_solicitada: number;
+    cantidad_entregada: number;
+    created_at: string;
+    // Joined relations
+    material?: Material;
+    equipo?: Equipo;
+    epp?: EppC;
+}
+
+export interface PedidoSalida {
+    id: string;
+    obra_id: string;
+    solicitante_dni?: string;
+    solicitante_nombre?: string;
+    encargado_id: string;
+    numero_vale: string;
+    estado: 'Pendiente' | 'Aprobado' | 'Rechazado' | 'Parcial';
+    destino_o_uso: string;
+    bloque_id?: string;
+    tercero_id?: string;
+    created_at: string;
+    updated_at: string;
+    
+    encargado?: UserProfile;
+    bloque?: Bloque;
+    tercero?: Tercero;
+    detalles?: PedidoSalidaDetalle[];
+}
