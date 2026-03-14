@@ -86,7 +86,7 @@ const SalidasAlmacen: React.FC = () => {
             setInventario(inventarioData || []);
             setHistorial(movesData.data);
             setTotalHistory(movesData.count);
-            setPedidosPendientes(pedidosData);
+            setPedidosPendientes((pedidosData || []).filter(p => p.estado === 'Pendiente' || p.estado === 'Parcial'));
 
             // Peek next vale for display (not consuming)
             try {
@@ -496,11 +496,15 @@ const SalidasAlmacen: React.FC = () => {
                                         <Form.Label className="fw-bold small text-muted text-uppercase">DNI <span className="text-danger">*</span></Form.Label>
                                         <Form.Control
                                             type="text"
-                                            placeholder="DNI"
+                                            placeholder="8 dígitos"
                                             value={solicitanteDni}
                                             maxLength={8}
+                                            isInvalid={solicitanteDni.length > 0 && solicitanteDni.length < 8}
                                             onChange={(e) => setSolicitanteDni(e.target.value.replace(/[^0-9]/g, ''))}
                                         />
+                                        <Form.Control.Feedback type="invalid">
+                                            Debe tener 8 dígitos
+                                        </Form.Control.Feedback>
                                     </Form.Group>
                                 </Col>
                                 <Col md={9}>
@@ -679,7 +683,7 @@ const SalidasAlmacen: React.FC = () => {
                             <Button
                                 variant="success"
                                 className="w-100 py-2 fw-bold"
-                                disabled={loading || itemsToAdd.length === 0}
+                                disabled={loading || itemsToAdd.length === 0 || solicitanteDni.length !== 8}
                                 onClick={handleRegister}
                             >
                                 {loading ? (

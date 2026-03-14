@@ -116,8 +116,8 @@ BEGIN
     IF v_pedido.id IS NULL THEN RAISE EXCEPTION 'Pedido no encontrado.'; END IF;
     IF v_pedido.estado NOT IN ('Pendiente', 'Parcial') THEN RAISE EXCEPTION 'El pedido no está pendiente de atención.'; END IF;
 
-    -- Get Solicitante Name for movements
-    SELECT nombre INTO v_solicitante_nombre FROM public.profiles WHERE id = v_pedido.solicitante_id;
+    -- Use solicitante name from pedido directly (already populated in pedidos_salida table)
+    v_solicitante_nombre := v_pedido.solicitante_nombre;
 
     -- Process Deliveries
     FOR v_item_entrega IN SELECT * FROM JSONB_ARRAY_ELEMENTS(p_items_entrega)
