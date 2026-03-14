@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Card, Row, Col, Table, Badge, ProgressBar } from 'react-bootstrap';
+import { Badge, ProgressBar } from 'react-bootstrap';
 import {
-    BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+    BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
     PieChart, Pie, Cell, ComposedChart, Area
 } from 'recharts';
 import { supabase } from '../config/supabaseClient';
@@ -12,16 +12,27 @@ import { Requerimiento, MovimientoAlmacen } from '../types';
 
 // ─── Paleta ─────────────────────────────────────────────────────────────────
 const PALETTE = {
-    verde: '#22c55e',
-    azul: '#3b82f6',
-    naranja: '#f97316',
-    rojo: '#ef4444',
-    morado: '#8b5cf6',
-    cyan: '#06b6d4',
-    amarillo: '#eab308',
-    gris: '#6b7280',
+    emerald: '#10B981', 
+    indigo: '#6366F1',
+    amber: '#F59E0B',
+    sky: '#0EA5E9',
+    slate: '#64748B',
+    success: '#10B981',
+    warning: '#F59E0B',
+    danger: '#EF4444',
+    navy: '#1E293B'
 };
-const PIE_COLORS = [PALETTE.azul, PALETTE.verde, PALETTE.naranja, PALETTE.morado, PALETTE.cyan, PALETTE.amarillo, PALETTE.rojo];
+
+const PIE_COLORS = [PALETTE.emerald, PALETTE.indigo, PALETTE.sky, PALETTE.amber, '#8B5CF6'];
+
+const GRADIENTS = {
+    emerald: 'url(#colorEmerald)',
+    indigo: 'url(#colorIndigo)',
+    sky: 'url(#colorSky)',
+    amber: 'url(#colorAmber)'
+};
+
+
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const fmt = (n: number, dec = 1) => n.toFixed(dec);
@@ -41,35 +52,69 @@ const semanaKey = (fechaStr: string) => {
 };
 
 // ─── KPI Card mini ───────────────────────────────────────────────────────────
-const KpiCard = ({ label, value, sub, color, icon }: { label: string; value: string | number; sub?: string; color: string; icon: string }) => (
-    <Card className="custom-card h-100" style={{ borderLeft: `4px solid ${color}` }}>
-        <Card.Body className="p-3">
-            <div className="d-flex justify-content-between align-items-start">
-                <div>
-                    <div className="text-muted small mb-1">{label}</div>
-                    <div className="fw-bold fs-4" style={{ color }}>{value}</div>
-                    {sub && <div className="text-muted" style={{ fontSize: '0.75rem' }}>{sub}</div>}
-                </div>
-                <span style={{ fontSize: '1.8rem', opacity: 0.5 }}>{icon}</span>
+// ─── KPI Card ───────────────────────────────────────────────────────────────
+const KpiCard = ({ label, value, sub, color, icon, gradient, dark }: { label: string; value: string | number; sub?: string; color: string; icon: string; gradient?: boolean; dark?: boolean }) => (
+    <div className={`dashboard-card h-100 ${dark ? 'dashboard-card-dark' : gradient ? 'dashboard-card-gradient-1' : ''} glass-card`}>
+        <div className="d-flex justify-content-between align-items-start position-relative z-index-1">
+            <div className="flex-grow-1">
+                <div className={`stat-label mb-1 ${dark || gradient ? 'text-white-50' : ''}`}>{label}</div>
+                <div className="stat-value mb-1">{value}</div>
+                {sub && <div className={`${dark || gradient ? 'text-white-50' : 'text-muted'}`} style={{ fontSize: '0.75rem' }}>{sub}</div>}
             </div>
-        </Card.Body>
-    </Card>
+            <div className="p-2 rounded-circle glass-card" style={{ fontSize: '1.5rem', background: 'rgba(255,255,255,0.1)' }}>
+                {icon}
+            </div>
+        </div>
+        {/* Subtle background glow */}
+        {!dark && !gradient && <div className="position-absolute border-radius-pill" style={{ width: 100, height: 100, background: color, filter: 'blur(60px)', opacity: 0.1, top: -20, right: -20 }} />}
+    </div>
 );
 
+// ─── Tooltip personalizado ────────────────────────────────────────────────────
 // ─── Tooltip personalizado ────────────────────────────────────────────────────
 const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
         return (
-            <div className="bg-white border rounded shadow p-2" style={{ fontSize: '0.8rem' }}>
-                <p className="mb-1 fw-bold">{label}</p>
+            <div className="glass-card border-0 shadow-lg p-3" style={{ fontSize: '0.85rem', minWidth: 150 }}>
+                <p className="mb-2 fw-bold text-dark border-bottom pb-1">{label}</p>
                 {payload.map((p: any, i: number) => (
-                    <p key={i} className="mb-0" style={{ color: p.color }}>{p.name}: <strong>{p.value}</strong></p>
+                    <div key={i} className="d-flex justify-content-between align-items-center mb-1">
+                        <span className="text-muted d-flex align-items-center">
+                            <span className="rounded-circle me-2" style={{ width: 8, height: 8, background: p.color }} />
+                            {p.name}
+                        </span>
+                        <span className="fw-bold ms-3" style={{ color: p.color }}>{p.value}</span>
+                    </div>
                 ))}
             </div>
         );
     }
     return null;
 };
+
+// ─── Gradients Component ─────────────────────────────────────────────────────
+const ChartGradients = () => (
+    <svg style={{ height: 0, width: 0, position: 'absolute' }}>
+        <defs>
+            <linearGradient id="colorEmerald" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor={PALETTE.emerald} stopOpacity={0.8} />
+                <stop offset="95%" stopColor={PALETTE.emerald} stopOpacity={0} />
+            </linearGradient>
+            <linearGradient id="colorIndigo" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor={PALETTE.indigo} stopOpacity={0.8} />
+                <stop offset="95%" stopColor={PALETTE.indigo} stopOpacity={0} />
+            </linearGradient>
+            <linearGradient id="colorSky" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor={PALETTE.sky} stopOpacity={0.8} />
+                <stop offset="95%" stopColor={PALETTE.sky} stopOpacity={0} />
+            </linearGradient>
+            <linearGradient id="colorAmber" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor={PALETTE.amber} stopOpacity={0.8} />
+                <stop offset="95%" stopColor={PALETTE.amber} stopOpacity={0} />
+            </linearGradient>
+        </defs>
+    </svg>
+);
 
 // ─── Componente Principal ─────────────────────────────────────────────────────
 const EstadisticasMateriales: React.FC = () => {
@@ -101,7 +146,7 @@ const EstadisticasMateriales: React.FC = () => {
                 getRequerimientos(selectedObra.id),
                 supabase
                     .from('inventario_obra')
-                    .select('*, material:materiales(id, descripcion, categoria, unidad)')
+                    .select('*, material:materiales(id, descripcion, categoria, unidad), epp:epps_c(id, descripcion, unidad), equipo:equipos(id, nombre)')
                     .eq('obra_id', selectedObra.id),
                 // Trae los ítems de SC con cantidad=0 (rechazados/anulados en logística)
                 supabase
@@ -204,34 +249,7 @@ const EstadisticasMateriales: React.FC = () => {
             .slice(0, 10);
     }, [inventario, movimientos]);
 
-    // ── KPI 3: Items sin stock solicitados ───────────────────────────────────
-    // Se excluyen ítems cuya cantidad en SC es 0
-    const sinStock = useMemo(() => {
-        const stockMap: Record<string, number> = {};
-        inventario.forEach(inv => {
-            if (inv.material_id) stockMap[inv.material_id] = inv.cantidad_actual;
-        });
 
-        const pendMap: Record<string, { descripcion: string; total: number; reqs: number; diasMax: number }> = {};
-        reqs.forEach(r => {
-            r.detalles?.filter(d => detalleValido(d, r.id)).forEach(d => {
-                if ((d.estado === 'Pendiente' || d.estado === 'Parcial') && d.material_id) {
-                    const stock = stockMap[d.material_id] || 0;
-                    const faltante = Math.max(0, d.cantidad_solicitada - (d.cantidad_atendida || 0));
-                    if (faltante > 0 && stock < faltante) {
-                        const key = d.material_id;
-                        const dias = diasDesde(r.fecha_solicitud);
-                        if (!pendMap[key]) pendMap[key] = { descripcion: d.descripcion, total: 0, reqs: 0, diasMax: 0 };
-                        pendMap[key].total += faltante;
-                        pendMap[key].reqs += 1;
-                        pendMap[key].diasMax = Math.max(pendMap[key].diasMax, dias);
-                    }
-                }
-            });
-        });
-
-        return Object.values(pendMap).sort((a, b) => b.diasMax - a.diasMax).slice(0, 8);
-    }, [reqs, inventario, detalleValido]);
 
     // ── KPI 4: Flujo semanal entradas vs salidas ─────────────────────────────
     const flujoSemanal = useMemo(() => {
@@ -294,12 +312,28 @@ const EstadisticasMateriales: React.FC = () => {
     // Denominador = TOTAL APROBADO (excluye cant=0 en SC)
     const eficiencia = useMemo(() => {
         let aprobado = 0, ate = 0, ccAte = 0;
+        let totalDiasLead = 0, countLead = 0;
+
         reqs.forEach(r => {
             if (fechaCorteMov && new Date(r.fecha_solicitud) < fechaCorteMov) return;
             r.detalles?.filter(d => detalleValido(d, r.id)).forEach(d => {
                 aprobado += d.cantidad_solicitada || 0;
                 ate += d.cantidad_atendida || 0;
                 ccAte += d.cantidad_caja_chica || 0;
+
+                // Estimar Lead Time (Atención)
+                // Buscamos la primera SALIDA de este material después de la fecha de solicitud
+                if (d.cantidad_atendida > 0) {
+                    const primerSalida = movimientos
+                        .filter(m => m.tipo === 'SALIDA' && m.material_id === d.material_id && new Date(m.created_at) >= new Date(r.fecha_solicitud))
+                        .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())[0];
+                    
+                    if (primerSalida) {
+                        const diff = new Date(primerSalida.created_at).getTime() - new Date(r.fecha_solicitud).getTime();
+                        totalDiasLead += diff / (1000 * 60 * 60 * 24);
+                        countLead++;
+                    }
+                }
             });
         });
         return {
@@ -307,22 +341,81 @@ const EstadisticasMateriales: React.FC = () => {
             totalAprobado: aprobado,
             totalAte: ate,
             pctCC: ate > 0 ? Math.round((ccAte / ate) * 100) : 0,
+            avgLeadTime: countLead > 0 ? (totalDiasLead / countLead).toFixed(1) : '-'
         };
-    }, [reqs, fechaCorteMov, detalleValido]);
+    }, [reqs, fechaCorteMov, detalleValido, movimientos]);
 
-    // ── KPI 9: Top solicitantes ──────────────────────────────────────────────
-    // Excluye ítems cuya cantidad en SC es 0
-    const topSolicitantes = useMemo(() => {
-        const map: Record<string, number> = {};
-        reqs.forEach(r => {
-            if (fechaCorteMov && new Date(r.fecha_solicitud) < fechaCorteMov) return;
-            const key = r.solicitante || 'Sin nombre';
-            r.detalles?.filter(d => detalleValido(d, r.id)).forEach(d => {
-                map[key] = (map[key] || 0) + (d.cantidad_solicitada || 0);
+    // ── KPI 9: Predicción de Pedido & Velocidad (15 días) ───────────────────────
+    const prediccionPedido = useMemo(() => {
+        const hace15 = new Date(); hace15.setDate(hace15.getDate() - 15);
+        const consumo15: Record<string, number> = {};
+        
+        movimientos
+            .filter(m => m.tipo === 'SALIDA' && m.material_id && new Date(m.created_at) >= hace15)
+            .forEach(m => {
+                consumo15[m.material_id!] = (consumo15[m.material_id!] || 0) + m.cantidad;
             });
-        });
-        return Object.entries(map).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 6);
-    }, [reqs, fechaCorteMov, detalleValido]);
+
+        return inventario
+            .map(inv => {
+                const materialId = inv.material_id;
+                if (!materialId) return null;
+                const consumoDiario = (consumo15[materialId] || 0) / 15;
+                const stockActual = inv.cantidad_actual || 0;
+                const proyeccion15d = consumoDiario * 15;
+                const deficit = Math.max(0, proyeccion15d - stockActual);
+
+                const name = inv.material?.descripcion || inv.epp?.descripcion || inv.equipo?.nombre || 'Sin nombre';
+                const unidad = inv.material?.unidad || inv.epp?.unidad || 'uds';
+
+                return {
+                    id: materialId,
+                    name,
+                    stock: stockActual,
+                    consumoDiario,
+                    proyeccion15d,
+                    sugerido: Math.ceil(deficit * 1.1), // 10% buffer
+                    unidad
+                };
+            })
+            .filter(p => p && p.proyeccion15d > 0)
+            .sort((a, b) => (b?.proyeccion15d || 0) - (a?.proyeccion15d || 0))
+            .slice(0, 10);
+    }, [inventario, movimientos]);
+
+    // ── KPI 10: Dead Stock (Sin movimiento) ────────────────────────────────────
+    const deadStock = useMemo(() => {
+        const ultimasSalidas: Record<string, string> = {};
+        movimientos
+            .filter(m => m.tipo === 'SALIDA' && (m.material_id || m.epp_id || m.equipo_id))
+            .forEach(m => {
+                const itemId = (m.material_id || m.epp_id || m.equipo_id)!;
+                const mDate = new Date(m.created_at).getTime();
+                const curDate = ultimasSalidas[itemId] ? new Date(ultimasSalidas[itemId]).getTime() : 0;
+                if (mDate > curDate) ultimasSalidas[itemId] = m.created_at;
+            });
+
+        return inventario
+            .filter(inv => inv.cantidad_actual > 0)
+            .map(inv => {
+                const materialId = inv.material_id || inv.epp_id || inv.equipo_id;
+                const ultima = ultimasSalidas[materialId];
+                const diasSinMover = ultima ? diasDesde(ultima) : -1;
+                
+                const name = inv.material?.descripcion || inv.epp?.descripcion || inv.equipo?.nombre || 'Ítem no identificado';
+                
+                return {
+                    name,
+                    categoria: inv.material?.categoria || 'General',
+                    stock: inv.cantidad_actual,
+                    diasSinMover,
+                    lastDate: ultima ? new Date(ultima).toLocaleDateString() : 'Nunca'
+                };
+            })
+            .filter(d => d.diasSinMover > 30 || d.diasSinMover === -1) 
+            .sort((a, b) => b.diasSinMover - a.diasSinMover)
+            .slice(0, 10);
+    }, [inventario, movimientos]);
 
     // ── Render ────────────────────────────────────────────────────────────────
     if (loading) return (
@@ -342,19 +435,27 @@ const EstadisticasMateriales: React.FC = () => {
     );
 
     return (
-        <div className="fade-in container-fluid pb-5">
+        <div className="fade-in container-fluid pb-5 px-4 h-100">
+            <ChartGradients />
+
             {/* ── Header ── */}
-            <div className="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-4 gap-2">
+            <div className="glass-card d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-4 p-4 gap-3">
                 <div>
-                    <h2 className="mb-0">📊 Panel de Control — Obra</h2>
-                    <small className="text-muted">{selectedObra.nombre_obra}</small>
+                    <h2 className="mb-0 fw-800" style={{ fontSize: '1.75rem' }}>
+                        📊 Panel de Control <span className="text-muted fw-400 ms-1" style={{ fontSize: '1rem' }}>Materiales & Tendencias</span>
+                    </h2>
+                    <div className="d-flex align-items-center mt-1">
+                        <span className="badge bg-success me-2">En vivo</span>
+                        <span className="text-muted small">{selectedObra.nombre_obra}</span>
+                    </div>
                 </div>
-                {/* Filtro de período */}
-                <div className="btn-group" role="group">
-                    {([['7', 'Últimos 7 días'], ['30', 'Últimos 30 días'], ['90', 'Últimos 90 días'], ['todo', 'Todo']] as const).map(([val, label]) => (
+
+                {/* Filtro de período - Floating Glass Design */}
+                <div className="glass-card p-1 d-flex gap-1 bg-white-50 shadow-sm border-radius-pill">
+                    {([['7', '7D'], ['30', '30D'], ['90', '90D'], ['todo', 'TODO']] as const).map(([val, label]) => (
                         <button
                             key={val}
-                            className={`btn btn-sm ${periodoFiltro === val ? 'btn-primary' : 'btn-outline-primary'}`}
+                            className={`btn btn-sm border-radius-pill px-3 py-2 border-0 transition-all ${periodoFiltro === val ? 'bg-primary text-white shadow-sm' : 'btn-light'}`}
                             onClick={() => setPeriodoFiltro(val)}
                         >
                             {label}
@@ -363,340 +464,300 @@ const EstadisticasMateriales: React.FC = () => {
                 </div>
             </div>
 
-            {/* ── Fila 1: KPIs rápidos ── */}
-            <Row className="mb-4 g-3">
-                <Col xs={6} md={3}>
+            <div className="dashboard-grid">
+                {/* ── Panel Lateral: KPIs Críticos ── */}
+                <div className="d-flex flex-column gap-3">
                     <KpiCard
-                        label="Tasa de Atención"
+                        label="Atención General"
                         value={`${eficiencia.ratio}%`}
-                        sub={`${eficiencia.totalAte} / ${eficiencia.totalAprobado} aprobadas`}
-                        color={eficiencia.ratio >= 80 ? PALETTE.verde : eficiencia.ratio >= 60 ? PALETTE.amarillo : PALETTE.rojo}
-                        icon="✅"
+                        sub={`${eficiencia.totalAte} / ${eficiencia.totalAprobado} uds`}
+                        color={PALETTE.emerald}
+                        icon="📈"
+                        gradient
                     />
-                </Col>
-                <Col xs={6} md={3}>
                     <KpiCard
-                        label="Items Pendientes"
-                        value={reqsPendientes.total}
-                        sub={`${reqsPendientes.critico} críticos (+14 días)`}
-                        color={reqsPendientes.critico > 0 ? PALETTE.rojo : PALETTE.naranja}
-                        icon="⏳"
-                    />
-                </Col>
-                <Col xs={6} md={3}>
-                    <KpiCard
-                        label="Materiales en Riesgo"
-                        value={stockCritico.length}
-                        sub={`${stockCritico.filter(i => i.nivel === 'critico').length} se agotan en ≤7 días`}
-                        color={stockCritico.filter(i => i.nivel === 'critico').length > 0 ? PALETTE.rojo : PALETTE.amarillo}
-                        icon="⚠️"
-                    />
-                </Col>
-                <Col xs={6} md={3}>
-                    <KpiCard
-                        label="Caja Chica / Total Entradas"
-                        value={`${totalEntradas > 0 ? Math.round((totalCajaChica / totalEntradas) * 100) : 0}%`}
-                        sub={`${totalCajaChica.toLocaleString()} vs ${totalEntradas.toLocaleString()} uds`}
-                        color={totalEntradas > 0 && (totalCajaChica / totalEntradas) > 0.4 ? PALETTE.naranja : PALETTE.azul}
+                        label="Caja Chica"
+                        value={`${eficiencia.pctCC}%`}
+                        sub="Sobre compras totales"
+                        color={PALETTE.slate}
                         icon="💵"
                     />
-                </Col>
-            </Row>
+                    <KpiCard
+                        label="Ítems Pendientes"
+                        value={reqsPendientes.total}
+                        sub={`${reqsPendientes.critico} críticos (+14d)`}
+                        color={PALETTE.amber}
+                        icon="⏳"
+                    />
+                    <KpiCard
+                        label="Riesgo Stock"
+                        value={stockCritico.length}
+                        sub="Materiales en quiebre"
+                        color={PALETTE.indigo}
+                        icon="⚠️"
+                    />
+                    <KpiCard
+                        label="Uso Caja Chica"
+                        value={`${totalEntradas > 0 ? Math.round((totalCajaChica / totalEntradas) * 100) : 0}%`}
+                        sub="Sobre compras totales"
+                        color={PALETTE.sky}
+                        icon="💵"
+                        dark
+                    />
 
-            {/* ── Fila 2: Flujo semanal + Antigüedad pendientes ── */}
-            <Row className="mb-4 g-3">
-                <Col xs={12} md={8}>
-                    <Card className="custom-card h-100">
-                        <Card.Header className="fw-bold">📈 Flujo Semanal: Entradas vs Salidas</Card.Header>
-                        <Card.Body style={{ height: 280 }}>
-                            {flujoSemanal.length > 0 ? (
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <ComposedChart data={flujoSemanal} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-                                        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                                        <XAxis dataKey="semana" tick={{ fontSize: 10 }} />
-                                        <YAxis tick={{ fontSize: 10 }} />
-                                        <Tooltip content={<CustomTooltip />} />
-                                        <Legend />
-                                        <Area type="monotone" dataKey="entradas" fill="#dbeafe" stroke={PALETTE.azul} name="Entradas" strokeWidth={2} />
-                                        <Bar dataKey="salidas" fill={PALETTE.naranja} name="Salidas" radius={[3, 3, 0, 0]} />
-                                    </ComposedChart>
-                                </ResponsiveContainer>
-                            ) : (
-                                <div className="d-flex align-items-center justify-content-center h-100 text-muted">Sin movimientos en el período</div>
-                            )}
-                        </Card.Body>
-                    </Card>
-                </Col>
-                <Col xs={12} md={4}>
-                    <Card className="custom-card h-100">
-                        <Card.Header className="fw-bold">⏳ Antigüedad de Pendientes</Card.Header>
-                        <Card.Body>
-                            <div className="mb-3">
-                                <div className="d-flex justify-content-between mb-1">
-                                    <span className="small text-danger fw-bold">🔴 Crítico (+14 días)</span>
-                                    <Badge bg="danger">{reqsPendientes.critico}</Badge>
+                    {/* Antigüedad Minibox */}
+                    <div className="dashboard-card glass-card mt-2">
+                        <div className="stat-label mb-3">Antigüedad Pendientes</div>
+                        <div className="space-y-3">
+                            {[
+                                { l: 'Crítico', v: reqsPendientes.critico, c: 'danger' },
+                                { l: 'Alto', v: reqsPendientes.alto, c: 'warning' },
+                                { l: 'Normal', v: reqsPendientes.normal, c: 'success' }
+                            ].map((item, idx) => (
+                                <div key={idx} className="mb-3">
+                                    <div className="d-flex justify-content-between mb-1 small fw-600">
+                                        <span>{item.l}</span>
+                                        <span>{item.v}</span>
+                                    </div>
+                                    <ProgressBar
+                                        now={reqsPendientes.total > 0 ? (item.v / reqsPendientes.total) * 100 : 0}
+                                        variant={item.c}
+                                        style={{ height: 6 }}
+                                        className="rounded-pill"
+                                    />
                                 </div>
-                                <ProgressBar
-                                    now={reqsPendientes.total > 0 ? (reqsPendientes.critico / reqsPendientes.total) * 100 : 0}
-                                    variant="danger"
-                                    style={{ height: 8 }}
-                                />
+                            ))}
+                        </div>
+                    </div>
+                </div>
+
+                {/* ── Área Principal: Gráficos ── */}
+                <div className="d-flex flex-column gap-4">
+                    <div className="row g-4">
+                        {/* Flujo Semanal Gráfico Principal */}
+                        <div className="col-12 col-xl-8">
+                            <div className="dashboard-card glass-card h-100">
+                                <div className="d-flex justify-content-between align-items-center mb-4">
+                                    <div className="stat-label">Tendencia: Entradas vs Salidas</div>
+                                    <div className="small text-muted d-flex gap-3">
+                                        <span><span className="dot bg-primary me-1" />Entradas</span>
+                                        <span><span className="dot bg-orange me-1" />Salidas</span>
+                                    </div>
+                                </div>
+                                <div className="chart-container" style={{ height: 320, width: '100%' }}>
+                                    {flujoSemanal.length > 0 ? (
+                                        <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                                            <ComposedChart data={flujoSemanal} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
+                                                <XAxis dataKey="semana" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#718096' }} dy={10} />
+                                                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#718096' }} />
+                                                <Tooltip content={<CustomTooltip />} cursor={{ fill: '#F1F5F9' }} />
+                                                <Area type="monotone" dataKey="entradas" fill={GRADIENTS.sky} stroke={PALETTE.sky} strokeWidth={3} />
+                                                <Bar dataKey="salidas" fill={PALETTE.amber} radius={[6, 6, 0, 0]} barSize={25} />
+                                            </ComposedChart>
+                                        </ResponsiveContainer>
+                                    ) : (
+                                        <div className="d-flex align-items-center justify-content-center h-100 text-muted">No hay movimientos en este periodo</div>
+                                    )}
+                                </div>
                             </div>
-                            <div className="mb-3">
-                                <div className="d-flex justify-content-between mb-1">
-                                    <span className="small text-warning fw-bold">🟡 Alto (7–14 días)</span>
-                                    <Badge bg="warning" text="dark">{reqsPendientes.alto}</Badge>
+                        </div>
+
+                        {/* Origen de Entradas Pie */}
+                        <div className="col-12 col-xl-4">
+                            <div className="dashboard-card glass-card h-100">
+                                <div className="stat-label mb-4">Origen de Suministro</div>
+                                <div className="chart-container" style={{ height: 260, width: '100%' }}>
+                                    {pieCompras.length > 0 ? (
+                                        <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                                            <PieChart>
+                                                <Pie
+                                                    data={pieCompras}
+                                                    innerRadius={65}
+                                                    outerRadius={95}
+                                                    paddingAngle={5}
+                                                    dataKey="value"
+                                                    animationBegin={200}
+                                                >
+                                                    {pieCompras.map((_, index) => (
+                                                        <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                                                    ))}
+                                                </Pie>
+                                                <Tooltip content={<CustomTooltip />} />
+                                            </PieChart>
+                                        </ResponsiveContainer>
+                                    ) : (
+                                        <div className="d-flex align-items-center justify-content-center h-100 text-muted">Sin datos</div>
+                                    )}
                                 </div>
-                                <ProgressBar
-                                    now={reqsPendientes.total > 0 ? (reqsPendientes.alto / reqsPendientes.total) * 100 : 0}
-                                    variant="warning"
-                                    style={{ height: 8 }}
-                                />
+                                <div className="d-flex flex-wrap justify-content-center gap-3 mt-3">
+                                    {pieCompras.map((entry, i) => (
+                                        <div key={i} className="small d-flex align-items-center gap-1">
+                                            <span className="dot" style={{ background: PIE_COLORS[i % PIE_COLORS.length] }} />
+                                            <span className="text-muted">{entry.name}</span>
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
-                            <div className="mb-3">
-                                <div className="d-flex justify-content-between mb-1">
-                                    <span className="small text-success fw-bold">🟢 Normal (&lt;7 días)</span>
-                                    <Badge bg="success">{reqsPendientes.normal}</Badge>
-                                </div>
-                                <ProgressBar
-                                    now={reqsPendientes.total > 0 ? (reqsPendientes.normal / reqsPendientes.total) * 100 : 0}
-                                    variant="success"
-                                    style={{ height: 8 }}
-                                />
-                            </div>
-                            <hr />
-                            <div className="text-center">
-                                <span className="text-muted small">Total ítems pendientes</span>
-                                <div className="display-6 fw-bold" style={{ color: PALETTE.naranja }}>{reqsPendientes.total}</div>
-                            </div>
-                        </Card.Body>
-                    </Card>
-                </Col>
-            </Row>
+                        </div>
+                    </div>
 
-            {/* ── Fila 3: Stock crítico ── */}
-            <Row className="mb-4 g-3">
-                <Col xs={12}>
-                    <Card className="custom-card">
-                        <Card.Header className="fw-bold d-flex justify-content-between align-items-center">
-                            <span>🚨 Stock en Riesgo — Días Estimados Restantes</span>
-                            <Badge bg={stockCritico.filter(i => i.nivel === 'critico').length > 0 ? 'danger' : 'warning'} text={stockCritico.filter(i => i.nivel === 'critico').length > 0 ? undefined : 'dark'}>
-                                {stockCritico.length} materiales en riesgo
-                            </Badge>
-                        </Card.Header>
-                        <Card.Body className="p-0">
-                            {stockCritico.length > 0 ? (
-                                <div className="table-responsive">
-                                    <Table hover className="mb-0" size="sm">
-                                        <thead className="table-light">
-                                            <tr>
-                                                <th>Material</th>
-                                                <th>Categoría</th>
-                                                <th className="text-center">Stock Actual</th>
-                                                <th className="text-center">Consumo/Día (últ 30d)</th>
-                                                <th className="text-center">Días Restantes</th>
-                                                <th className="text-center">Alerta</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {stockCritico.map((item, i) => (
-                                                <tr key={i} className={item.nivel === 'critico' ? 'table-danger' : 'table-warning'}>
-                                                    <td className="fw-bold">{item.material}</td>
-                                                    <td><Badge bg="secondary" className="fw-normal">{item.categoria}</Badge></td>
-                                                    <td className="text-center">{item.stock} {item.unidad}</td>
-                                                    <td className="text-center">{item.consumoDiario}</td>
-                                                    <td className="text-center fw-bold">
-                                                        {item.diasStock >= 999 ? '—' : `${item.diasStock} días`}
-                                                    </td>
-                                                    <td className="text-center">
-                                                        {item.nivel === 'critico'
-                                                            ? <Badge bg="danger">⚡ URGENTE</Badge>
-                                                            : <Badge bg="warning" text="dark">⚠️ REABASTECER</Badge>}
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </Table>
-                                </div>
-                            ) : (
-                                <div className="text-center p-4 text-muted">
-                                    <div style={{ fontSize: '2rem' }}>✅</div>
-                                    <p className="mb-0">No hay materiales en riesgo de quiebre de stock.</p>
-                                </div>
-                            )}
-                        </Card.Body>
-                    </Card>
-                </Col>
-            </Row>
-
-            {/* ── Fila 4: Materiales faltantes vs Top consumo ── */}
-            <Row className="mb-4 g-3">
-                <Col xs={12} md={5}>
-                    <Card className="custom-card h-100">
-                        <Card.Header className="fw-bold">❌ Materiales Solicitados Sin Stock Suficiente</Card.Header>
-                        <Card.Body className="p-0">
-                            {sinStock.length > 0 ? (
-                                <div className="table-responsive">
-                                    <Table hover className="mb-0" size="sm">
-                                        <thead className="table-light">
-                                            <tr>
-                                                <th>Material</th>
-                                                <th className="text-center">Faltante</th>
-                                                <th className="text-center">Reqs</th>
-                                                <th className="text-center">Max. Espera</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {sinStock.map((item, i) => (
-                                                <tr key={i} className={item.diasMax > 14 ? 'table-danger' : item.diasMax > 7 ? 'table-warning' : ''}>
-                                                    <td className="fw-bold" style={{ fontSize: '0.82rem' }}>{item.descripcion}</td>
-                                                    <td className="text-center">{item.total}</td>
-                                                    <td className="text-center">{item.reqs}</td>
-                                                    <td className="text-center">
-                                                        <Badge bg={item.diasMax > 14 ? 'danger' : item.diasMax > 7 ? 'warning' : 'secondary'} text={item.diasMax <= 14 ? 'dark' : undefined}>
-                                                            {item.diasMax}d
-                                                        </Badge>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </Table>
-                                </div>
-                            ) : (
-                                <div className="text-center p-4 text-muted">
-                                    <div style={{ fontSize: '2rem' }}>👍</div>
-                                    <p className="mb-0">No hay materiales pendientes sin stock.</p>
-                                </div>
-                            )}
-                        </Card.Body>
-                    </Card>
-                </Col>
-
-                <Col xs={12} md={7}>
-                    <Card className="custom-card h-100">
-                        <Card.Header className="fw-bold">📦 Top 10 Materiales Más Salidos del Almacén</Card.Header>
-                        <Card.Body style={{ height: 300 }}>
-                            {topConsumo.length > 0 ? (
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={topConsumo} layout="vertical" margin={{ left: 10, right: 20 }}>
-                                        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                                        <XAxis type="number" tick={{ fontSize: 10 }} />
-                                        <YAxis type="category" dataKey="name" width={130} tick={{ fontSize: 9 }} />
-                                        <Tooltip content={<CustomTooltip />} />
-                                        <Legend />
-                                        <Bar dataKey="entradas" fill={PALETTE.azul} name="Entradas" radius={[0, 3, 3, 0]} />
-                                        <Bar dataKey="salidas" fill={PALETTE.naranja} name="Salidas" radius={[0, 3, 3, 0]} />
-                                    </BarChart>
-                                </ResponsiveContainer>
-                            ) : (
-                                <div className="d-flex align-items-center justify-content-center h-100 text-muted">Sin movimientos en el período</div>
-                            )}
-                        </Card.Body>
-                    </Card>
-                </Col>
-            </Row>
-
-            {/* ── Fila 5: Origen de compras + Top solicitantes ── */}
-            <Row className="mb-4 g-3">
-                <Col xs={12} md={4}>
-                    <Card className="custom-card h-100">
-                        <Card.Header className="fw-bold">💵 Origen de Entradas al Almacén</Card.Header>
-                        <Card.Body style={{ height: 260 }}>
-                            {pieCompras.length > 0 ? (
-                                <>
-                                    <ResponsiveContainer width="100%" height="80%">
-                                        <PieChart>
-                                            <Pie data={pieCompras} cx="50%" cy="50%" innerRadius={55} outerRadius={85} paddingAngle={4} dataKey="value">
-                                                {pieCompras.map((_, index) => (
-                                                    <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
-                                                ))}
-                                            </Pie>
-                                            <Tooltip formatter={(v) => [v, '']} />
-                                        </PieChart>
+                    <div className="row g-4">
+                        {/* Top Materiales Consumidos */}
+                        <div className="col-12 col-lg-7">
+                            <div className="dashboard-card glass-card h-100">
+                                <div className="stat-label mb-4">Top 10 Materiales Consumidos</div>
+                                <div className="chart-container" style={{ height: 350, width: '100%' }}>
+                                    <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                                        <BarChart data={topConsumo} layout="vertical" margin={{ left: 20, right: 30, top: 0, bottom: 0 }}>
+                                            <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E2E8F0" />
+                                            <XAxis type="number" hide />
+                                            <YAxis type="category" dataKey="name" width={140} tick={{ fontSize: 10, fill: '#4A5568' }} axisLine={false} tickLine={false} />
+                                            <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(0,0,0,0.02)' }} />
+                                            <Bar dataKey="salidas" fill={PALETTE.indigo} radius={[0, 10, 10, 0]} barSize={20} animationDuration={1500} />
+                                        </BarChart>
                                     </ResponsiveContainer>
-                                    <div className="d-flex flex-wrap justify-content-center gap-2 mt-1">
-                                        {pieCompras.map((entry, i) => (
-                                            <span key={i} className="small" style={{ color: PIE_COLORS[i % PIE_COLORS.length] }}>
-                                                ● {entry.name}: <strong>{entry.value}</strong>
-                                            </span>
-                                        ))}
-                                    </div>
-                                </>
-                            ) : (
-                                <div className="d-flex align-items-center justify-content-center h-100 text-muted">Sin entradas en el período</div>
-                            )}
-                        </Card.Body>
-                    </Card>
-                </Col>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
 
-                <Col xs={12} md={8}>
-                    <Card className="custom-card h-100">
-                        <Card.Header className="fw-bold">👷 Top Solicitantes (por Cantidad Pedida)</Card.Header>
-                        <Card.Body style={{ height: 260 }}>
-                            {topSolicitantes.length > 0 ? (
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={topSolicitantes} margin={{ top: 5, right: 20, left: 0, bottom: 30 }}>
-                                        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                                        <XAxis dataKey="name" tick={{ fontSize: 10 }} height={60} interval={0} />
-                                        <YAxis tick={{ fontSize: 10 }} />
-                                        <Tooltip content={<CustomTooltip />} />
-                                        <Bar dataKey="value" name="Unidades solicitadas" fill={PALETTE.morado} radius={[4, 4, 0, 0]}>
-                                            {topSolicitantes.map((_, i) => (
-                                                <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                    <div className="row g-4">
+                        {/* Predicción de Pedido (15 días) */}
+                        <div className="col-12 col-xl-6">
+                            <div className="dashboard-card glass-card h-100">
+                                <div className="d-flex justify-content-between align-items-center mb-4">
+                                    <div className="stat-label">🔮 Predicción de Pedido (15 días)</div>
+                                    <Badge bg="primary-subtle" text="primary" className="rounded-pill">Top 10 Sugeridos</Badge>
+                                </div>
+                                <div className="table-responsive">
+                                    <table className="table table-borderless-custom mb-0">
+                                        <thead>
+                                            <tr>
+                                                <th className="rounded-start">Material</th>
+                                                <th className="text-center">Consumo/D</th>
+                                                <th className="text-center">Stock</th>
+                                                <th className="text-center rounded-end">Sugerido</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {prediccionPedido.map((p, i) => {
+                                                if (!p) return null;
+                                                return (
+                                                    <tr key={i} className="align-middle">
+                                                        <td className="small fw-600">{p.name}</td>
+                                                        <td className="text-center text-muted small">{fmt(p.consumoDiario, 1)}</td>
+                                                        <td className="text-center fw-bold">{p.stock}</td>
+                                                        <td className="text-center">
+                                                            <span className={`badge rounded-pill ${p.sugerido > 0 ? 'bg-primary' : 'bg-success-subtle text-success'}`}>
+                                                                {p.sugerido > 0 ? `Pedir ${p.sugerido}` : 'OK'}
+                                                            </span>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                            {prediccionPedido.length === 0 && (
+                                                <tr>
+                                                    <td colSpan={4} className="text-center py-4 text-muted">Sin datos de consumo reciente</td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Dead Stock Explorer */}
+                        <div className="col-12 col-xl-6">
+                            <div className="dashboard-card glass-card h-100">
+                                <div className="d-flex justify-content-between align-items-center mb-4">
+                                    <div className="stat-label">❄️ Baja Rotación (Dead Stock)</div>
+                                    <Badge bg="warning-subtle" text="dark" className="rounded-pill">+30 días sin uso</Badge>
+                                </div>
+                                <div className="table-responsive">
+                                    <table className="table table-borderless-custom mb-0">
+                                        <thead>
+                                            <tr>
+                                                <th className="rounded-start">Material</th>
+                                                <th className="text-center">Stock</th>
+                                                <th className="text-center">Últ. Salida</th>
+                                                <th className="text-center rounded-end">Antig.</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {deadStock.map((d, i) => (
+                                                <tr key={i} className="align-middle">
+                                                    <td className="small fw-600">{d.name}</td>
+                                                    <td className="text-center fw-bold">{d.stock}</td>
+                                                    <td className="text-center text-muted small">{d.lastDate}</td>
+                                                    <td className="text-center">
+                                                        <span className={`badge rounded-pill ${d.diasSinMover === -1 ? 'bg-secondary' : d.diasSinMover > 90 ? 'bg-danger' : 'bg-warning'}`}>
+                                                            {d.diasSinMover === -1 ? 'Sin rotación' : d.diasSinMover > 365 ? '+1 año' : `${d.diasSinMover}d`}
+                                                        </span>
+                                                    </td>
+                                                </tr>
                                             ))}
-                                        </Bar>
-                                    </BarChart>
-                                </ResponsiveContainer>
-                            ) : (
-                                <div className="d-flex align-items-center justify-content-center h-100 text-muted">Sin datos de solicitantes</div>
-                            )}
-                        </Card.Body>
-                    </Card>
-                </Col>
-            </Row>
+                                            {deadStock.length === 0 && (
+                                                <tr>
+                                                    <td colSpan={4} className="text-center py-4 text-muted">Todo el inventario está en movimiento</td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
 
-            {/* ── Fila 6: Resumen de eficiencia ── */}
-            <Row className="mb-4 g-3">
-                <Col xs={12}>
-                    <Card className="custom-card">
-                        <Card.Header className="fw-bold">🎯 Resumen de Eficiencia de Atención</Card.Header>
-                        <Card.Body>
-                            <Row className="g-3 text-center">
-                                <Col xs={6} md={3}>
-                                    <div className="text-muted small mb-1">Total Aprobado (SC)</div>
-                                    <div className="fw-bold fs-4">{eficiencia.totalAprobado.toLocaleString()}</div>
-                                    <div className="text-muted" style={{ fontSize: '0.75rem' }}>unidades aprobadas en SC</div>
-                                </Col>
-                                <Col xs={6} md={3}>
-                                    <div className="text-muted small mb-1">Total Atendido</div>
-                                    <div className="fw-bold fs-4" style={{ color: PALETTE.verde }}>{eficiencia.totalAte.toLocaleString()}</div>
-                                    <div className="text-muted" style={{ fontSize: '0.75rem' }}>unidades</div>
-                                </Col>
-                                <Col xs={6} md={3}>
-                                    <div className="text-muted small mb-1">% Atendido por Caja Chica</div>
-                                    <div className="fw-bold fs-4" style={{ color: eficiencia.pctCC > 40 ? PALETTE.naranja : PALETTE.azul }}>
-                                        {eficiencia.pctCC}%
-                                    </div>
-                                    <div className="text-muted" style={{ fontSize: '0.75rem' }}>del total atendido</div>
-                                </Col>
-                                <Col xs={6} md={3}>
-                                    <div className="text-muted small mb-1">Tasa Global de Atención</div>
-                                    <div className="fw-bold fs-4" style={{ color: eficiencia.ratio >= 80 ? PALETTE.verde : eficiencia.ratio >= 60 ? PALETTE.amarillo : PALETTE.rojo }}>
-                                        {eficiencia.ratio}%
-                                    </div>
-                                    <div className="mt-2">
-                                        <ProgressBar
-                                            now={eficiencia.ratio}
-                                            variant={eficiencia.ratio >= 80 ? 'success' : eficiencia.ratio >= 60 ? 'warning' : 'danger'}
-                                            style={{ height: 10, borderRadius: 5 }}
-                                        />
-                                    </div>
-                                </Col>
-                            </Row>
-                        </Card.Body>
-                    </Card>
-                </Col>
-            </Row>
+                    {/* Stock en Riesgo Table Refactor */}
+                    <div className="dashboard-card glass-card border-0">
+                        <div className="d-flex justify-content-between align-items-center mb-4">
+                            <div className="stat-label">🚨 Materiales en Riesgo Crítico</div>
+                            <span className="badge bg-danger rounded-pill px-3">{stockCritico.length} Alertas activas</span>
+                        </div>
+                        <div className="table-responsive">
+                            <table className="table table-borderless-custom mb-0">
+                                <thead>
+                                    <tr>
+                                        <th className="rounded-start">Material</th>
+                                        <th>Categoría</th>
+                                        <th className="text-center">Stock</th>
+                                        <th className="text-center">Días Est.</th>
+                                        <th className="text-center rounded-end">Acción</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {stockCritico.map((item, i) => (
+                                        <tr key={i} className="align-middle">
+                                            <td className="fw-700">{item.material}</td>
+                                            <td><span className="badge bg-secondary-subtle text-secondary px-2">{item.categoria}</span></td>
+                                            <td className="text-center fw-600">{item.stock} <span className="fw-400 text-muted small">{item.unidad}</span></td>
+                                            <td className="text-center">
+                                                <div className={`fw-800 ${item.nivel === 'critico' ? 'text-danger' : 'text-warning'}`}>
+                                                    {item.diasStock >= 999 ? '∞' : `${item.diasStock}d`}
+                                                </div>
+                                            </td>
+                                            <td className="text-center">
+                                                <button className={`btn btn-sm w-100 rounded-pill fw-600 ${item.nivel === 'critico' ? 'btn-danger' : 'btn-outline-warning'}`}>
+                                                    {item.nivel === 'critico' ? 'Urgente' : 'Reponer'}
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                    {stockCritico.length === 0 && (
+                                        <tr>
+                                            <td colSpan={5} className="text-center py-5 text-muted">
+                                                <div className="fs-1"></div>
+                                                Inventario saludable. No hay riesgos detectados.
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     );
 };
