@@ -1,16 +1,28 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700&display=swap');
 
 :root {
+  /* Dashboard Vibrant Palette */
+  --dash-emerald: #10B981;
+  --dash-indigo: #6366F1;
+  --dash-amber: #F59E0B;
+  --dash-sky: #0EA5E9;
+  --dash-slate: #64748B;
+  --dash-gradient-1: linear-gradient(135deg, #059669 0%, #10B981 100%);
+  --dash-gradient-2: linear-gradient(135deg, #4F46E5 0%, #6366F1 100%);
+  --dash-gradient-3: linear-gradient(135deg, #D97706 0%, #F59E0B 100%);
+  --dash-dark-card: #2B2B42;
+  --dash-light-card: rgba(255, 255, 255, 0.9);
+  
   --primary-green: #1B9C85;
   --dark-green: #116A5A;
   --light-green: #E8F5E9;
-  --bg-color: #F4F6F8;
+  --bg-color: #F8F9FD; /* Slightly bluer background for dashboard feel */
   --text-main: #2D3748;
   --text-secondary: #718096;
   --sidebar-width: 260px;
-  --card-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.025);
-  --hover-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.05), 0 10px 10px -5px rgba(0, 0, 0, 0.02);
-  --border-radius: 16px;
+  --card-shadow: 0 10px 30px rgba(0, 0, 0, 0.04);
+  --hover-shadow: 0 20px 40px rgba(0, 0, 0, 0.08);
+  --border-radius: 20px;
   --transition-speed: 0.3s;
 }
 
@@ -219,6 +231,105 @@ h6 {
 .custom-card:hover {
   box-shadow: var(--hover-shadow);
 }
+
+.dashboard-card {
+  background: white;
+  border-radius: var(--border-radius);
+  border: none;
+  box-shadow: var(--card-shadow);
+  padding: 24px;
+  transition: all var(--transition-speed) ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.dashboard-card:hover {
+  transform: translateY(-5px);
+  box-shadow: var(--hover-shadow);
+}
+
+.dashboard-card-dark {
+  background: var(--dash-dark-card);
+  color: white;
+}
+
+.dashboard-card-gradient-1 {
+  background: var(--dash-gradient-1);
+  color: white;
+}
+
+.dashboard-card-gradient-2 {
+  background: var(--dash-gradient-2);
+  color: white;
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.dashboard-card-dark.glass-card {
+  background: rgba(43, 43, 66, 0.85) !important;
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.dashboard-card-gradient-1.glass-card {
+  background: linear-gradient(135deg, rgba(5, 150, 105, 0.9) 0%, rgba(16, 185, 129, 0.9) 100%) !important;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.dashboard-card-dark .stat-value,
+.dashboard-card-gradient-1 .stat-value {
+  color: white !important;
+}
+
+/* Dashboard Specific Utilities */
+.stat-value {
+  font-size: 2.2rem;
+  font-weight: 800;
+  font-family: 'Outfit', sans-serif;
+  line-height: 1.2;
+}
+
+.stat-label {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.stat-delta {
+  font-size: 0.85rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.delta-up { color: #22c55e; }
+.delta-down { color: #ef4444; }
+
+.chart-container {
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.5);
+  padding: 15px;
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 25px;
+}
+
+@media (max-width: 1200px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 
 /* Headings & Header */
 .page-header {
