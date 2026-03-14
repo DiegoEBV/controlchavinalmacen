@@ -1,4 +1,3 @@
-import * as XLSX from 'xlsx';
 import { formatDisplayDate } from './dateUtils';
 
 /**
@@ -47,7 +46,8 @@ const normalizeStockData = (items: any[]) => {
 /**
  * Exporta los items de stock a un archivo Excel.
  */
-export const exportStockToExcel = (items: any[]) => {
+export const exportStockToExcel = async (items: any[]) => {
+    const XLSX = await import('xlsx');
     const normalizedData = normalizeStockData(items);
 
     // Crear el libro y la hoja

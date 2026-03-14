@@ -261,23 +261,23 @@ const GestionRequerimientos: React.FC = () => {
 
                                             {/* Export Button - Using div to avoid button-in-button warning from AccordionHeader */}
                                             {/* Export Button - Using div to avoid button-in-button warning from AccordionHeader */}
-                                            <div
-                                                className={`btn btn-sm btn-outline-success rounded-pill ${exportingId === req.id || req.estado === 'Anulado' ? 'disabled' : ''}`}
-                                                style={{ cursor: (exportingId === req.id || req.estado === 'Anulado') ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    if (exportingId !== req.id && req.estado !== 'Anulado') {
-                                                        handleExport(req);
-                                                    }
-                                                }}
-                                                title={req.estado === 'Anulado' ? "No se puede exportar un requerimiento anulado" : "Exportar a Excel"}
-                                            >
-                                                {exportingId === req.id ? (
-                                                    <Spinner animation="border" size="sm" />
-                                                ) : (
-                                                    <FaFileExcel size={16} />
-                                                )}
-                                            </div>
+                                                <div
+                                                    className={`btn btn-sm btn-outline-success rounded-pill px-3 py-2 ${exportingId === req.id || req.estado === 'Anulado' ? 'disabled' : ''}`}
+                                                    style={{ cursor: (exportingId === req.id || req.estado === 'Anulado') ? 'default' : 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: '40px' }}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        if (exportingId !== req.id && req.estado !== 'Anulado') {
+                                                            handleExport(req);
+                                                        }
+                                                    }}
+                                                    title={req.estado === 'Anulado' ? "No se puede exportar un requerimiento anulado" : "Exportar a Excel"}
+                                                >
+                                                    {exportingId === req.id ? (
+                                                        <Spinner animation="border" size="sm" />
+                                                    ) : (
+                                                        <FaFileExcel size={18} />
+                                                    )}
+                                                </div>
 
                                             {/* Anular Button */}
                                             {(() => {
@@ -304,33 +304,33 @@ const GestionRequerimientos: React.FC = () => {
 
                                                 return (
                                                     <div
-                                                        className={`btn btn-sm btn-outline-danger rounded-pill ${isDisabled ? 'disabled' : ''}`}
-                                                        style={{ cursor: isDisabled ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                                        className={`btn btn-sm btn-outline-danger rounded-pill px-3 py-2 ${isDisabled ? 'disabled' : ''}`}
+                                                        style={{ cursor: isDisabled ? 'default' : 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: '40px' }}
                                                         onClick={(e) => {
                                                             e.stopPropagation();
                                                             if (!isDisabled) handleAnular(req);
                                                         }}
                                                         title={tooltipMessage}
                                                     >
-                                                        <FaBan size={16} />
+                                                        <FaBan size={18} />
                                                     </div>
                                                 );
                                             })()}
 
                                             {/* Edit Button */}
-                                            <div
-                                                className={`btn btn-sm btn-outline-primary rounded-pill ${solicitudes.some(s => s.requerimiento_id === req.id) || req.estado === 'Anulado' ? 'disabled' : ''}`}
-                                                style={{ cursor: (solicitudes.some(s => s.requerimiento_id === req.id) || req.estado === 'Anulado') ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    if (!solicitudes.some(s => s.requerimiento_id === req.id) && req.estado !== 'Anulado') {
-                                                        handleEdit(req);
-                                                    }
-                                                }}
-                                                title={req.estado === 'Anulado' ? "No se puede editar un requerimiento anulado" : (solicitudes.some(s => s.requerimiento_id === req.id) ? "No se puede editar con SC generada" : "Editar Requerimiento")}
-                                            >
-                                                <FaEdit size={16} />
-                                            </div>
+                                                <div
+                                                    className={`btn btn-sm btn-outline-primary rounded-pill px-3 py-2 ${solicitudes.some(s => s.requerimiento_id === req.id) || req.estado === 'Anulado' ? 'disabled' : ''}`}
+                                                    style={{ cursor: (solicitudes.some(s => s.requerimiento_id === req.id) || req.estado === 'Anulado') ? 'default' : 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: '40px' }}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        if (!solicitudes.some(s => s.requerimiento_id === req.id) && req.estado !== 'Anulado') {
+                                                            handleEdit(req);
+                                                        }
+                                                    }}
+                                                    title={req.estado === 'Anulado' ? "No se puede editar un requerimiento anulado" : (solicitudes.some(s => s.requerimiento_id === req.id) ? "No se puede editar con SC generada" : "Editar Requerimiento")}
+                                                >
+                                                    <FaEdit size={18} />
+                                                </div>
                                         </div>
                                     </div>
                                 </Accordion.Header>
