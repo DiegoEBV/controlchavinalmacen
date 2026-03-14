@@ -386,7 +386,7 @@ const GestionPedidosSalida: React.FC = () => {
                                                 p.estado === 'Aprobado' ? 'success' :
                                                     p.estado === 'Parcial' ? 'warning' : 'danger'
                                         }>
-                                            {p.estado}
+                                            {p.estado === 'Aprobado' ? 'Atendido' : p.estado}
                                         </Badge>
                                     </td>
                                     <td>{p.bloque?.nombre_bloque}</td>
@@ -482,12 +482,16 @@ const GestionPedidosSalida: React.FC = () => {
                                 <Form.Label className="fw-bold small text-muted text-uppercase">DNI <span className="text-danger">*</span></Form.Label>
                                 <Form.Control
                                     type="text"
-                                    placeholder="DNI"
+                                    placeholder="8 dígitos"
                                     value={solicitanteDni}
                                     maxLength={8}
                                     onChange={(e) => setSolicitanteDni(e.target.value.replace(/[^0-9]/g, ''))}
+                                    isInvalid={solicitanteDni.length > 0 && solicitanteDni.length < 8}
                                     className="custom-input bg-white"
                                 />
+                                <Form.Control.Feedback type="invalid">
+                                    Debe tener 8 dígitos
+                                </Form.Control.Feedback>
                             </Form.Group>
                         </Col>
                         <Col md={9}>
@@ -677,7 +681,7 @@ const GestionPedidosSalida: React.FC = () => {
                     <Button variant="outline-secondary" onClick={() => setShowFormModal(false)}>Cerrar</Button>
                     <Button
                         variant="primary"
-                        disabled={loading || itemsToAdd.some(i => {
+                        disabled={loading || solicitanteDni.length !== 8 || itemsToAdd.some(i => {
                             const st = inventario.find(inv =>
                                 (i.tipo === 'MATERIAL' && inv.material_id === i.id) ||
                                 (i.tipo === 'EQUIPO' && inv.equipo_id === i.id) ||
