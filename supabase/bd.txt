@@ -27,6 +27,36 @@ CREATE TABLE public.categorias (
   created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
   CONSTRAINT categorias_pkey PRIMARY KEY (id)
 );
+CREATE TABLE public.cierres_mensuales (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  obra_id uuid NOT NULL,
+  anio integer NOT NULL,
+  mes integer NOT NULL,
+  fecha_cierre timestamp with time zone DEFAULT now(),
+  usuario text NOT NULL,
+  estado text DEFAULT 'CERRADO'::text,
+  valor_total numeric DEFAULT 0,
+  total_items integer DEFAULT 0,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT cierres_mensuales_pkey PRIMARY KEY (id),
+  CONSTRAINT cierres_mensuales_obra_id_fkey FOREIGN KEY (obra_id) REFERENCES public.obras(id)
+);
+CREATE TABLE public.cierres_mensuales_detalle (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  cierre_id uuid NOT NULL,
+  material_id uuid,
+  equipo_id uuid,
+  epp_id uuid,
+  cantidad numeric DEFAULT 0,
+  costo_promedio numeric DEFAULT 0,
+  subtotal numeric DEFAULT 0,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT cierres_mensuales_detalle_pkey PRIMARY KEY (id),
+  CONSTRAINT cierres_mensuales_detalle_cierre_id_fkey FOREIGN KEY (cierre_id) REFERENCES public.cierres_mensuales(id),
+  CONSTRAINT cierres_mensuales_detalle_material_id_fkey FOREIGN KEY (material_id) REFERENCES public.materiales(id),
+  CONSTRAINT cierres_mensuales_detalle_equipo_id_fkey FOREIGN KEY (equipo_id) REFERENCES public.equipos(id),
+  CONSTRAINT cierres_mensuales_detalle_epp_id_fkey FOREIGN KEY (epp_id) REFERENCES public.epps_c(id)
+);
 CREATE TABLE public.counters (
   key text NOT NULL,
   last_val integer DEFAULT 0,
@@ -66,6 +96,7 @@ CREATE TABLE public.detalles_requerimiento (
   epp_id uuid,
   material_id uuid,
   listinsumo_id uuid,
+  cantidad_caja_chica numeric DEFAULT 0,
   CONSTRAINT detalles_requerimiento_pkey PRIMARY KEY (id),
   CONSTRAINT detalles_requerimiento_requerimiento_id_fkey FOREIGN KEY (requerimiento_id) REFERENCES public.requerimientos(id),
   CONSTRAINT detalles_requerimiento_equipo_id_fkey FOREIGN KEY (equipo_id) REFERENCES public.equipos(id),
@@ -84,11 +115,15 @@ CREATE TABLE public.detalles_sc (
   comentario text,
   equipo_id uuid,
   epp_id uuid,
+  enviar_a_oc boolean DEFAULT true,
+  procesado_directo boolean DEFAULT false,
+  detalle_requerimiento_id uuid,
   CONSTRAINT detalles_sc_pkey PRIMARY KEY (id),
   CONSTRAINT detalles_sc_sc_id_fkey FOREIGN KEY (sc_id) REFERENCES public.solicitudes_compra(id),
   CONSTRAINT detalles_sc_material_id_fkey FOREIGN KEY (material_id) REFERENCES public.materiales(id),
   CONSTRAINT detalles_sc_equipo_id_fkey FOREIGN KEY (equipo_id) REFERENCES public.equipos(id),
-  CONSTRAINT detalles_sc_epp_id_fkey FOREIGN KEY (epp_id) REFERENCES public.epps_c(id)
+  CONSTRAINT detalles_sc_epp_id_fkey FOREIGN KEY (epp_id) REFERENCES public.epps_c(id),
+  CONSTRAINT detalles_sc_detalle_requerimiento_id_fkey FOREIGN KEY (detalle_requerimiento_id) REFERENCES public.detalles_requerimiento(id)
 );
 CREATE TABLE public.epps_c (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -129,6 +164,24 @@ CREATE TABLE public.front_specialties (
   CONSTRAINT front_specialties_front_id_fkey FOREIGN KEY (front_id) REFERENCES public.frentes(id),
   CONSTRAINT front_specialties_specialty_id_fkey FOREIGN KEY (specialty_id) REFERENCES public.specialties(id)
 );
+CREATE TABLE public.historial_costos (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  obra_id uuid,
+  material_id uuid,
+  equipo_id uuid,
+  epp_id uuid,
+  costo_promedio_antes numeric DEFAULT 0,
+  costo_promedio_despues numeric DEFAULT 0,
+  movimiento_tipo text,
+  cantidad numeric DEFAULT 0,
+  precio_unitario_usado numeric DEFAULT 0,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT historial_costos_pkey PRIMARY KEY (id),
+  CONSTRAINT historial_costos_obra_id_fkey FOREIGN KEY (obra_id) REFERENCES public.obras(id),
+  CONSTRAINT historial_costos_material_id_fkey FOREIGN KEY (material_id) REFERENCES public.materiales(id),
+  CONSTRAINT historial_costos_equipo_id_fkey FOREIGN KEY (equipo_id) REFERENCES public.equipos(id),
+  CONSTRAINT historial_costos_epp_id_fkey FOREIGN KEY (epp_id) REFERENCES public.epps_c(id)
+);
 CREATE TABLE public.inventario_obra (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   material_id uuid,
@@ -138,6 +191,7 @@ CREATE TABLE public.inventario_obra (
   obra_id uuid,
   equipo_id uuid,
   epp_id uuid,
+  costo_promedio numeric DEFAULT 0,
   CONSTRAINT inventario_obra_pkey PRIMARY KEY (id),
   CONSTRAINT inventario_obra_material_id_fkey FOREIGN KEY (material_id) REFERENCES public.materiales(id),
   CONSTRAINT inventario_obra_obra_id_fkey FOREIGN KEY (obra_id) REFERENCES public.obras(id),
@@ -184,6 +238,9 @@ CREATE TABLE public.movimientos_almacen (
   numero_vale text,
   equipo_id uuid,
   epp_id uuid,
+  detalle_sc_id uuid,
+  costo_unitario numeric DEFAULT 0,
+  solicitante_dni text,
   CONSTRAINT movimientos_almacen_pkey PRIMARY KEY (id),
   CONSTRAINT movimientos_almacen_material_id_fkey FOREIGN KEY (material_id) REFERENCES public.materiales(id),
   CONSTRAINT movimientos_almacen_requerimiento_id_fkey FOREIGN KEY (requerimiento_id) REFERENCES public.requerimientos(id),
@@ -193,7 +250,8 @@ CREATE TABLE public.movimientos_almacen (
   CONSTRAINT movimientos_almacen_encargado_id_fkey FOREIGN KEY (encargado_id) REFERENCES public.profiles(id),
   CONSTRAINT movimientos_almacen_bloque_id_fkey FOREIGN KEY (bloque_id) REFERENCES public.bloques(id),
   CONSTRAINT movimientos_almacen_equipo_id_fkey FOREIGN KEY (equipo_id) REFERENCES public.equipos(id),
-  CONSTRAINT movimientos_almacen_epp_id_fkey FOREIGN KEY (epp_id) REFERENCES public.epps_c(id)
+  CONSTRAINT movimientos_almacen_epp_id_fkey FOREIGN KEY (epp_id) REFERENCES public.epps_c(id),
+  CONSTRAINT movimientos_almacen_detalle_sc_id_fkey FOREIGN KEY (detalle_sc_id) REFERENCES public.detalles_sc(id)
 );
 CREATE TABLE public.movimientos_equipos (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
@@ -262,8 +320,44 @@ CREATE TABLE public.ordenes_compra (
   sc_id uuid,
   created_at timestamp with time zone DEFAULT now(),
   fecha_aproximada_atencion date,
+  n_factura text,
+  fecha_vencimiento date,
   CONSTRAINT ordenes_compra_pkey PRIMARY KEY (id),
   CONSTRAINT ordenes_compra_sc_id_fkey FOREIGN KEY (sc_id) REFERENCES public.solicitudes_compra(id)
+);
+CREATE TABLE public.pedidos_salida (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  obra_id uuid,
+  encargado_id uuid,
+  numero_vale text NOT NULL,
+  estado text DEFAULT 'Pendiente'::text CHECK (estado = ANY (ARRAY['Pendiente'::text, 'Aprobado'::text, 'Rechazado'::text, 'Parcial'::text])),
+  destino_o_uso text,
+  bloque_id uuid,
+  tercero_id uuid,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  solicitante_dni text,
+  solicitante_nombre text,
+  CONSTRAINT pedidos_salida_pkey PRIMARY KEY (id),
+  CONSTRAINT pedidos_salida_obra_id_fkey FOREIGN KEY (obra_id) REFERENCES public.obras(id),
+  CONSTRAINT pedidos_salida_encargado_id_fkey FOREIGN KEY (encargado_id) REFERENCES public.profiles(id),
+  CONSTRAINT pedidos_salida_bloque_id_fkey FOREIGN KEY (bloque_id) REFERENCES public.bloques(id),
+  CONSTRAINT pedidos_salida_tercero_id_fkey FOREIGN KEY (tercero_id) REFERENCES public.terceros(id)
+);
+CREATE TABLE public.pedidos_salida_detalle (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  pedido_id uuid,
+  material_id uuid,
+  equipo_id uuid,
+  epp_id uuid,
+  cantidad_solicitada numeric NOT NULL,
+  cantidad_entregada numeric DEFAULT 0,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT pedidos_salida_detalle_pkey PRIMARY KEY (id),
+  CONSTRAINT pedidos_salida_detalle_pedido_id_fkey FOREIGN KEY (pedido_id) REFERENCES public.pedidos_salida(id),
+  CONSTRAINT pedidos_salida_detalle_material_id_fkey FOREIGN KEY (material_id) REFERENCES public.materiales(id),
+  CONSTRAINT pedidos_salida_detalle_equipo_id_fkey FOREIGN KEY (equipo_id) REFERENCES public.equipos(id),
+  CONSTRAINT pedidos_salida_detalle_epp_id_fkey FOREIGN KEY (epp_id) REFERENCES public.epps_c(id)
 );
 CREATE TABLE public.profiles (
   id uuid NOT NULL,
@@ -285,6 +379,8 @@ CREATE TABLE public.requerimientos (
   created_at timestamp with time zone DEFAULT now(),
   frente_id uuid,
   specialty_id uuid,
+  estado character varying DEFAULT 'Activo'::character varying,
+  motivo_anulacion text,
   CONSTRAINT requerimientos_pkey PRIMARY KEY (id),
   CONSTRAINT requerimientos_obra_id_fkey FOREIGN KEY (obra_id) REFERENCES public.obras(id),
   CONSTRAINT requerimientos_frente_id_fkey FOREIGN KEY (frente_id) REFERENCES public.frentes(id),

@@ -332,6 +332,18 @@ export const deleteMaterial = async (id: string) => {
 };
 // CRUD de Solicitantes
 export const getSolicitantes = async () => {
+    // Primero intentar obtener de la tabla de perfiles (usuarios con rol produccion)
+    const { data: profileUsers, error: profileError } = await supabase
+        .from('profiles')
+        .select('nombre, role')
+        .eq('role', 'produccion')
+        .order('nombre', { ascending: true });
+
+    if (!profileError && profileUsers && profileUsers.length > 0) {
+        return profileUsers.map(u => ({ nombre: u.nombre }));
+    }
+
+    // Fallback a la tabla solicitantes si no hay perfiles o falla
     const { data, error } = await supabase
         .from('solicitantes')
         .select('*')
@@ -534,6 +546,7 @@ export const getReporteMaterialesData = async (filters: {
     frente?: string;
     solicitante?: string;
     estado?: string;
+    docType?: 'OC' | 'SC' | 'ALL';
 }) => {
     try {
         // 1. Fetch details joined with requirement info
@@ -542,12 +555,14 @@ export const getReporteMaterialesData = async (filters: {
             .select(`
                 *,
                 requerimiento:requerimientos!inner(
+                    id,
                     item_correlativo, 
                     solicitante, 
                     fecha_solicitud, 
                     frente_id, 
                     specialty_id,
                     especialidad,
+                    bloque,
                     frente:frentes(nombre_frente)
                 )
             `)
@@ -555,8 +570,8 @@ export const getReporteMaterialesData = async (filters: {
 
         if (filters.fechaInicio) query = query.gte('requerimiento.fecha_solicitud', filters.fechaInicio);
         if (filters.fechaFin) query = query.lte('requerimiento.fecha_solicitud', filters.fechaFin);
-        if (filters.tipo) query = query.eq('tipo', filters.tipo);
-        if (filters.frente) query = query.eq('requerimiento.frente.nombre_frente', filters.frente);
+        if (filters.tipo && filters.tipo !== 'Todos') query = query.eq('tipo', filters.tipo);
+        if (filters.frente && filters.frente !== 'Todos') query = query.eq('requerimiento.frente_id', filters.frente);
         if (filters.solicitante) query = query.eq('requerimiento.solicitante', filters.solicitante);
         if (filters.estado) query = query.eq('estado', filters.estado);
 
@@ -616,8 +631,8 @@ export const getReporteMaterialesData = async (filters: {
             budgetMap.set(`${b.front_specialty_id}|${b.material_id}`, b.cantidad_presupuestada);
         });
 
-        // 4. Combinar
-        return details.map(d => {
+        // 4. Combine budget info
+        const finalDetails = details.map(d => {
             let stock_max = 0;
             if (d.tipo === 'Material') {
                 const fsId = fsIdMap.get(`${d.requerimiento.frente_id}|${d.requerimiento.specialty_id}`);
@@ -625,6 +640,35 @@ export const getReporteMaterialesData = async (filters: {
             }
             return { ...d, stock_max };
         });
+
+        // 5. Fetch all SCs and OCs related to these requirements for robust merging
+        const reqIds = Array.from(new Set(details.map(d => d.requerimiento_id)));
+        const { data: scs, error: scError } = await supabase
+            .from('solicitudes_compra')
+            .select(`
+                id, 
+                numero_sc, 
+                requerimiento_id,
+                detalles:detalles_sc(
+                    id, 
+                    detalle_requerimiento_id, 
+                    material_id, 
+                    equipo_id, 
+                    epp_id,
+                    detalles_oc(
+                        id, 
+                        oc:ordenes_compra(numero_oc)
+                    )
+                )
+            `)
+            .in('requerimiento_id', reqIds);
+        
+        if (scError) console.error('Error fetching SCs for report:', scError);
+
+        return {
+            details: finalDetails,
+            scs: scs || []
+        };
 
     } catch (error) {
         console.error('Error fetching report data:', error);

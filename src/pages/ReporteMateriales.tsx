@@ -6,7 +6,6 @@ import { getEpps } from '../services/eppsService';
 import { getFrentes, getBloques } from '../services/frentesService';
 import SearchableSelect from '../components/SearchableSelect';
 import { getFrontSpecialties } from '../services/specialtiesService';
-import { supabase } from '../config/supabaseClient';
 import { Material, Frente, Specialty, Bloque } from '../types';
 import { useAuth } from '../context/AuthContext';
 
@@ -28,6 +27,7 @@ interface ReportHistoryItem {
         estado: string;
         fechaInicio: string;
         fechaFin: string;
+        docType: string;
     };
     resultCount: number;
 }
@@ -53,6 +53,7 @@ const ReporteMateriales: React.FC = () => {
 
     const [solicitante, setSolicitante] = useState('');
     const [estado, setEstado] = useState('');
+    const [docType, setDocType] = useState<'OC' | 'SC' | 'ALL'>('ALL');
 
     // Resultados
     const [reportData, setReportData] = useState<any[]>([]);
@@ -174,7 +175,7 @@ const ReporteMateriales: React.FC = () => {
         const newItem: ReportHistoryItem = {
             id: crypto.randomUUID(),
             generatedAt: new Date().toISOString(),
-            filters: { tipo, categoria, materialId, frente, especialidad, bloque, solicitante, estado, fechaInicio, fechaFin },
+            filters: { tipo, categoria, materialId, frente, especialidad, bloque, solicitante, estado, fechaInicio, fechaFin, docType },
             resultCount: count
         };
         const newHistory = [newItem, ...history];
@@ -186,58 +187,103 @@ const ReporteMateriales: React.FC = () => {
         if (!selectedObra) return;
         setIsGenerating(true);
         try {
-            const results = await getReporteMaterialesData({
+            const { details, scs } = await getReporteMaterialesData({
                 obra_id: selectedObra.id,
                 fechaInicio,
                 fechaFin,
                 tipo,
                 frente,
                 solicitante,
-                estado
-            });
+                estado,
+                docType
+            }) as { details: any[], scs: any[] };
 
-            // Filtrado posterior por especialidad/bloque si es necesario (o mover al servidor si es crucial)
-            let filteredResults = results;
+            // Filtrado posterior por especialidad/bloque si es necesario
+            let filteredResults = details;
             if (especialidad || bloque) {
-                filteredResults = results.filter(d => {
+                filteredResults = details.filter(d => {
                     const matchEsp = !especialidad || d.requerimiento.especialidad === especialidad;
                     const matchBlq = !bloque || d.requerimiento.bloque?.split(',').map((b: string) => b.trim()).includes(bloque);
                     return matchEsp && matchBlq;
                 });
             }
 
-            const flattened = filteredResults.map(d => ({
-                fecha: d.requerimiento.fecha_solicitud,
-                solicitante: d.requerimiento.solicitante,
-                req_numero: d.requerimiento.item_correlativo,
-                especialidad: d.requerimiento.especialidad,
-                frente: d.requerimiento.frente?.nombre_frente || '-',
-                material: d.descripcion,
-                categoria: d.material_categoria || d.tipo,
-                unidad: d.unidad,
-                cant_solicitada: d.cantidad_solicitada,
-                cant_atendida: d.cantidad_atendida,
-                stock_max: d.stock_max,
-                estado: d.estado
-            }));
+            // Mapeo robusto de SC y OC
+            const flattened = filteredResults.map(d => {
+                // 1. Buscar SCs vinculadas a este requerimiento
+                const relatedSCs = scs.filter(sc => sc.requerimiento_id === d.requerimiento_id);
+                
+                // 2. Buscar ítems de SC que correspondan a este detalle
+                const matchedSCDetails: any[] = [];
+                relatedSCs.forEach(sc => {
+                    sc.detalles?.forEach((sd: any) => {
+                        const isDirectMatch = sd.detalle_requerimiento_id === d.id;
+                        const isFallbackMatch = !sd.detalle_requerimiento_id && (
+                            (d.tipo === 'Material' && sd.material_id === d.material_id) ||
+                            (d.tipo === 'Equipo' && sd.equipo_id === d.equipo_id) ||
+                            (d.tipo === 'EPP' && sd.epp_id === d.epp_id)
+                        );
+
+                        if (isDirectMatch || isFallbackMatch) {
+                            matchedSCDetails.push({ ...sd, parentSC: sc });
+                        }
+                    });
+                });
+
+                // 3. Extraer números de documentos únicos
+                const scSet = new Set<string>();
+                const ocSet = new Set<string>();
+
+                // Agregar datos de los enlaces encontrados
+                matchedSCDetails.forEach(sd => {
+                    if (sd.parentSC?.numero_sc) scSet.add(sd.parentSC.numero_sc);
+                    sd.detalles_oc?.forEach((od: any) => {
+                        if (od.oc?.numero_oc) ocSet.add(od.oc.numero_oc);
+                    });
+                });
+
+                // Mapeo final con strings únicos
+                const scStr = Array.from(scSet).join(', ') || d.numero_solicitud_compra || '-';
+                const ocStr = Array.from(ocSet).join(', ') || d.orden_compra || '-';
+
+                return {
+                    fecha: d.requerimiento.fecha_solicitud,
+                    solicitante: d.requerimiento.solicitante,
+                    req_numero: d.requerimiento.item_correlativo,
+                    especialidad: d.requerimiento.especialidad,
+                    frente: d.requerimiento.frente?.nombre_frente || '-',
+                    material: d.descripcion,
+                    categoria: d.material_categoria || d.tipo,
+                    unidad: d.unidad,
+                    cant_solicitada: d.cantidad_solicitada,
+                    cant_atendida: d.cantidad_atendida,
+                    stock_max: d.stock_max,
+                    sc: scStr,
+                    oc: ocStr,
+                    estado: d.estado,
+                    // Campos para filtrado posterior
+                    hasSC: scSet.size > 0 || !!d.numero_solicitud_compra,
+                    hasOC: ocSet.size > 0 || !!d.orden_compra
+                };
+            });
+
+            // Filtrado por Documento (SC/OC) en JS
+            let finalResults = flattened;
+            if (docType === 'SC') {
+                finalResults = flattened.filter(f => f.hasSC);
+            } else if (docType === 'OC') {
+                finalResults = flattened.filter(f => f.hasOC);
+            }
 
             // Agrupación de Resumen
             const summaryMap = new Map<string, any>();
-            flattened.forEach(item => {
-                // Para el resumen, en lugar de sumar en global ciegamente, sumamos por frente/especialidad/material...
-                // Pero un resumen simplificado podría ser agrupando por material/categoría sumando el cant atendida 
-                // vs el stock max global (o promedio/suma de los max).
-                // Dado que ahora el "stock_max" depende del frente/especialidad, sumar los maximos por material 
-                // globalmente podría dar repetidos. Para simplificar mantendremos la suma de totales atendidos.
+            finalResults.forEach(item => {
                 const key = item.material + '|' + item.categoria;
                 if (!summaryMap.has(key)) {
                     summaryMap.set(key, {
                         material: item.material,
                         categoria: item.categoria,
                         total_atendida: 0,
-                        // Stock max para resumen global: es engañoso ahora. Tomaremos el máximo individual 
-                        // encontrado, O idealmente, sumaríamos el listinsumo de todos los frentes.
-                        // Mantendremos un tracking de los presupuestos únicos agregados.
                         unique_budgets: new Set<string>(),
                         stock_max: 0
                     });
@@ -255,10 +301,10 @@ const ReporteMateriales: React.FC = () => {
 
             const summaryList = Array.from(summaryMap.values());
 
-            setReportData(flattened);
+            setReportData(finalResults);
             setSummaryData(summaryList);
             setGenerated(true);
-            saveToHistory(flattened.length);
+            saveToHistory(finalResults.length);
 
         } catch (error) {
             console.error("Error generating report", error);
@@ -278,6 +324,7 @@ const ReporteMateriales: React.FC = () => {
         setEspecialidad('');
         setBloque('');
         setSolicitante('');
+        setDocType('ALL');
         setReportData([]);
         setSummaryData([]);
         setGenerated(false);
@@ -304,6 +351,24 @@ const ReporteMateriales: React.FC = () => {
                 "Presupuesto Consolidado": s.stock_max
             })));
             XLSX.utils.book_append_sheet(wb, wsResumen, "Resumen");
+
+            // Preparar Detalle con encabezados bonitos
+            const detailExport = reportData.map(r => ({
+                Fecha: r.fecha ? new Date(r.fecha).toISOString().split('T')[0] : '-',
+                Solicitante: r.solicitante,
+                "Frente/Esp.": `${r.frente}/${r.especialidad}`,
+                "Req #": r.req_numero,
+                Material: r.material,
+                Categoría: r.categoria,
+                Unidad: r.unidad,
+                "Cant. Solicitada": r.cant_solicitada,
+                "Cant. Atendida": r.cant_atendida,
+                "Sol. Compra": r.sc,
+                "Ord. Compra": r.oc,
+                Estado: r.estado
+            }));
+            const wsDetalleExcel = XLSX.utils.json_to_sheet(detailExport);
+            XLSX.utils.book_append_sheet(wb, wsDetalleExcel, "Detalle Completo");
 
             const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
             const data = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8' });
@@ -343,18 +408,20 @@ const ReporteMateriales: React.FC = () => {
 
             autoTable(doc, {
                 startY: finalY + 15,
-                head: [['Fecha', 'Solic', 'Frente/Esp.', 'Req#', 'Material', 'Soli', 'Aten', 'Est']],
+                head: [['Fecha', 'Solic', 'Frente/Esp.', 'Req#', 'Material', 'Soli', 'Aten', 'SC', 'OC', 'Est']],
                 body: reportData.map(r => [
                     r.fecha ? new Date(r.fecha).toISOString().split('T')[0] : '-',
-                    r.solicitante.substring(0, 10), // Truncar para ajustar al PDF
+                    r.solicitante.substring(0, 10),
                     `${r.frente}/${r.especialidad}`,
                     r.req_numero,
                     r.material.substring(0, 15),
                     Number(r.cant_solicitada).toFixed(1),
                     Number(r.cant_atendida).toFixed(1),
+                    r.sc.substring(0, 10),
+                    r.oc.substring(0, 10),
                     r.estado
                 ]),
-                styles: { fontSize: 7 } // Fuente más pequeña estrictamente para detalles de PDF
+                styles: { fontSize: 6 }
             });
 
             doc.save(`Reporte_Materiales_${new Date().toISOString().split('T')[0]}.pdf`);
@@ -486,7 +553,15 @@ const ReporteMateriales: React.FC = () => {
                                 <option value="Cancelado">Cancelado</option>
                             </Form.Select>
                         </Col>
-                        <Col xs={12} md={6} className="d-flex align-items-end mt-3 mt-md-0">
+                        <Col xs={12} sm={6} md={3}>
+                            <Form.Label>Documento (OPC.)</Form.Label>
+                            <Form.Select value={docType} onChange={e => setDocType(e.target.value as any)}>
+                                <option value="ALL">Sin Filtro de Doc.</option>
+                                <option value="SC">Con Solicitud (SC)</option>
+                                <option value="OC">Con Orden de Compra (OC)</option>
+                            </Form.Select>
+                        </Col>
+                        <Col xs={12} md={9} className="d-flex align-items-end mt-3 mt-md-0">
                             <Button variant="primary" className="w-100 me-2" onClick={handleGenerate} disabled={isGenerating}>
                                 {isGenerating ? 'Generando...' : 'Generar Reporte'}
                             </Button>
@@ -545,7 +620,7 @@ const ReporteMateriales: React.FC = () => {
                                             <th>Material/Insumo</th>
                                             <th>Cant. Solicitada</th>
                                             <th>Cant. Atendida</th>
-                                            <th>Presupuesto (Límite Individual)</th>
+                                            <th>Sol. Compra / Ord. Compra</th>
                                             <th>Estado</th>
                                         </tr>
                                     </thead>
@@ -559,7 +634,12 @@ const ReporteMateriales: React.FC = () => {
                                                 <td>{r.material}</td>
                                                 <td>{Number(r.cant_solicitada).toFixed(2)}</td>
                                                 <td className="fw-bold text-primary">{Number(r.cant_atendida).toFixed(2)}</td>
-                                                <td>{r.stock_max > 0 ? Number(r.stock_max).toFixed(2) : '-'}</td>
+                                                <td>
+                                                    <div className="d-flex flex-column small">
+                                                        <span><Badge bg="info" className="me-1">SC:</Badge> {r.sc}</span>
+                                                        <span><Badge bg="success" className="me-1">OC:</Badge> {r.oc}</span>
+                                                    </div>
+                                                </td>
                                                 <td><Badge bg="secondary">{r.estado}</Badge></td>
                                             </tr>
                                         ))}
@@ -598,6 +678,7 @@ const ReporteMateriales: React.FC = () => {
                                                 {h.filters.solicitante ? `Sol: ${h.filters.solicitante}, ` : ''}
 
                                                 {h.filters.estado ? `Est: ${h.filters.estado}, ` : ''}
+                                                {h.filters.docType !== 'ALL' ? `Doc: ${h.filters.docType}, ` : ''}
                                                 {h.filters.fechaInicio ? `Desde: ${h.filters.fechaInicio} ` : ''}
                                             </small>
                                             {Object.values(h.filters).every(x => !x) && <span className="text-muted">Sin Filtros</span>}
