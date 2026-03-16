@@ -153,7 +153,7 @@ const ReporteMateriales: React.FC = () => {
         if (!selectedObra) return;
         setIsGenerating(true);
         try {
-            const { details, scs } = await getReporteMaterialesData({
+            const result = await getReporteMaterialesData({
                 obra_id: selectedObra.id,
                 fechaInicio,
                 fechaFin,
@@ -162,6 +162,9 @@ const ReporteMateriales: React.FC = () => {
                 docType,
                 keyword
             }) as { details: any[], scs: any[] };
+
+            const details = result?.details || [];
+            const scs = result?.scs || [];
 
             // Filtrado posterior por especialidad/bloque si es necesario
             let filteredResults = details;
