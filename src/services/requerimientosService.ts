@@ -547,6 +547,7 @@ export const getReporteMaterialesData = async (filters: {
     solicitante?: string;
     estado?: string;
     docType?: 'OC' | 'SC' | 'ALL';
+    keyword?: string;
 }) => {
     try {
         // 1. Fetch details joined with requirement info
@@ -574,6 +575,7 @@ export const getReporteMaterialesData = async (filters: {
         if (filters.frente && filters.frente !== 'Todos') query = query.eq('requerimiento.frente_id', filters.frente);
         if (filters.solicitante) query = query.eq('requerimiento.solicitante', filters.solicitante);
         if (filters.estado) query = query.eq('estado', filters.estado);
+        if (filters.keyword) query = query.ilike('descripcion', `%${filters.keyword}%`);
 
         const { data: details, error: detailsError } = await query;
         if (detailsError) throw detailsError;
