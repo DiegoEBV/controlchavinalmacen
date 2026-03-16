@@ -547,6 +547,7 @@ export const getReporteMaterialesData = async (filters: {
     solicitante?: string;
     estado?: string;
     docType?: 'OC' | 'SC' | 'ALL';
+    keyword?: string;
 }) => {
     try {
         // 1. Fetch details joined with requirement info
@@ -574,18 +575,33 @@ export const getReporteMaterialesData = async (filters: {
         if (filters.frente && filters.frente !== 'Todos') query = query.eq('requerimiento.frente_id', filters.frente);
         if (filters.solicitante) query = query.eq('requerimiento.solicitante', filters.solicitante);
         if (filters.estado) query = query.eq('estado', filters.estado);
+        
+        if (filters.keyword) {
+            const kw = filters.keyword.trim();
+            const singular = kw.endsWith('s') ? kw.slice(0, -1) : kw;
+            const plural = kw.endsWith('s') ? kw : kw + 's';
+            
+            if (singular !== plural) {
+                query = query.or(`descripcion.ilike.%${singular}%,descripcion.ilike.%${plural}%`);
+            } else {
+                query = query.ilike('descripcion', `%${kw}%`);
+            }
+        }
 
         const { data: details, error: detailsError } = await query;
         if (detailsError) throw detailsError;
 
-        if (!details || details.length === 0) return [];
+        if (!details || details.length === 0) return { details: [], scs: [] };
 
         // 2. Identify materials that need budget info
         // We only care about materials that have both material_id and are in a requirement with frente/specialty
         const materialItems = details.filter(d => d.tipo === 'Material' && d.material_id && d.requerimiento.frente_id && d.requerimiento.specialty_id);
 
         if (materialItems.length === 0) {
-            return details.map(d => ({ ...d, stock_max: 0 }));
+            return {
+                details: details.map(d => ({ ...d, stock_max: 0 })),
+                scs: []
+            };
         }
 
         // 3. Batch fetch budgets
@@ -610,7 +626,10 @@ export const getReporteMaterialesData = async (filters: {
         })).filter(d => d.fsId);
 
         if (materialWithFsId.length === 0) {
-            return details.map(d => ({ ...d, stock_max: 0 }));
+            return {
+                details: details.map(d => ({ ...d, stock_max: 0 })),
+                scs: []
+            };
         }
 
         // Fetch listinsumo_especialidad in bulk
