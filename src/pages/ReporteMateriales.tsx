@@ -1,12 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Form, Table, Button, Row, Col, Badge, Alert, Tab, Tabs } from 'react-bootstrap';
-import { getSolicitantes, getCategorias, getReporteMaterialesData, getMaterialesCatalog } from '../services/requerimientosService';
-import { getEquipos } from '../services/equiposService';
-import { getEpps } from '../services/eppsService';
+import { getSolicitantes, getCategorias, getReporteMaterialesData } from '../services/requerimientosService';
 import { getFrentes, getBloques } from '../services/frentesService';
-import SearchableSelect from '../components/SearchableSelect';
 import { getFrontSpecialties } from '../services/specialtiesService';
-import { Material, Frente, Specialty, Bloque } from '../types';
+import { Frente, Specialty, Bloque } from '../types';
 import { useAuth } from '../context/AuthContext';
 
 // Clave de Almacenamiento Local
@@ -19,7 +16,7 @@ interface ReportHistoryItem {
     filters: {
         tipo: string;
         categoria: string;
-        materialId: string;
+        keyword: string;
         frente: string;
         especialidad: string;
         bloque: string;
@@ -34,7 +31,6 @@ interface ReportHistoryItem {
 
 const ReporteMateriales: React.FC = () => {
     // Datos
-    const [materials, setMaterials] = useState<Material[]>([]);
     const [solicitantes, setSolicitantes] = useState<string[]>([]);
     const [categorias, setCategorias] = useState<string[]>([]);
     const [frentesData, setFrentesData] = useState<Frente[]>([]);
@@ -46,7 +42,7 @@ const ReporteMateriales: React.FC = () => {
     const [fechaFin, setFechaFin] = useState('');
     const [tipo, setTipo] = useState('');
     const [categoria, setCategoria] = useState('');
-    const [materialId, setMaterialId] = useState('');
+    const [keyword, setKeyword] = useState('');
     const [frente, setFrente] = useState('');
     const [especialidad, setEspecialidad] = useState('');
     const [bloque, setBloque] = useState('');
@@ -121,38 +117,8 @@ const ReporteMateriales: React.FC = () => {
         fetchFilters();
     }, [frente, selectedObra, frentesData]);
 
-    // Cargar Catálogo de Ítems (Materiales, Equipos, EPPs)
-    useEffect(() => {
-        const loadItems = async () => {
-            try {
-                const [mCat, eCat, eppCat] = await Promise.all([
-                    getMaterialesCatalog(),
-                    getEquipos(selectedObra?.id || '', 1, 5000), // Usar servicios existentes
-                    getEpps(true, 1, 5000)
-                ]);
+    // Cargar Catálogo de Ítems - No longer needed for filter as we use keywords
 
-                const allItems: any[] = [
-                    ...(mCat || []).map((m: Material) => ({ ...m, categoria_interna: 'Material' })),
-                    ...(eCat.data || []).map((e: any) => ({
-                        id: e.id,
-                        descripcion: `${e.nombre} ${e.marca || ''} (${e.codigo})`,
-                        categoria: 'Equipo',
-                        categoria_interna: 'Equipo'
-                    })),
-                    ...(eppCat.data || []).map((e: any) => ({
-                        id: e.id,
-                        descripcion: `${e.descripcion} (${e.codigo || ''})`,
-                        categoria: 'EPP',
-                        categoria_interna: 'EPP'
-                    }))
-                ];
-                setMaterials(allItems);
-            } catch (err) {
-                console.error("Error loading items catalogs", err);
-            }
-        };
-        if (selectedObra) loadItems();
-    }, [selectedObra]);
 
     const loadHistory = () => {
         const stored = localStorage.getItem(HISTORY_KEY);
@@ -175,7 +141,7 @@ const ReporteMateriales: React.FC = () => {
         const newItem: ReportHistoryItem = {
             id: crypto.randomUUID(),
             generatedAt: new Date().toISOString(),
-            filters: { tipo, categoria, materialId, frente, especialidad, bloque, solicitante, estado, fechaInicio, fechaFin, docType },
+            filters: { tipo, categoria, keyword, frente, especialidad, bloque, solicitante, estado, fechaInicio, fechaFin, docType },
             resultCount: count
         };
         const newHistory = [newItem, ...history];
@@ -191,11 +157,10 @@ const ReporteMateriales: React.FC = () => {
                 obra_id: selectedObra.id,
                 fechaInicio,
                 fechaFin,
-                tipo,
-                frente,
                 solicitante,
                 estado,
-                docType
+                docType,
+                keyword
             }) as { details: any[], scs: any[] };
 
             // Filtrado posterior por especialidad/bloque si es necesario
@@ -319,7 +284,7 @@ const ReporteMateriales: React.FC = () => {
         setFechaFin('');
         setCategoria('');
         setTipo('');
-        setMaterialId('');
+        setKeyword('');
         setFrente('');
         setEspecialidad('');
         setBloque('');
@@ -463,7 +428,7 @@ const ReporteMateriales: React.FC = () => {
                             <Form.Label>Tipo</Form.Label>
                             <Form.Select value={tipo} onChange={e => {
                                 setTipo(e.target.value);
-                                setMaterialId(''); // Restablecer selección de ítem cuando cambia el tipo
+                                setKeyword(''); // Restablecer selección de ítem cuando cambia el tipo
                                 setCategoria('');  // Restablecer categoría principalmente si se cambia de Material
                             }}>
                                 <option value="">Todos</option>
@@ -509,32 +474,13 @@ const ReporteMateriales: React.FC = () => {
                             </Col>
                         )}
                         <Col xs={12} sm={6} md={3}>
-                            <Form.Label>{tipo === 'Equipo' ? 'Equipo' : tipo === 'EPP' ? 'EPP' : tipo === 'Servicio' ? 'Servicio' : 'Material/Insumo'}</Form.Label>
-                            {tipo !== 'Servicio' ? (
-                                <SearchableSelect
-                                    options={materials
-                                        .filter(m => {
-                                            if (tipo) return (m as any).categoria_interna === tipo;
-                                            if (categoria) return m.categoria === categoria;
-                                            return true;
-                                        })
-                                        .map(m => ({
-                                            value: m.id,
-                                            label: m.descripcion,
-                                            info: m.categoria
-                                        }))}
-                                    value={materialId}
-                                    onChange={(val) => setMaterialId(String(val))}
-                                    placeholder={`Buscar ${tipo || 'ítem'}...`}
-                                />
-                            ) : (
-                                <Form.Control
-                                    type="text"
-                                    placeholder="Ingresar descripción de servicio"
-                                    value={materialId}
-                                    onChange={e => setMaterialId(e.target.value)}
-                                />
-                            )}
+                            <Form.Label>Material / Equipo / EPP (Palabra Clave)</Form.Label>
+                            <Form.Control
+                                type="text"
+                                placeholder="Ej: disco, cemento, pala..."
+                                value={keyword}
+                                onChange={e => setKeyword(e.target.value)}
+                            />
                         </Col>
                         <Col xs={12} sm={6} md={3}>
                             <Form.Label>Solicitante</Form.Label>
