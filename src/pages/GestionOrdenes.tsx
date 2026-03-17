@@ -3,10 +3,10 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Card, Button, Table, Badge, Modal, Form, Row, Col, Spinner, Accordion } from 'react-bootstrap';
 import { RiFileExcel2Line } from 'react-icons/ri';
 
-import { getSolicitudesCompra, createOrdenCompra, getOrdenesCompra, getOrdenCompraById, getSolicitudCompraById, getOrdenesCompraExport } from '../services/comprasService';
+import { getSolicitudesCompra, createOrdenCompra, getOrdenesCompra, getOrdenCompraById, getSolicitudCompraById, getOrdenesCompraExport, updateOrdenCompra } from '../services/comprasService';
+import { FaEdit } from 'react-icons/fa';
 import { getAllMovimientos } from '../services/almacenService';
 import { SolicitudCompra, OrdenCompra, MovimientoAlmacen } from '../types';
-import { exportSolicitudCompra } from '../utils/scExcelExport';
 import { exportOrdenesCompra } from '../utils/ocExcelExport';
 import { useAuth } from '../context/AuthContext';
 import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription';
@@ -24,7 +24,6 @@ const GestionOrdenes: React.FC = () => {
     const [showModal, setShowModal] = useState(false);
     const [selectedSCs, setSelectedSCs] = useState<SolicitudCompra[]>([]);
     const [selectedSCIds, setSelectedSCIds] = useState<Set<string>>(new Set());
-    const [exportingId, setExportingId] = useState<string | null>(null);
 
     // Entradas del Formulario
     const [proveedor, setProveedor] = useState('');
@@ -34,6 +33,9 @@ const GestionOrdenes: React.FC = () => {
     const [fechaVencimiento, setFechaVencimiento] = useState('');
     const [itemsToOrder, setItemsToOrder] = useState<any[]>([]);
     const [showOnlySelected, setShowOnlySelected] = useState(false);
+    const [showEditModal, setShowEditModal] = useState(false);
+    const [editingOC, setEditingOC] = useState<OrdenCompra | null>(null);
+    const [isOCAttended, setIsOCAttended] = useState(false);
 
     // Estado para Exportación
     const [fechaInicialExport, setFechaInicialExport] = useState('');
@@ -126,7 +128,7 @@ const GestionOrdenes: React.FC = () => {
     const handleOpenCreateMulti = () => {
         const scs = allSolicitudes.filter(sc => selectedSCIds.has(sc.id));
         if (scs.length === 0) return alert("Seleccione al menos una solicitud");
-        
+
         setSelectedSCs(scs);
         setManualOCNumber('');
         setProveedor('');
@@ -243,16 +245,6 @@ const GestionOrdenes: React.FC = () => {
         }
     };
 
-    const handleExportSC = async (sc: SolicitudCompra) => {
-        try {
-            setExportingId(sc.id);
-            await exportSolicitudCompra(sc);
-        } catch (error) {
-            console.error("Export failed:", error);
-        } finally {
-            setExportingId(null);
-        }
-    };
 
     const handleExportOC = async () => {
         if (!selectedObra) return alert("Seleccione una obra");
@@ -270,7 +262,77 @@ const GestionOrdenes: React.FC = () => {
         } catch (error) {
             console.error("Export OC failed:", error);
         } finally {
-            setIsExporting(true);
+            setIsExporting(false);
+        }
+    };
+
+    const handleOpenEdit = (oc: OrdenCompra) => {
+        // Verificar si la OC tiene algún ítem ya atendido en almacén
+        const attended = oc.detalles?.some(d => {
+            const consumed = historial
+                .filter(h =>
+                    h.tipo === 'ENTRADA' &&
+                    String(h.requerimiento_id) === String((oc as any).sc?.requerimiento_id) &&
+                    (
+                        (d.detalle_sc?.material_id && h.material_id === d.detalle_sc.material_id) ||
+                        (d.detalle_sc?.equipo_id && h.equipo_id === d.detalle_sc.equipo_id) ||
+                        (d.detalle_sc?.epp_id && h.epp_id === d.detalle_sc.epp_id)
+                    ) &&
+                    (h as any).destino_o_uso !== 'COMPRA CAJA CHICA'
+                )
+                .reduce((sum, h) => sum + h.cantidad, 0);
+            return consumed > 0.01 || (d.detalle_sc as any)?.estado === 'Atendido' || (d.detalle_sc as any)?.estado === 'Parcial';
+        });
+
+        setIsOCAttended(!!attended);
+        setEditingOC(oc);
+        setProveedor(oc.proveedor || '');
+        setManualOCNumber(oc.numero_oc);
+        setFechaAtencion(oc.fecha_aproximada_atencion || '');
+        setNFactura(oc.n_factura || '');
+        setFechaVencimiento(oc.fecha_vencimiento || '');
+
+        // Cargar ítems para edición
+        const items = oc.detalles?.map(d => ({
+            detalle_sc_id: d.detalle_sc_id,
+            material_desc: d.detalle_sc?.material?.descripcion || d.detalle_sc?.equipo?.nombre || d.detalle_sc?.epp?.descripcion || 'Sin descripción',
+            cantidad_sc: d.detalle_sc?.cantidad || 0,
+            unidad: d.detalle_sc?.unidad || '-',
+            cantidad_compra: d.cantidad,
+            precio_unitario: d.precio_unitario || 0,
+            selected: true
+        })) || [];
+
+        setItemsToOrder(items);
+        setShowEditModal(true);
+    };
+
+    const handleUpdateOC = async () => {
+        if (!editingOC || !proveedor || !manualOCNumber) return alert("Ingrese proveedor y número de OC");
+
+        const items = itemsToOrder.map(i => ({
+            detalle_sc_id: i.detalle_sc_id,
+            cantidad: parseFloat(i.cantidad_compra),
+            precio_unitario: parseFloat(i.precio_unitario) || 0
+        }));
+
+        try {
+            const ocData = {
+                numero_oc: manualOCNumber,
+                proveedor,
+                fecha_oc: editingOC.fecha_oc,
+                fecha_aproximada_atencion: fechaAtencion || null,
+                n_factura: nFactura || null,
+                fecha_vencimiento: fechaVencimiento || null
+            };
+
+            await updateOrdenCompra(editingOC.id, ocData, items);
+            alert("Orden de Compra actualizada!");
+            setShowEditModal(false);
+            loadData();
+        } catch (e: any) {
+            console.error(e);
+            alert("Error actualizando OC: " + e.message);
         }
     };
 
@@ -347,19 +409,7 @@ const GestionOrdenes: React.FC = () => {
                                             >
                                                 Crear OC
                                             </Button>
-                                            <Button
-                                                size="sm"
-                                                variant="outline-success"
-                                                className="ms-2 rounded-circle"
-                                                onClick={() => handleExportSC(sc)}
-                                                disabled={exportingId === sc.id}
-                                            >
-                                                {exportingId === sc.id ? (
-                                                    <Spinner animation="border" size="sm" />
-                                                ) : (
-                                                    <RiFileExcel2Line size={16} />
-                                                )}
-                                            </Button>
+
                                         </td>
                                     </tr>
                                 ))}
@@ -440,7 +490,7 @@ const GestionOrdenes: React.FC = () => {
                                                     <small className="d-block text-muted" style={{ fontSize: '0.7em', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Total OC + IGV</small>
                                                     <strong className="text-success fs-6">S/. {totalOC.toFixed(2)}</strong>
                                                 </div>
-                                                
+
                                                 <div className="text-center px-3 border-start text-muted">
                                                     <small className="d-block text-muted" style={{ fontSize: '0.7em', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Fechas y Docs</small>
                                                     <div style={{ fontSize: '0.85em' }}>
@@ -451,6 +501,43 @@ const GestionOrdenes: React.FC = () => {
                                                 </div>
 
                                                 <Badge bg="secondary" className="px-3 py-2 fs-6 rounded-pill">{oc.estado}</Badge>
+                                                {(() => {
+                                                    const isAttended = oc.detalles?.some(d => {
+                                                        const consumed = historial
+                                                            .filter(h =>
+                                                                h.tipo === 'ENTRADA' &&
+                                                                String(h.requerimiento_id) === String((oc as any).sc?.requerimiento_id) &&
+                                                                (
+                                                                    (d.detalle_sc?.material_id && h.material_id === d.detalle_sc.material_id) ||
+                                                                    (d.detalle_sc?.equipo_id && h.equipo_id === d.detalle_sc.equipo_id) ||
+                                                                    (d.detalle_sc?.epp_id && h.epp_id === d.detalle_sc.epp_id)
+                                                                ) &&
+                                                                (h as any).destino_o_uso !== 'COMPRA CAJA CHICA'
+                                                            )
+                                                            .reduce((sum, h) => sum + h.cantidad, 0);
+                                                        return consumed > 0.01 || (d.detalle_sc as any)?.estado === 'Atendido' || (d.detalle_sc as any)?.estado === 'Parcial';
+                                                    });
+
+                                                    return (
+                                                        <div
+                                                            className={`btn btn-sm btn-outline-success rounded-pill px-3 py-2 ms-3 ${isAttended ? 'disabled' : ''}`}
+                                                            style={{ 
+                                                                cursor: isAttended ? 'default' : 'pointer', 
+                                                                display: 'inline-flex', 
+                                                                alignItems: 'center', 
+                                                                justifyContent: 'center', 
+                                                                minWidth: '40px' 
+                                                            }}
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                if (!isAttended) handleOpenEdit(oc);
+                                                            }}
+                                                            title={isAttended ? "No se puede editar: OC con ingresos a almacén o materiales atendidos" : "Editar OC"}
+                                                        >
+                                                            <FaEdit size={14} />
+                                                        </div>
+                                                    );
+                                                })()}
                                             </div>
                                         </div>
                                     </Accordion.Header>
@@ -607,7 +694,7 @@ const GestionOrdenes: React.FC = () => {
                                 <th style={{ width: '40%' }}>
                                     <div className="d-flex align-items-center justify-content-between">
                                         <span>Descripción del Item</span>
-                                        <Form.Check 
+                                        <Form.Check
                                             type="switch"
                                             id="filter-selected-switch"
                                             label={<small className="fw-bold text-primary">Ver solo seleccionados</small>}
@@ -710,6 +797,144 @@ const GestionOrdenes: React.FC = () => {
                 <Modal.Footer>
                     <Button variant="secondary" onClick={() => setShowModal(false)}>Cancelar</Button>
                     <Button variant="success" onClick={handleSaveOC}>Generar Orden</Button>
+                </Modal.Footer>
+            </Modal>
+
+            {/* Modal de Edición de OC */}
+            <Modal show={showEditModal} onHide={() => setShowEditModal(false)} size="xl">
+                <Modal.Header closeButton className="bg-light border-bottom-0 pt-4 px-4">
+                    <Modal.Title className="fw-bold">
+                        <i className="bi bi-pencil-square me-2 text-warning"></i>
+                        Editar Orden de Compra {editingOC?.numero_oc}
+                    </Modal.Title>
+                </Modal.Header>
+                <Modal.Body className="px-4 pb-4">
+                    {isOCAttended && (
+                        <div className="alert alert-warning py-2 small mb-4 border-0 bg-opacity-10 d-flex align-items-center">
+                            <i className="bi bi-exclamation-triangle-fill me-2 fs-5"></i>
+                            Esta OC ya tiene ingresos en almacén. Solo se puede editar la información de facturación y datos generales. Las cantidades y precios están bloqueados.
+                        </div>
+                    )}
+                    <Row className="mb-3">
+                        <Col xs={12} md={6}>
+                            <Form.Group>
+                                <Form.Label>Número de Orden de Compra</Form.Label>
+                                <Form.Control
+                                    value={manualOCNumber}
+                                    onChange={e => setManualOCNumber(e.target.value)}
+                                    disabled={isOCAttended}
+                                />
+                            </Form.Group>
+                        </Col>
+                        <Col xs={12} md={6}>
+                            <Form.Group>
+                                <Form.Label>Proveedor</Form.Label>
+                                <Form.Control
+                                    value={proveedor}
+                                    onChange={e => setProveedor(e.target.value)}
+                                    disabled={isOCAttended}
+                                />
+                            </Form.Group>
+                        </Col>
+                    </Row>
+                    <Row className="mb-3">
+                        <Col xs={12} md={6}>
+                            <Form.Group>
+                                <Form.Label>Fecha Aproximada de Atención</Form.Label>
+                                <Form.Control
+                                    type="date"
+                                    value={fechaAtencion}
+                                    onChange={e => setFechaAtencion(e.target.value)}
+                                />
+                            </Form.Group>
+                        </Col>
+                    </Row>
+
+                    <Card className="mb-4 bg-light">
+                        <Card.Body className="p-3">
+                            <h6 className="text-muted fw-bold mb-3"><i className="bi bi-receipt"></i> Información de Facturación</h6>
+                            <Row>
+                                <Col xs={12} md={6}>
+                                    <Form.Group>
+                                        <Form.Label className="text-sm">N° Factura</Form.Label>
+                                        <Form.Control
+                                            value={nFactura}
+                                            onChange={e => setNFactura(e.target.value)}
+                                            placeholder="Ej: F001-000123"
+                                        />
+                                    </Form.Group>
+                                </Col>
+                                <Col xs={12} md={6}>
+                                    <Form.Group>
+                                        <Form.Label className="text-sm">Fecha Vencimiento</Form.Label>
+                                        <Form.Control
+                                            type="date"
+                                            value={fechaVencimiento}
+                                            onChange={e => setFechaVencimiento(e.target.value)}
+                                        />
+                                    </Form.Group>
+                                </Col>
+                            </Row>
+                        </Card.Body>
+                    </Card>
+
+                    <Table responsive hover className="table-borderless-custom align-middle">
+                        <thead className="bg-light">
+                            <tr>
+                                <th style={{ width: '40%' }}>Descripción del Item</th>
+                                <th style={{ width: '20%' }}>Cant. SC</th>
+                                <th style={{ width: '20%' }}>A Comprar</th>
+                                <th style={{ width: '20%' }}>P. Unit S/.</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {itemsToOrder.map((it, idx) => (
+                                <tr key={idx}>
+                                    <td className="fw-medium text-dark">{it.material_desc}</td>
+                                    <td>
+                                        <span className="fw-bold">{Number(it.cantidad_sc).toFixed(2)} <small className="text-secondary fw-normal ms-1">{it.unidad}</small></span>
+                                    </td>
+                                    <td>
+                                        <div className="input-group input-group-sm">
+                                            <Form.Control
+                                                type="number"
+                                                value={it.cantidad_compra}
+                                                onChange={e => {
+                                                    const val = parseFloat(e.target.value) || 0;
+                                                    const newItems = [...itemsToOrder];
+                                                    newItems[idx].cantidad_compra = parseFloat(val.toFixed(2));
+                                                    setItemsToOrder(newItems);
+                                                }}
+                                                disabled={isOCAttended}
+                                                className="bg-light bg-opacity-10 border-end-0"
+                                            />
+                                            <span className="input-group-text bg-white text-muted py-0">{it.unidad}</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <Form.Control
+                                            type="number"
+                                            size="sm"
+                                            value={it.precio_unitario}
+                                            onChange={e => {
+                                                const val = parseFloat(e.target.value) || 0;
+                                                const newItems = [...itemsToOrder];
+                                                newItems[idx].precio_unitario = val;
+                                                setItemsToOrder(newItems);
+                                            }}
+                                            disabled={isOCAttended}
+                                            placeholder="0.00"
+                                            className="bg-light bg-opacity-10"
+                                        />
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </Table>
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="secondary" onClick={() => setShowEditModal(false)}>Cancelar</Button>
+                    <Button variant="warning" onClick={handleUpdateOC}>Guardar Cambios</Button>
                 </Modal.Footer>
             </Modal>
         </div>

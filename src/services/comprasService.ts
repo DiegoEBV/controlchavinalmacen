@@ -100,16 +100,16 @@ export const getOrdenesCompra = async (obraId?: string) => {
         .from('ordenes_compra')
         .select(`
             *,
-            sc:solicitudes_compra(
+            sc:solicitudes_compra!inner(
                 *,
-                requerimiento:requerimientos(id, obra_id, item_correlativo, solicitante, frente:frentes(nombre_frente))
+                requerimiento:requerimientos!inner(id, obra_id, item_correlativo, solicitante, frente:frentes(nombre_frente))
             ),
-            detalles:detalles_oc!inner(*, detalle_sc:detalles_sc!inner(*, material:materiales(*), equipo:equipos(*), epp:epps_c(*), sc:solicitudes_compra!inner(*, requerimiento:requerimientos!inner(obra_id))))
+            detalles:detalles_oc(*, detalle_sc:detalles_sc(*, material:materiales(*), equipo:equipos(*), epp:epps_c(*)))
         `)
         .order('created_at', { ascending: false });
 
     if (obraId) {
-        query = query.eq('detalles.detalle_sc.sc.requerimiento.obra_id', obraId);
+        query = query.eq('sc.requerimiento.obra_id', obraId);
     }
 
     const { data, error } = await query;
@@ -171,6 +171,28 @@ export const createOrdenCompra = async (
     return oc;
 };
 
+export const updateOrdenCompra = async (
+    ocId: string,
+    ocData: any,
+    items: any[]
+) => {
+    const { error } = await supabase.rpc('update_orden_compra', {
+        p_oc_id: ocId,
+        p_oc_data: {
+            ...ocData,
+            n_factura: ocData.n_factura || null,
+            fecha_vencimiento: ocData.fecha_vencimiento || null
+        },
+        p_items: items.map(item => ({
+            detalle_sc_id: item.detalle_sc_id,
+            cantidad: item.cantidad,
+            precio_unitario: item.precio_unitario || 0
+        }))
+    });
+
+    if (error) throw error;
+};
+
 export const getOrdenCompraById = async (id: string) => {
     const { data, error } = await supabase
         .from('ordenes_compra')
@@ -197,13 +219,13 @@ export const getOrdenesCompraExport = async (obraId: string, fechaInicial: strin
         .from('ordenes_compra')
         .select(`
             *,
-            sc:solicitudes_compra(
+            sc:solicitudes_compra!inner(
                 *,
-                requerimiento:requerimientos(id, obra_id, item_correlativo, solicitante, frente:frentes(nombre_frente))
+                requerimiento:requerimientos!inner(id, obra_id, item_correlativo, solicitante, frente:frentes(nombre_frente))
             ),
-            detalles:detalles_oc!inner(*, detalle_sc:detalles_sc!inner(*, material:materiales(*), equipo:equipos(*), epp:epps_c(*), sc:solicitudes_compra!inner(*, requerimiento:requerimientos!inner(obra_id))))
+            detalles:detalles_oc(*, detalle_sc:detalles_sc(*, material:materiales(*), equipo:equipos(*), epp:epps_c(*)))
         `)
-        .eq('detalles.detalle_sc.sc.requerimiento.obra_id', obraId)
+        .eq('sc.requerimiento.obra_id', obraId)
         .gte('fecha_oc', fechaInicial)
         .lte('fecha_oc', fechaFinal)
         .order('fecha_oc', { ascending: true }); // Ordenar cronológicamente
