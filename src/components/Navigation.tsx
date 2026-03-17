@@ -131,6 +131,10 @@ const Navigation: React.FC = () => {
                                 <Nav.Link as={Link} to="/almacen/salidas" className={`nav-link ${isActive('/almacen/salidas') ? 'active' : ''}`} onClick={closeNav}>
                                     <span className="me-2">📤</span> Registrar Salidas
                                 </Nav.Link>
+
+                                <Nav.Link as={Link} to="/almacen/devoluciones" className={`nav-link ${isActive('/almacen/devoluciones') ? 'active' : ''}`} onClick={closeNav}>
+                                    <span className="me-2">↩️</span> Registrar Devoluciones
+                                </Nav.Link>
                             </>
                         )}
 
