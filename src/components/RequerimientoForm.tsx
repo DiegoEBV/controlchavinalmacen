@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Modal, Button, Form, Table, Row, Col, InputGroup, Spinner, Dropdown, Badge } from 'react-bootstrap';
 import SearchableSelect from './SearchableSelect';
 import { Requerimiento, DetalleRequerimiento, Obra, Material, Equipo, EppC } from '../types';
-import { getSolicitantes, getCategorias, getBudgetedMaterials, getMaterialesCatalog } from '../services/requerimientosService';
+import { getCategorias, getBudgetedMaterials, getMaterialesCatalog } from '../services/requerimientosService';
 import { getEquiposCatalog } from '../services/equiposService';
 import { getBloques } from '../services/frentesService';
 import { getAllInventario } from '../services/almacenService';
@@ -43,7 +43,6 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
     const [frentesList, setFrentesList] = useState<any[]>([]); // Frentes de la obra seleccionada
     const [bloquesList, setBloquesList] = useState<any[]>([]);
     const [selectedBloques, setSelectedBloques] = useState<string[]>([]);
-    const [solicitantesList, setSolicitantesList] = useState<any[]>([]);
 
     const [categoriasList, setCategoriasList] = useState<any[]>([]);
     const [stockMap, setStockMap] = useState<Record<string, number>>({});
@@ -133,7 +132,7 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
         setLoadingMateriales(true);
 
         // Fetch Solicitors and Categories (fast)
-        getSolicitantes().then(s => s && setSolicitantesList(s));
+        // getSolicitantes().then(s => s && setSolicitantesList(s)); // Removed as per request to block other users
         getCategorias().then(c => c && setCategoriasList(c));
 
         // Fetch EPPs Catalog
@@ -650,13 +649,12 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
                         <Col md={2}>
                             <Form.Group>
                                 <Form.Label>Solicitante *</Form.Label>
-                                <Form.Select value={solicitante} onChange={e => setSolicitante(e.target.value)}>
-                                    <option value="">Seleccione...</option>
-                                    {profile?.nombre && !solicitantesList.some(s => s.nombre === profile.nombre) && (
-                                        <option value={profile.nombre}>{profile.nombre}</option>
-                                    )}
-                                    {solicitantesList.map(s => <option key={s.id} value={s.nombre}>{s.nombre}</option>)}
-                                </Form.Select>
+                                <Form.Control 
+                                    value={solicitante} 
+                                    readOnly 
+                                    disabled
+                                    className="bg-light"
+                                />
                             </Form.Group>
                         </Col>
                     </Row>
@@ -848,7 +846,7 @@ const RequerimientoForm: React.FC<RequerimientoFormProps> = ({ show, handleClose
                         </thead>
                         <tbody>
                             {items.map((it, idx) => (
-                                <tr key={idx}>
+                                <tr key={`${it.tipo}-${it.descripcion}-${idx}`}>
                                     <td>{it.tipo}</td>
                                     <td>
                                         {it.descripcion}
