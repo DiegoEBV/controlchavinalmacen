@@ -498,3 +498,51 @@ export const registrarAjusteInventario = async (
     if (error) throw error;
     return data;
 };
+
+export const registrarDevolucionHistorial = async (
+    obraId: string,
+    usuarioId: string,
+    tipoSalida: 'MATERIAL' | 'EQUIPO' | 'EPP',
+    itemSalidaId: string,
+    cantidadSalida: number,
+    motivo: string,
+    esCambio: boolean,
+    idSalidaRef: string | null,
+    tipoEntrada?: 'MATERIAL' | 'EQUIPO' | 'EPP',
+    itemEntradaId?: string,
+    cantidadEntrada?: number,
+    idEntradaRef?: string | null
+) => {
+    const devolucionData: any = {
+        obra_id: obraId,
+        usuario_id: usuarioId,
+        tipo_salida: tipoSalida,
+        cantidad_salida: cantidadSalida,
+        motivo: motivo,
+        es_cambio: esCambio,
+        id_salida_ref: idSalidaRef,
+    };
+
+    if (tipoSalida === 'MATERIAL') devolucionData.material_salida_id = itemSalidaId;
+    else if (tipoSalida === 'EQUIPO') devolucionData.equipo_salida_id = itemSalidaId;
+    else if (tipoSalida === 'EPP') devolucionData.epp_salida_id = itemSalidaId;
+
+    if (esCambio) {
+        devolucionData.tipo_entrada = tipoEntrada;
+        devolucionData.cantidad_entrada = cantidadEntrada;
+        devolucionData.id_entrada_ref = idEntradaRef;
+
+        if (tipoEntrada === 'MATERIAL') devolucionData.material_entrada_id = itemEntradaId;
+        else if (tipoEntrada === 'EQUIPO') devolucionData.equipo_entrada_id = itemEntradaId;
+        else if (tipoEntrada === 'EPP') devolucionData.epp_entrada_id = itemEntradaId;
+    }
+
+    const { data, error } = await supabase
+        .from('devoluciones')
+        .insert([devolucionData])
+        .select()
+        .single();
+
+    if (error) throw error;
+    return data;
+};
