@@ -12,7 +12,7 @@ import { formatDisplayDate } from '../utils/dateUtils';
 import ValePrintable from '../components/ValePrintable';
 import { peekNextValeSalida } from '../services/almacenService';
 import html2canvas from 'html2canvas';
-import { jsPDF } from 'jspdf';
+
 import { Spinner } from 'react-bootstrap';
 import { FaFilePdf, FaDownload } from 'react-icons/fa';
 
@@ -143,7 +143,8 @@ const GestionPedidosSalida: React.FC = () => {
             });
 
             const imgData = canvas.toDataURL('image/png', 1.0);
-            let pdf: jsPDF;
+            const { jsPDF } = await import('jspdf');
+            let pdf: any;
 
             if (printFormat === 'TICKET') {
                 const pdfWidth = 58;
