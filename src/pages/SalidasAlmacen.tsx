@@ -14,7 +14,6 @@ import SearchableSelect from '../components/SearchableSelect';
 import { formatDisplayDate } from '../utils/dateUtils';
 import ValePrintable from '../components/ValePrintable';
 import html2canvas from 'html2canvas';
-import { jsPDF } from 'jspdf';
 
 interface SelectedItem {
     invId: string;
@@ -342,7 +341,8 @@ const SalidasAlmacen: React.FC = () => {
             });
 
             const imgData = canvas.toDataURL('image/png', 1.0);
-            let pdf: jsPDF;
+            const { jsPDF } = await import('jspdf');
+            let pdf: any;
 
             if (printFormat === 'TICKET') {
                 const pdfWidth = 58;

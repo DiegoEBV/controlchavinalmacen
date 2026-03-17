@@ -223,13 +223,15 @@ const EntradasAlmacen: React.FC = () => {
         return ordenes.filter(oc => {
             if (oc.estado === 'Anulada') return false;
             if (!oc.detalles || oc.detalles.length === 0) return false;
-            // Tiene pendiente si algún detalle de esta OC tiene pendiente > 0
-            const reqId = (oc as any).sc?.requerimiento_id;
-            if (!reqId) return false;
-
-            return oc.detalles.some(d => getPendingForOCDetail(d, oc.id, reqId) > 0);
+            
+            return oc.detalles.some(d => {
+                const sc = allSCs.find(s => s.id === d.detalle_sc?.sc_id);
+                const reqId = sc?.requerimiento_id || (oc as any).sc?.requerimiento_id;
+                if (!reqId) return false;
+                return getPendingForOCDetail(d, oc.id, reqId) > 0;
+            });
         });
-    }, [ordenes, getPendingForOCDetail]);
+    }, [ordenes, allSCs, getPendingForOCDetail]);
 
     // Efecto de limpieza automática cuando selectedOC está totalmente atendida
     useEffect(() => {
@@ -251,9 +253,12 @@ const EntradasAlmacen: React.FC = () => {
         setSelectedItems(newMap);
     };
 
-    const handleSelectAll = (detalles: DetalleOC[], reqId: string) => {
+    const handleSelectAll = (detalles: DetalleOC[], fallbackReqId: string) => {
         const newMap = new Map();
         detalles.forEach(d => {
+            const sc = allSCs.find(s => s.id === d.detalle_sc?.sc_id);
+            const reqId = sc?.requerimiento_id || fallbackReqId;
+            if (!reqId) return;
             const pending = getPendingForOCDetail(d, selectedOC!.id, reqId);
             if (pending > 0) newMap.set(d.id, pending);
         });
@@ -268,19 +273,24 @@ const EntradasAlmacen: React.FC = () => {
         setLoading(true);
         try {
             const itemsToProcess = [];
-            const reqId = (selectedOC as any).sc?.requerimiento_id;
+            const fallbackReqId = (selectedOC as any).sc?.requerimiento_id;
             const obraId = (selectedOC as any).sc?.requerimiento?.obra_id || selectedObra?.id;
 
             for (const [id, cantidad] of selectedItems.entries()) {
                 const detalleOc = selectedOC.detalles?.find(d => d.id === id);
                 if (!detalleOc || !detalleOc.detalle_sc) continue;
 
-                const pending = getPendingForOCDetail(detalleOc, selectedOC.id, reqId);
+                const sc = allSCs.find(s => s.id === detalleOc.detalle_sc!.sc_id);
+                const itemReqId = sc?.requerimiento_id || fallbackReqId;
+                
+                if (!itemReqId) throw new Error("No se pudo determinar el Requerimiento asociado al item.");
+
+                const pending = getPendingForOCDetail(detalleOc, selectedOC.id, itemReqId);
                 if (cantidad > pending) {
                     throw new Error(`La cantidad ingresada excede el pendiente en esta OC para el ítem.`);
                 }
 
-                const parentReq = allReqs.find(r => r.id === reqId);
+                const parentReq = allReqs.find(r => r.id === itemReqId);
                 const targetDetReq = parentReq?.detalles?.find(d => {
                     const dsc = detalleOc.detalle_sc;
                     if (dsc?.material_id && d.material_categoria === dsc.material?.categoria && d.descripcion === dsc.material?.descripcion) return true;
@@ -296,7 +306,7 @@ const EntradasAlmacen: React.FC = () => {
                     equipo_id: detalleOc.detalle_sc.equipo_id || null,
                     epp_id: detalleOc.detalle_sc.epp_id || null,
                     cantidad: cantidad,
-                    req_id: reqId,
+                    req_id: itemReqId,
                     det_req_id: targetDetReq.id,
                     sc_detail_id: detalleOc.detalle_sc_id
                 });
@@ -521,15 +531,24 @@ const EntradasAlmacen: React.FC = () => {
                         <Form.Select onChange={e => handleSelectOC(e.target.value)} value={selectedOC?.id || ''}>
                             <option value="">Seleccione OC...</option>
                             {activeOrdenes.map(oc => {
-                                const sc = (oc as any).sc;
-                                const reqNum = sc?.requerimiento?.item_correlativo || '-';
-                                const scNum = sc?.numero_sc || '-';
+                                const scNums = Array.from(new Set(oc.detalles?.map(d => {
+                                    const sc = allSCs.find(s => s.id === d.detalle_sc?.sc_id);
+                                    return sc?.numero_sc || (oc as any).sc?.numero_sc;
+                                }).filter(Boolean))).join(', ') || '-';
+
+                                const reqNums = Array.from(new Set(oc.detalles?.map(d => {
+                                    const sc = allSCs.find(s => s.id === d.detalle_sc?.sc_id);
+                                    const rId = sc?.requerimiento_id || (oc as any).sc?.requerimiento_id;
+                                    const parentReq = allReqs.find(r => r.id === rId);
+                                    return parentReq?.item_correlativo;
+                                }).filter(Boolean))).join(', ') || '-';
+
                                 const provName = oc.proveedor || '';
                                 const shortProv = provName.length > 20 ? provName.substring(0, 20) + '...' : provName;
 
                                 return (
                                     <option key={oc.id} value={oc.id}>
-                                        {oc.numero_oc} - {scNum} - Req: #{reqNum} - {shortProv}
+                                        {oc.numero_oc} - SCs: {scNums} - Reqs: #{reqNums} - {shortProv}
                                     </option>
                                 );
                             })}
@@ -566,7 +585,10 @@ const EntradasAlmacen: React.FC = () => {
                             </thead>
                             <tbody>
                                 {selectedOC.detalles?.map(d => {
-                                    const reqId = (selectedOC as any).sc?.requerimiento_id;
+                                    const sc = allSCs.find(s => s.id === d.detalle_sc?.sc_id);
+                                    const reqId = sc?.requerimiento_id || (selectedOC as any).sc?.requerimiento_id;
+                                    if (!reqId) return null;
+                                    
                                     const pending = getPendingForOCDetail(d, selectedOC.id, reqId);
 
                                     if (pending <= 0) return null;
@@ -661,7 +683,10 @@ const EntradasAlmacen: React.FC = () => {
                                 const detalle = selectedOC?.detalles?.find(d => d.id === id);
                                 if (!detalle) return null;
 
-                                const reqId = (selectedOC as any).sc?.requerimiento_id;
+                                const sc = allSCs.find(s => s.id === detalle.detalle_sc?.sc_id);
+                                const reqId = sc?.requerimiento_id || (selectedOC as any).sc?.requerimiento_id;
+                                if (!reqId) return null;
+                                
                                 const maxPending = getPendingForOCDetail(detalle, selectedOC!.id, reqId);
 
                                 let desc = 'Sin Desc';
