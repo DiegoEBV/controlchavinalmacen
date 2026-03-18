@@ -1,13 +1,15 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
-import legacy from '@vitejs/plugin-legacy'
+import topLevelAwait from "vite-plugin-top-level-await";
 
+// https://vitejs.dev/config/
 export default defineConfig({
     plugins: [
         react(),
-        legacy({
-            targets: ['defaults', 'not IE 11', 'ios >= 11']
+        topLevelAwait({
+            promiseExportName: "__tla",
+            promiseImportName: i => `__tla_${i}`
         }),
         VitePWA({
             registerType: 'autoUpdate',
@@ -19,8 +21,16 @@ export default defineConfig({
                 description: 'Gestión de Control de Obras',
                 theme_color: '#ffffff',
                 icons: [
-                    { src: 'icono.png', sizes: '192x192', type: 'image/png' },
-                    { src: 'icono.png', sizes: '512x512', type: 'image/png' }
+                    {
+                        src: 'icono.png',
+                        sizes: '192x192',
+                        type: 'image/png'
+                    },
+                    {
+                        src: 'icono.png',
+                        sizes: '512x512',
+                        type: 'image/png'
+                    }
                 ]
             },
             workbox: {
@@ -61,21 +71,21 @@ export default defineConfig({
         })
     ],
     build: {
-        minify: 'terser',
-        terserOptions: {
-            compress: {
-                drop_console: true,
-                drop_debugger: true
-            }
-        },
-        chunkSizeWarningLimit: 1000,
+        target: 'es2020',
+        cssTarget: 'chrome61',
+        chunkSizeWarningLimit: 1500,
         rollupOptions: {
             output: {
                 manualChunks: {
                     'vendor-react': ['react', 'react-dom', 'react-router-dom'],
                     'vendor-ui': ['bootstrap', 'react-bootstrap', 'react-icons'],
                     'vendor-charts': ['recharts'],
-                    'vendor-supabase': ['@supabase/supabase-js']
+                    'vendor-supabase': ['@supabase/supabase-js'],
+                    'vendor-exceljs': ['exceljs'],
+                    'vendor-xlsx': ['xlsx'],
+                    'vendor-pdf': ['jspdf', 'jspdf-autotable'],
+                    'vendor-canvas': ['html2canvas'],
+                    'vendor-utils': ['file-saver']
                 }
             }
         }

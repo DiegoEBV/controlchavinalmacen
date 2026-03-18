@@ -44,7 +44,8 @@
     "terser": "^5.46.1",
     "typescript": "^5.2.2",
     "vite": "^7.3.1",
-    "vite-plugin-pwa": "^1.2.0"
+    "vite-plugin-pwa": "^1.2.0",
+    "vite-plugin-top-level-await": "^1.6.0"
   },
   "description": "",
   "main": "index.js",
