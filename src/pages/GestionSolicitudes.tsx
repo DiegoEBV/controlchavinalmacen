@@ -259,12 +259,12 @@ const GestionSolicitudes: React.FC = () => {
                                 return { ...d, consumed, isAttended };
                             });
 
-                            const headerStatus = allFullyAttended ? 'Atendido' : sc.estado;
+                            const headerStatus = allFullyAttended ? 'Atendida' : sc.estado;
 
                             // Determinar si es una SC puramente interna (sin ítems para OC)
                             const isPurelyInternal = (sc.detalles?.length ?? 0) > 0 && !sc.detalles?.some(d => d.enviar_a_oc !== false);
 
-                            const headerVariant = allFullyAttended ? 'success' : (sc.estado === 'Pendiente' ? 'warning' : 'primary');
+
 
                             return (
                                 <Accordion.Item eventKey={String(idx)} key={sc.id}>
@@ -273,7 +273,7 @@ const GestionSolicitudes: React.FC = () => {
                                             <div>
                                                 <span className="fw-bold text-primary me-3">{sc.numero_sc}</span>
                                                 <span className="text-muted small me-3 d-block d-md-inline">Fecha: {sc.fecha_sc}</span>
-                                                <Badge bg={headerVariant}>{headerStatus}</Badge>
+                                                <Badge className={`badge-status-${headerStatus.toLowerCase().replace('atendida', 'atendido')}`}>{headerStatus}</Badge>
                                                 {isPurelyInternal && <Badge bg="info" className="ms-2 text-dark bg-opacity-25 border border-info">Procesamiento Interno</Badge>}
                                             </div>
                                             <div className="text-start text-md-end mt-2 mt-md-0 d-flex align-items-center gap-3">
@@ -377,8 +377,10 @@ const GestionSolicitudes: React.FC = () => {
                                                                 )}
                                                             </td>
                                                             <td>
-                                                                <Badge bg={d.isAttended ? 'success' : 'secondary'} className="fw-normal">
-                                                                    {d.isAttended ? 'Atendido' : d.estado}
+                                                                <Badge 
+                                                                    className={`fw-normal badge-status-${d.isAttended ? 'atendido' : (d.estado?.toLowerCase() || 'pendiente')}`} 
+                                                                >
+                                                                    {d.isAttended ? 'Atendido' : (d.estado || 'Pendiente')}
                                                                 </Badge>
                                                             </td>
                                                         </tr>

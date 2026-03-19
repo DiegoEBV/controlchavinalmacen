@@ -396,7 +396,13 @@ const GestionOrdenes: React.FC = () => {
                                         </td>
                                         <td className="text-muted">{sc.requerimiento?.solicitante}</td>
                                         <td>{sc.fecha_sc}</td>
-                                        <td><Badge bg="info" className="fw-normal">{sc.estado}</Badge></td>
+                                         <td>
+                                            <Badge 
+                                                className={`fw-normal badge-status-${sc.estado.toLowerCase()}`}
+                                            >
+                                                {sc.estado}
+                                            </Badge>
+                                        </td>
                                         <td className="text-end pe-3">
                                             <Button
                                                 size="sm"
@@ -500,7 +506,11 @@ const GestionOrdenes: React.FC = () => {
                                                     </div>
                                                 </div>
 
-                                                <Badge bg="secondary" className="px-3 py-2 fs-6 rounded-pill">{oc.estado}</Badge>
+                                                 <Badge 
+                                                    className={`px-3 py-2 fs-6 rounded-pill badge-status-${oc.estado.toLowerCase()}`}
+                                                >
+                                                    {oc.estado}
+                                                </Badge>
                                                 {(() => {
                                                     const isAttended = oc.detalles?.some(d => {
                                                         const consumed = historial

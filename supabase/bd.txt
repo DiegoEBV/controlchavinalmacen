@@ -125,6 +125,35 @@ CREATE TABLE public.detalles_sc (
   CONSTRAINT detalles_sc_epp_id_fkey FOREIGN KEY (epp_id) REFERENCES public.epps_c(id),
   CONSTRAINT detalles_sc_detalle_requerimiento_id_fkey FOREIGN KEY (detalle_requerimiento_id) REFERENCES public.detalles_requerimiento(id)
 );
+CREATE TABLE public.devoluciones (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  obra_id uuid NOT NULL,
+  fecha timestamp with time zone DEFAULT now(),
+  material_salida_id uuid,
+  equipo_salida_id uuid,
+  epp_salida_id uuid,
+  tipo_salida text NOT NULL CHECK (tipo_salida = ANY (ARRAY['MATERIAL'::text, 'EQUIPO'::text, 'EPP'::text])),
+  cantidad_salida numeric NOT NULL CHECK (cantidad_salida > 0::numeric),
+  motivo text NOT NULL,
+  es_cambio boolean NOT NULL DEFAULT false,
+  material_entrada_id uuid,
+  equipo_entrada_id uuid,
+  epp_entrada_id uuid,
+  tipo_entrada text CHECK (tipo_entrada = ANY (ARRAY['MATERIAL'::text, 'EQUIPO'::text, 'EPP'::text])),
+  cantidad_entrada numeric CHECK (cantidad_entrada > 0::numeric),
+  id_salida_ref text,
+  id_entrada_ref text,
+  usuario_id uuid NOT NULL,
+  CONSTRAINT devoluciones_pkey PRIMARY KEY (id),
+  CONSTRAINT devoluciones_obra_id_fkey FOREIGN KEY (obra_id) REFERENCES public.obras(id),
+  CONSTRAINT devoluciones_usuario_id_fkey FOREIGN KEY (usuario_id) REFERENCES public.profiles(id),
+  CONSTRAINT devoluciones_material_salida_id_fkey FOREIGN KEY (material_salida_id) REFERENCES public.materiales(id),
+  CONSTRAINT devoluciones_equipo_salida_id_fkey FOREIGN KEY (equipo_salida_id) REFERENCES public.equipos(id),
+  CONSTRAINT devoluciones_epp_salida_id_fkey FOREIGN KEY (epp_salida_id) REFERENCES public.epps_c(id),
+  CONSTRAINT devoluciones_material_entrada_id_fkey FOREIGN KEY (material_entrada_id) REFERENCES public.materiales(id),
+  CONSTRAINT devoluciones_equipo_entrada_id_fkey FOREIGN KEY (equipo_entrada_id) REFERENCES public.equipos(id),
+  CONSTRAINT devoluciones_epp_entrada_id_fkey FOREIGN KEY (epp_entrada_id) REFERENCES public.epps_c(id)
+);
 CREATE TABLE public.epps_c (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   codigo text UNIQUE,
@@ -241,6 +270,7 @@ CREATE TABLE public.movimientos_almacen (
   detalle_sc_id uuid,
   costo_unitario numeric DEFAULT 0,
   solicitante_dni text,
+  orden_compra_id uuid,
   CONSTRAINT movimientos_almacen_pkey PRIMARY KEY (id),
   CONSTRAINT movimientos_almacen_material_id_fkey FOREIGN KEY (material_id) REFERENCES public.materiales(id),
   CONSTRAINT movimientos_almacen_requerimiento_id_fkey FOREIGN KEY (requerimiento_id) REFERENCES public.requerimientos(id),
@@ -251,7 +281,8 @@ CREATE TABLE public.movimientos_almacen (
   CONSTRAINT movimientos_almacen_bloque_id_fkey FOREIGN KEY (bloque_id) REFERENCES public.bloques(id),
   CONSTRAINT movimientos_almacen_equipo_id_fkey FOREIGN KEY (equipo_id) REFERENCES public.equipos(id),
   CONSTRAINT movimientos_almacen_epp_id_fkey FOREIGN KEY (epp_id) REFERENCES public.epps_c(id),
-  CONSTRAINT movimientos_almacen_detalle_sc_id_fkey FOREIGN KEY (detalle_sc_id) REFERENCES public.detalles_sc(id)
+  CONSTRAINT movimientos_almacen_detalle_sc_id_fkey FOREIGN KEY (detalle_sc_id) REFERENCES public.detalles_sc(id),
+  CONSTRAINT movimientos_almacen_orden_compra_id_fkey FOREIGN KEY (orden_compra_id) REFERENCES public.ordenes_compra(id)
 );
 CREATE TABLE public.movimientos_equipos (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
