@@ -422,12 +422,13 @@ export const getAllMovimientos = async (obraId: string, tipo?: 'ENTRADA' | 'SALI
     return data || [];
 };
 
-export const registrarEntradaMasiva = async (items: any[], docRef: string, obraId: string, solicitante?: string) => {
+export const registrarEntradaMasiva = async (items: any[], docRef: string, obraId: string, solicitante?: string, ocId?: string) => {
     const { data, error } = await supabase.rpc('registrar_entrada_masiva_v2', {
         p_items: items,
         p_doc_ref: docRef,
         p_obra_id: obraId,
-        p_solicitante: solicitante || null
+        p_solicitante: solicitante || null,
+        p_oc_id: ocId || null
     });
 
     if (error) throw error;

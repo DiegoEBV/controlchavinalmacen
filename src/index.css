@@ -469,6 +469,36 @@ h6 {
   color: #4A5568;
 }
 
+/* Custom Status Badges */
+.badge-status-parcial {
+  background-color: #FFEDD5 !important;
+  color: #9A3412 !important;
+  border: 1px solid rgba(154, 52, 18, 0.1) !important;
+}
+
+.badge-status-atendido,
+.badge-status-atendida,
+.badge-status-recepcionada {
+  background-color: #DCFCE7 !important;
+  color: #166534 !important;
+  border: 1px solid rgba(22, 101, 52, 0.1) !important;
+}
+
+.badge-status-pendiente,
+.badge-status-anulada {
+  background-color: #FEE2E2 !important;
+  color: #991B1B !important;
+  border: 1px solid rgba(153, 27, 27, 0.1) !important;
+}
+
+.badge-status-emitida,
+.badge-status-en-orden,
+.badge-status-en\ orden {
+  background-color: #DBEAFE !important;
+  color: #1E40AF !important;
+  border: 1px solid rgba(30, 64, 175, 0.1) !important;
+}
+
 /* Inputs */
 .form-control,
 .form-select {

@@ -1,3 +1,24 @@
+-- 1. Añadir la columna orden_compra_id a movimientos_almacen
+DO $$ 
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'movimientos_almacen' AND column_name = 'orden_compra_id') THEN
+        ALTER TABLE movimientos_almacen ADD COLUMN orden_compra_id UUID REFERENCES ordenes_compra(id);
+    END IF;
+END $$;
+
+-- 2. Actualizar la función registrar_entrada_masiva_v2
+CREATE OR REPLACE FUNCTION registrar_entrada_masiva_v2(
+    p_items JSONB,
+    p_doc_ref TEXT,
+    p_obra_id UUID,
+    p_solicitante TEXT DEFAULT NULL,
+    p_oc_id UUID DEFAULT NULL -- Nuevo parámetro opcional
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
 DECLARE
     v_item RECORD;
     v_vintar_code text;
@@ -36,15 +57,15 @@ BEGIN
         v_item_desc := NULL;
         v_solicitante_user_id := NULL;
 
-        -- A. Insertar Movimiento
+        -- A. Insertar Movimiento (Incluyendo detalle_sc_id y orden_compra_id)
         INSERT INTO movimientos_almacen (
             obra_id, tipo, material_id, equipo_id, epp_id, cantidad,
             fecha, documento_referencia, requerimiento_id, detalle_requerimiento_id,
-            detalle_sc_id, created_at, vintar_code, destino_o_uso, solicitante
+            detalle_sc_id, orden_compra_id, created_at, vintar_code, destino_o_uso, solicitante
         ) VALUES (
             p_obra_id, 'ENTRADA', v_item.material_id, v_item.equipo_id, v_item.epp_id, v_item.cantidad,
             now(), p_doc_ref, v_item.req_id, v_item.det_req_id,
-            v_item.sc_detail_id, now(), v_vintar_code, 
+            v_item.sc_detail_id, p_oc_id, now(), v_vintar_code, 
             CASE WHEN p_doc_ref = 'STOCK INICIAL' THEN 'Carga de Stock Inicial' ELSE 'Ingreso a Almacen' END,
             p_solicitante
         );
@@ -60,10 +81,6 @@ BEGIN
                 END
             WHERE id = v_item.det_req_id;
         END IF;
-
-        -- NOTE: The update to detalles_sc.cantidad_recibida has been REMOVED 
-        -- because that column does not exist in your database schema.
-        -- The system tracks pending OC items dynamically through movement history.
 
         -- C. Actualizar INVENTARIO UNIFICADO
         IF v_item.material_id IS NOT NULL THEN
@@ -108,3 +125,4 @@ BEGIN
 
     RETURN jsonb_build_object('vintar_code', v_vintar_code);
 END;
+$$;

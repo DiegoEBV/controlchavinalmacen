@@ -163,43 +163,69 @@ const EntradasAlmacen: React.FC = () => {
     const getPendingForOCDetail = useCallback((oc_detail: DetalleOC, current_oc_id: string, req_id: string) => {
         if (!oc_detail.detalle_sc) return 0;
 
-        // 1. Ordenar OCs por fecha para asignar la cantidad consumida a las OCs más antiguas primero
+        // 1. Obtener todas las OC que referencian a este mismo ítem de Solicitud (SC)
+        // Esto es necesario para la repartición secuencial (Legacy)
         const ocsForThisDetail = ordenes
             .filter(o => o.estado !== 'Anulada' && o.detalles?.some(d => d.detalle_sc_id === oc_detail.detalle_sc_id))
             .sort((a, b) => new Date(a.fecha_oc).getTime() - new Date(b.fecha_oc).getTime());
 
-        // 2. Calcular consumido global para este ítem (solo entradas OC, excluir Caja Chica)
-        // Las entradas de Caja Chica son compras independientes y NO deben consumir cantidades pendientes de OC
-        const consumed = fullHistorial
-            .filter(h =>
-                String(h.requerimiento_id) === String(req_id) &&
-                h.destino_o_uso !== 'COMPRA CAJA CHICA' &&
-                (
+        // 2. Calcular consumido específico (Vínculo directo por OC ID)
+        const consumedSpecific = fullHistorial
+            .filter(h => (h.orden_compra_id === current_oc_id || h.oc_id === current_oc_id))
+            .filter(h => {
+                if (h.detalle_sc_id) {
+                    // Match estricto: Si el movimiento tiene ID de detalle, debe ser un match exacto
+                    return h.detalle_sc_id === oc_detail.detalle_sc_id;
+                }
+                
+                // Fallback Legacy: solo si NO tiene detalle_sc_id guardado en el movimiento
+                // Ignoramos h.sc_id ya que representa el ID de cabecera en muchos registros
+                return (
                     (oc_detail.detalle_sc!.material_id && h.material_id === oc_detail.detalle_sc!.material_id) ||
                     (oc_detail.detalle_sc!.equipo_id && h.equipo_id === oc_detail.detalle_sc!.equipo_id) ||
                     (oc_detail.detalle_sc!.epp_id && h.epp_id === oc_detail.detalle_sc!.epp_id)
-                )
-            )
-            .reduce((sum, h) => sum + h.cantidad, 0);
+                );
+            })
+            .reduce((sum, h) => sum + Number(h.cantidad || 0), 0);
 
-        // 3. Asignar secuencialmente
-        let remainingConsumed = consumed;
-        let pendingForThisOC = 0;
+        // 3. Calcular consumido legado (registros antiguos sin vínculo a OC específica)
+        const consumedLegacy = fullHistorial
+            .filter(h => !h.orden_compra_id && !h.oc_id && (
+                h.detalle_sc_id === oc_detail.detalle_sc_id || 
+                h.sc_id === oc_detail.detalle_sc_id || 
+                (
+                    !h.detalle_sc_id && !h.sc_id && 
+                    String(h.requerimiento_id) === String(req_id) &&
+                    h.destino_o_uso !== 'COMPRA CAJA CHICA' &&
+                    (
+                        (oc_detail.detalle_sc!.material_id && h.material_id === oc_detail.detalle_sc!.material_id) ||
+                        (oc_detail.detalle_sc!.equipo_id && h.equipo_id === oc_detail.detalle_sc!.equipo_id) ||
+                        (oc_detail.detalle_sc!.epp_id && h.epp_id === oc_detail.detalle_sc!.epp_id)
+                    )
+                )
+            ))
+            .reduce((sum, h) => sum + Number(h.cantidad || 0), 0);
+
+        // 4. Asignar consumido legado secuencialmente
+        let remainingLegacy = consumedLegacy;
+        let allocatedLegacyForThisOC = 0;
 
         for (const oc of ocsForThisDetail) {
             const det = oc.detalles?.find(d => d.detalle_sc_id === oc_detail.detalle_sc_id);
             if (det) {
-                const allocated = Math.min(det.cantidad, remainingConsumed);
-                remainingConsumed = Math.max(0, remainingConsumed - allocated);
+                const allocated = Math.min(det.cantidad, remainingLegacy);
+                remainingLegacy = Math.max(0, remainingLegacy - allocated);
 
                 if (oc.id === current_oc_id) {
-                    pendingForThisOC = det.cantidad - allocated;
+                    allocatedLegacyForThisOC = allocated;
                     break;
                 }
             }
         }
 
-        return pendingForThisOC;
+        // El pendiente es la cantidad original menos lo consumido específico y lo asignado del pool legado
+        const pending = Math.max(0, oc_detail.cantidad - consumedSpecific - allocatedLegacyForThisOC);
+        return pending;
     }, [ordenes, fullHistorial]);
 
     const getPendingOCForReqDetail = useCallback((reqId: string, detReq: any) => {
@@ -312,7 +338,7 @@ const EntradasAlmacen: React.FC = () => {
                 });
             }
 
-            const result = await registrarEntradaMasiva(itemsToProcess, docReferencia, obraId);
+            const result = await registrarEntradaMasiva(itemsToProcess, docReferencia, obraId, undefined, selectedOC.id);
 
             setSuccessMsg(`Entrada Masiva Exitosa! Código VINTAR: ${result.vintar_code}`);
             setSelectedItems(new Map());
@@ -413,8 +439,8 @@ const EntradasAlmacen: React.FC = () => {
     // --- Lógica de Ingreso Directo (SC Sin OC) ---
     const getPendingForDirectSCDetail = useCallback((sc_detail: DetalleSC) => {
         const consumed = fullHistorial
-            .filter(h => h.detalle_sc_id === sc_detail.id)
-            .reduce((sum, h) => sum + h.cantidad, 0);
+            .filter(h => h.detalle_sc_id === sc_detail.id || h.sc_id === sc_detail.id)
+            .reduce((sum, h) => sum + Number(h.cantidad || 0), 0);
 
         return Math.max(0, sc_detail.cantidad - consumed);
     }, [fullHistorial]);

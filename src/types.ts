@@ -112,6 +112,9 @@ export interface MovimientoAlmacen {
     documento_referencia?: string;
     requerimiento_id?: string;
     detalle_sc_id?: string;
+    orden_compra_id?: string;
+    sc_id?: string;
+    oc_id?: string;
     vintar_code?: string;
     destino_o_uso?: string;
     solicitante?: string;
@@ -141,7 +144,7 @@ export interface SolicitudCompra {
     requerimiento?: Requerimiento;
     numero_sc: string;
     fecha_sc: string;
-    estado: 'Pendiente' | 'Aprobada' | 'Anulada' | 'Atendida' | 'Atendido';
+    estado: 'Pendiente' | 'Aprobada' | 'Anulada' | 'Parcial' | 'Atendido' | 'Atendida';
     created_at: string;
     detalles?: DetalleSC[];
 }
@@ -157,7 +160,7 @@ export interface DetalleSC {
     epp?: EppC;
     cantidad: number;
     unidad: string;
-    estado: 'Pendiente' | 'En Orden' | 'Atendido';
+    estado: 'Pendiente' | 'En Orden' | 'Parcial' | 'Atendido';
     comentario?: string;
     enviar_a_oc?: boolean;
     procesado_directo?: boolean;
@@ -169,7 +172,7 @@ export interface OrdenCompra {
     numero_oc: string;
     proveedor: string;
     fecha_oc: string;
-    estado: 'Emitida' | 'Anulada' | 'Recepcionada';
+    estado: 'Emitida' | 'Anulada' | 'Parcial' | 'Recepcionada';
     sc_id?: string;
     fecha_aproximada_atencion?: string;
     n_factura?: string; // Nuevo
@@ -278,7 +281,7 @@ export interface PedidoSalida {
     tercero_id?: string;
     created_at: string;
     updated_at: string;
-    
+
     encargado?: UserProfile;
     bloque?: Bloque;
     tercero?: Tercero;
