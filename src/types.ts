@@ -188,6 +188,8 @@ export interface DetalleOC {
     detalle_sc?: DetalleSC; // Unido
     cantidad: number;
     precio_unitario?: number;
+    moneda?: string;      // Nuevo: MN o ME
+    tipo_cambio?: number;  // Nuevo
     created_at: string;
 }
 

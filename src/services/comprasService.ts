@@ -148,7 +148,9 @@ export const createOrdenCompra = async (
         oc_id: oc.id,
         detalle_sc_id: item.detalle_sc_id,
         cantidad: item.cantidad,
-        precio_unitario: item.precio_unitario || 0
+        precio_unitario: item.precio_unitario || 0,
+        moneda: item.moneda || 'MN',
+        tipo_cambio: item.tipo_cambio || 1
     }));
 
     const { error: detError } = await supabase
@@ -186,7 +188,9 @@ export const updateOrdenCompra = async (
         p_items: items.map(item => ({
             detalle_sc_id: item.detalle_sc_id,
             cantidad: item.cantidad,
-            precio_unitario: item.precio_unitario || 0
+            precio_unitario: item.precio_unitario || 0,
+            moneda: item.moneda || 'MN',
+            tipo_cambio: item.tipo_cambio || 1
         }))
     });
 
