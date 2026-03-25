@@ -10,7 +10,7 @@ import { Requerimiento, SolicitudCompra, Material, MovimientoAlmacen, OrdenCompr
 import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription';
 import { mergeUpdates } from '../utils/stateUpdates';
 import { exportSolicitudCompra } from '../utils/scExcelExport';
-import { FaFileExcel } from 'react-icons/fa';
+import { FaFileExcel, FaEdit } from 'react-icons/fa';
 import { usePagination } from '../hooks/usePagination';
 import PaginationControls from '../components/PaginationControls';
 
@@ -169,6 +169,11 @@ const GestionSolicitudes: React.FC = () => {
         }
     };
 
+    const handleEditSC = (sc: SolicitudCompra) => {
+        console.log("Edit SC:", sc.numero_sc);
+        alert("Funcionalidad de edición en desarrollo.");
+    };
+
     // Filtrar VISTA de Requerimientos Pendientes de nuevo para estar seguros (si llegó SC en tiempo real pero perdimos el evento)
     const processedReqIds = new Set(solicitudes.map(s => s.requerimiento_id));
     const pendingRequerimientos = requerimientos.filter(r => !processedReqIds.has(r.id) && r.estado !== 'Anulado');
@@ -264,7 +269,8 @@ const GestionSolicitudes: React.FC = () => {
                             // Determinar si es una SC puramente interna (sin ítems para OC)
                             const isPurelyInternal = (sc.detalles?.length ?? 0) > 0 && !sc.detalles?.some(d => d.enviar_a_oc !== false);
 
-
+                            // Determinar si tiene OC
+                            const hasOC = ordenes.some(o => o.detalles?.some(od => sc.detalles?.some(d => d.id === od.detalle_sc_id)));
 
                             return (
                                 <Accordion.Item eventKey={String(idx)} key={sc.id}>
@@ -277,6 +283,17 @@ const GestionSolicitudes: React.FC = () => {
                                                 {isPurelyInternal && <Badge bg="info" className="ms-2 text-dark bg-opacity-25 border border-info">Procesamiento Interno</Badge>}
                                             </div>
                                             <div className="text-start text-md-end mt-2 mt-md-0 d-flex align-items-center gap-3">
+                                                <div
+                                                    className={`btn btn-sm btn-outline-success rounded-pill d-flex align-items-center justify-content-center ${hasOC ? 'disabled' : ''}`}
+                                                    style={{ cursor: hasOC ? 'not-allowed' : 'pointer' }}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        if (!hasOC) handleEditSC(sc);
+                                                    }}
+                                                    title={hasOC ? "No se puede editar, ya tiene OC vinculada" : "Editar SC"}
+                                                >
+                                                    <FaEdit size={16} />
+                                                </div>
                                                 <div
                                                     className={`btn btn-sm btn-outline-success rounded-pill ${exportingId === sc.id ? 'disabled' : ''}`}
                                                     style={{ cursor: exportingId === sc.id ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
@@ -377,8 +394,8 @@ const GestionSolicitudes: React.FC = () => {
                                                                 )}
                                                             </td>
                                                             <td>
-                                                                <Badge 
-                                                                    className={`fw-normal badge-status-${d.isAttended ? 'atendido' : (d.estado?.toLowerCase() || 'pendiente')}`} 
+                                                                <Badge
+                                                                    className={`fw-normal badge-status-${d.isAttended ? 'atendido' : (d.estado?.toLowerCase() || 'pendiente')}`}
                                                                 >
                                                                     {d.isAttended ? 'Atendido' : (d.estado || 'Pendiente')}
                                                                 </Badge>
