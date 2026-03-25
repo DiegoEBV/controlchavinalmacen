@@ -1,7 +1,13 @@
-import React, { useState } from 'react';
-import { Nav, Navbar, Container, Button } from 'react-bootstrap';
+import React, { useState, useEffect } from 'react';
+import { Nav, Navbar, Container, Button, Collapse } from 'react-bootstrap';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { FaBell } from 'react-icons/fa';
+import { 
+    FaBell, FaChevronDown, FaChevronRight, FaClipboardList, FaFileSignature, 
+    FaFileExport, FaTools, FaTruck, FaSignInAlt, FaSignOutAlt, 
+    FaRedo, FaHammer, FaBoxes, FaCalculator, FaChartLine, 
+    FaChartBar, FaBuilding, FaRoad, FaUsers, FaReceipt, 
+    FaHandshake, FaHardHat, FaTags, FaCubes, FaTruckPickup, FaUserShield 
+} from 'react-icons/fa';
 import { useAuth } from '../context/AuthContext';
 
 
@@ -11,8 +17,34 @@ const Navigation: React.FC = () => {
     const [expanded, setExpanded] = useState(false);
     const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>(Notification.permission);
     const { user, profile, signOut, hasRole } = useAuth();
+    const [openSections, setOpenSections] = useState<{ [key: string]: boolean }>({
+        principal: true,
+        almacen: true,
+        reportes: true,
+        config: false
+    });
+
+    const toggleSection = (section: string) => {
+        setOpenSections((prev: { [key: string]: boolean }) => ({ ...prev, [section]: !prev[section] }));
+    };
 
     const isActive = (path: string) => location.pathname.includes(path);
+
+    // Auto-expand sections that contain active links
+    useEffect(() => {
+        const sections = [
+            { id: 'principal', paths: ['/requerimientos', '/pedidos-salida', '/solicitudes', '/servicios', '/ordenes'] },
+            { id: 'almacen', paths: ['/almacen/entradas', '/almacen/salidas', '/almacen/devoluciones', '/movimiento-equipos', '/almacen/stock', '/almacen/cierre-valorizado'] },
+            { id: 'reportes', paths: ['/reportes/materiales', '/reportes/estadisticas'] },
+            { id: 'config', paths: ['/obras', '/frentes', '/usuarios', '/presupuesto', '/terceros', '/especialidades', '/categorias', '/materiales', '/equipos', '/epps'] }
+        ];
+
+        sections.forEach(section => {
+            if (section.paths.some(path => location.pathname.includes(path))) {
+                setOpenSections((prev: { [key: string]: boolean }) => ({ ...prev, [section.id]: true }));
+            }
+        });
+    }, [location.pathname]);
 
     // Cerrar navegación al hacer clic en un enlace (UX móvil)
     const closeNav = () => setExpanded(false);
@@ -89,140 +121,188 @@ const Navigation: React.FC = () => {
                     )}
 
                     <Nav className="flex-column w-100 px-2 px-lg-4 pb-4 flex-grow-1">
-                        <div className="nav-section-title">Principal</div>
+                        <div 
+                            className="nav-section-title d-flex align-items-center justify-content-between cursor-pointer"
+                            onClick={() => toggleSection('principal')}
+                            style={{ cursor: 'pointer' }}
+                        >
+                            <span>Principal</span>
+                            {openSections.principal ? <FaChevronDown size={10} /> : <FaChevronRight size={10} />}
+                        </div>
 
-                        {canViewRequerimientos && (
-                            <>
-                                <Nav.Link as={Link} to="/requerimientos" className={`nav-link ${isActive('/requerimientos') ? 'active' : ''}`} onClick={closeNav}>
-                                    <span className="me-2">📋</span> Requerimientos
-                                </Nav.Link>
-                                <Nav.Link as={Link} to="/pedidos-salida" className={`nav-link ${isActive('/pedidos-salida') ? 'active' : ''}`} onClick={closeNav}>
-                                    <span className="me-2">📝</span> Pedidos Salida
-                                </Nav.Link>
-                            </>
-                        )}
+                        <Collapse in={openSections.principal}>
+                            <div>
+                                {canViewRequerimientos && (
+                                    <>
+                                        <Nav.Link as={Link} to="/requerimientos" className={`nav-link ${isActive('/requerimientos') ? 'active' : ''}`} onClick={closeNav}>
+                                            <FaClipboardList className="me-2" /> Requerimientos
+                                        </Nav.Link>
+                                        <Nav.Link as={Link} to="/pedidos-salida" className={`nav-link ${isActive('/pedidos-salida') ? 'active' : ''}`} onClick={closeNav}>
+                                            <FaFileSignature className="me-2" /> Pedidos Salida
+                                        </Nav.Link>
+                                    </>
+                                )}
 
-                        {canViewSolicitudes && (
-                            <>
-                                <Nav.Link as={Link} to="/solicitudes" className={`nav-link ${isActive('/solicitudes') ? 'active' : ''}`} onClick={closeNav}>
-                                    <span className="me-2">📑</span> Solicitudes Compra
-                                </Nav.Link>
-                                <Nav.Link as={Link} to="/servicios" className={`nav-link ${isActive('/servicios') ? 'active' : ''}`} onClick={closeNav}>
-                                    <span className="me-2">🛠️</span> Servicios
-                                </Nav.Link>
-                            </>
-                        )}
+                                {canViewSolicitudes && (
+                                    <>
+                                        <Nav.Link as={Link} to="/solicitudes" className={`nav-link ${isActive('/solicitudes') ? 'active' : ''}`} onClick={closeNav}>
+                                            <FaFileExport className="me-2" /> Solicitudes Compra
+                                        </Nav.Link>
+                                        <Nav.Link as={Link} to="/servicios" className={`nav-link ${isActive('/servicios') ? 'active' : ''}`} onClick={closeNav}>
+                                            <FaTools className="me-2" /> Servicios
+                                        </Nav.Link>
+                                    </>
+                                )}
 
-                        {canViewOrdenes && (
-                            <Nav.Link as={Link} to="/ordenes" className={`nav-link ${isActive('/ordenes') ? 'active' : ''}`} onClick={closeNav}>
-                                <span className="me-2">🚛</span> Ordenes Compra
-                            </Nav.Link>
-                        )}
-
-
-                        {(canViewAlmacen || canEditAlmacen) && <div className="nav-section-title">Almacén</div>}
-
-                        {canEditAlmacen && (
-                            <>
-                                <Nav.Link as={Link} to="/almacen/entradas" className={`nav-link ${isActive('/almacen/entradas') ? 'active' : ''}`} onClick={closeNav}>
-                                    <span className="me-2">📥</span> Registrar Entradas
-                                </Nav.Link>
-
-                                <Nav.Link as={Link} to="/almacen/salidas" className={`nav-link ${isActive('/almacen/salidas') ? 'active' : ''}`} onClick={closeNav}>
-                                    <span className="me-2">📤</span> Registrar Salidas
-                                </Nav.Link>
-
-                                <Nav.Link as={Link} to="/almacen/devoluciones" className={`nav-link ${isActive('/almacen/devoluciones') ? 'active' : ''}`} onClick={closeNav}>
-                                    <span className="me-2">↩️</span> Registrar Devoluciones
-                                </Nav.Link>
-                            </>
-                        )}
-
-                        {canViewAlmacen && (
-                            <>
-                                <Nav.Link as={Link} to="/almacen/stock" className={`nav-link ${isActive('/almacen/stock') ? 'active' : ''}`} onClick={closeNav}>
-                                    <span className="me-2">📊</span> Stock Actual
-                                </Nav.Link>
-                                {canViewCierreValorizado && (
-                                    <Nav.Link as={Link} to="/almacen/cierre-valorizado" className={`nav-link ${isActive('/almacen/cierre-valorizado') ? 'active' : ''}`} onClick={closeNav}>
-                                        <span className="me-2">💰</span> Cierre Valorizado
+                                {canViewOrdenes && (
+                                    <Nav.Link as={Link} to="/ordenes" className={`nav-link ${isActive('/ordenes') ? 'active' : ''}`} onClick={closeNav}>
+                                        <FaTruck className="me-2" /> Ordenes Compra
                                     </Nav.Link>
                                 )}
-                            </>
+                            </div>
+                        </Collapse>
+
+
+                        {(canViewAlmacen || canEditAlmacen) && (
+                            <div 
+                                className="nav-section-title d-flex align-items-center justify-content-between cursor-pointer"
+                                onClick={() => toggleSection('almacen')}
+                                style={{ cursor: 'pointer' }}
+                            >
+                                <span>Almacén</span>
+                                {openSections.almacen ? <FaChevronDown size={10} /> : <FaChevronRight size={10} />}
+                            </div>
                         )}
+
+                        <Collapse in={openSections.almacen}>
+                            <div>
+                                {canEditAlmacen && (
+                                    <>
+                                        <Nav.Link as={Link} to="/almacen/entradas" className={`nav-link ${isActive('/almacen/entradas') ? 'active' : ''}`} onClick={closeNav}>
+                                            <FaSignInAlt className="me-2" /> Registrar Entradas
+                                        </Nav.Link>
+
+                                        <Nav.Link as={Link} to="/almacen/salidas" className={`nav-link ${isActive('/almacen/salidas') ? 'active' : ''}`} onClick={closeNav}>
+                                            <FaSignOutAlt className="me-2" /> Registrar Salidas
+                                        </Nav.Link>
+
+                                        <Nav.Link as={Link} to="/almacen/devoluciones" className={`nav-link ${isActive('/almacen/devoluciones') ? 'active' : ''}`} onClick={closeNav}>
+                                            <FaRedo className="me-2" /> Registrar Devoluciones
+                                        </Nav.Link>
+
+                                        <Nav.Link as={Link} to="/movimiento-equipos" className={`nav-link ${isActive('/movimiento-equipos') ? 'active' : ''}`} onClick={closeNav}>
+                                            <FaHammer className="me-2" /> Equipos Menores
+                                        </Nav.Link>
+                                    </>
+                                )}
+
+                                {canViewAlmacen && (
+                                    <>
+                                        <Nav.Link as={Link} to="/almacen/stock" className={`nav-link ${isActive('/almacen/stock') ? 'active' : ''}`} onClick={closeNav}>
+                                            <FaBoxes className="me-2" /> Stock Actual
+                                        </Nav.Link>
+                                        {canViewCierreValorizado && (
+                                            <Nav.Link as={Link} to="/almacen/cierre-valorizado" className={`nav-link ${isActive('/almacen/cierre-valorizado') ? 'active' : ''}`} onClick={closeNav}>
+                                                <FaCalculator className="me-2" /> Cierre Valorizado
+                                            </Nav.Link>
+                                        )}
+                                    </>
+                                )}
+                            </div>
+                        </Collapse>
 
                         {canViewReportes && (
                             <>
-                                <div className="nav-section-title">Reportes</div>
+                                <div 
+                                    className="nav-section-title d-flex align-items-center justify-content-between cursor-pointer"
+                                    onClick={() => toggleSection('reportes')}
+                                    style={{ cursor: 'pointer' }}
+                                >
+                                    <span>Reportes</span>
+                                    {openSections.reportes ? <FaChevronDown size={10} /> : <FaChevronRight size={10} />}
+                                </div>
 
-                                <Nav.Link as={Link} to="/reportes/materiales" className={`nav-link ${isActive('/reportes/materiales') ? 'active' : ''}`} onClick={closeNav}>
-                                    <span className="me-2">📈</span> Reporte Materiales
-                                </Nav.Link>
+                                <Collapse in={openSections.reportes}>
+                                    <div>
+                                        <Nav.Link as={Link} to="/reportes/materiales" className={`nav-link ${isActive('/reportes/materiales') ? 'active' : ''}`} onClick={closeNav}>
+                                            <FaChartLine className="me-2" /> Reporte Materiales
+                                        </Nav.Link>
 
-                                <Nav.Link as={Link} to="/reportes/estadisticas" className={`nav-link ${isActive('/reportes/estadisticas') ? 'active' : ''}`} onClick={closeNav}>
-                                    <span className="me-2">📊</span> Estadísticas
-                                </Nav.Link>
+                                        <Nav.Link as={Link} to="/reportes/estadisticas" className={`nav-link ${isActive('/reportes/estadisticas') ? 'active' : ''}`} onClick={closeNav}>
+                                            <FaChartBar className="me-2" /> Estadísticas
+                                        </Nav.Link>
+                                    </div>
+                                </Collapse>
                             </>
                         )}
 
                         {showConfigSection && (
                             <>
-                                <div className="nav-section-title">Configuración</div>
+                                <div 
+                                    className="nav-section-title d-flex align-items-center justify-content-between cursor-pointer"
+                                    onClick={() => toggleSection('config')}
+                                    style={{ cursor: 'pointer' }}
+                                >
+                                    <span>Configuración</span>
+                                    {openSections.config ? <FaChevronDown size={10} /> : <FaChevronRight size={10} />}
+                                </div>
 
-                                {canViewUsuarios && (
-                                    <>
-                                        <Nav.Link as={Link} to="/obras" className={`nav-link ${isActive('/obras') ? 'active' : ''}`} onClick={closeNav}>
-                                            <span className="me-2">🏗️</span> Obras
-                                        </Nav.Link>
-                                        <Nav.Link as={Link} to="/frentes" className={`nav-link ${isActive('/frentes') ? 'active' : ''}`} onClick={closeNav}>
-                                            <span className="me-2">🚧</span> Frentes
-                                        </Nav.Link>
-                                        <Nav.Link as={Link} to="/usuarios" className={`nav-link ${isActive('/usuarios') ? 'active' : ''}`} onClick={closeNav}>
-                                            <span className="me-2">👤</span> Usuarios
-                                        </Nav.Link>
-                                        <Nav.Link as={Link} to="/presupuesto" className={`nav-link ${isActive('/presupuesto') ? 'active' : ''}`} onClick={closeNav}>
-                                            <span className="me-2">💰</span> Lista Insumos
-                                        </Nav.Link>
-                                    </>
-                                )}
+                                <Collapse in={openSections.config}>
+                                    <div>
+                                        {canViewUsuarios && (
+                                            <>
+                                                <Nav.Link as={Link} to="/obras" className={`nav-link ${isActive('/obras') ? 'active' : ''}`} onClick={closeNav}>
+                                                    <FaBuilding className="me-2" /> Obras
+                                                </Nav.Link>
+                                                <Nav.Link as={Link} to="/frentes" className={`nav-link ${isActive('/frentes') ? 'active' : ''}`} onClick={closeNav}>
+                                                    <FaRoad className="me-2" /> Frentes
+                                                </Nav.Link>
+                                                <Nav.Link as={Link} to="/usuarios" className={`nav-link ${isActive('/usuarios') ? 'active' : ''}`} onClick={closeNav}>
+                                                    <FaUsers className="me-2" /> Usuarios
+                                                </Nav.Link>
+                                                <Nav.Link as={Link} to="/presupuesto" className={`nav-link ${isActive('/presupuesto') ? 'active' : ''}`} onClick={closeNav}>
+                                                    <FaReceipt className="me-2" /> Lista Insumos
+                                                </Nav.Link>
+                                            </>
+                                        )}
 
-                                {canViewTerceros && (
-                                    <Nav.Link as={Link} to="/terceros" className={`nav-link ${isActive('/terceros') ? 'active' : ''}`} onClick={closeNav}>
-                                        <span className="me-2">🤝</span> Terceros
-                                    </Nav.Link>
-                                )}
+                                        {canViewTerceros && (
+                                            <Nav.Link as={Link} to="/terceros" className={`nav-link ${isActive('/terceros') ? 'active' : ''}`} onClick={closeNav}>
+                                                <FaHandshake className="me-2" /> Terceros
+                                            </Nav.Link>
+                                        )}
 
-                                {canViewEspecialidades && (
-                                    <Nav.Link as={Link} to="/especialidades" className={`nav-link ${isActive('/especialidades') ? 'active' : ''}`} onClick={closeNav}>
-                                        <span className="me-2">🏗️</span> Especialidades
-                                    </Nav.Link>
-                                )}
+                                        {canViewEspecialidades && (
+                                            <Nav.Link as={Link} to="/especialidades" className={`nav-link ${isActive('/especialidades') ? 'active' : ''}`} onClick={closeNav}>
+                                                <FaHardHat className="me-2" /> Especialidades
+                                            </Nav.Link>
+                                        )}
 
-                                {canViewCategorias && (
-                                    <Nav.Link as={Link} to="/categorias" className={`nav-link ${isActive('/categorias') ? 'active' : ''}`} onClick={closeNav}>
-                                        <span className="me-2">🏷️</span> Categorías
-                                    </Nav.Link>
-                                )}
+                                        {canViewCategorias && (
+                                            <Nav.Link as={Link} to="/categorias" className={`nav-link ${isActive('/categorias') ? 'active' : ''}`} onClick={closeNav}>
+                                                <FaTags className="me-2" /> Categorías
+                                            </Nav.Link>
+                                        )}
 
-                                {canViewMateriales && (
-                                    <Nav.Link as={Link} to="/materiales" className={`nav-link ${isActive('/materiales') ? 'active' : ''}`} onClick={closeNav}>
-                                        <span className="me-2">🧱</span> Materiales
-                                    </Nav.Link>
-                                )}
+                                        {canViewMateriales && (
+                                            <Nav.Link as={Link} to="/materiales" className={`nav-link ${isActive('/materiales') ? 'active' : ''}`} onClick={closeNav}>
+                                                <FaCubes className="me-2" /> Materiales
+                                            </Nav.Link>
+                                        )}
 
-                                {canViewEquipos && (
-                                    <Nav.Link as={Link} to="/equipos" className={`nav-link ${isActive('/equipos') ? 'active' : ''}`} onClick={closeNav}>
-                                        <span className="me-2">🚜</span> Equipos
-                                    </Nav.Link>
-                                )}
+                                        {canViewEquipos && (
+                                            <Nav.Link as={Link} to="/equipos" className={`nav-link ${isActive('/equipos') ? 'active' : ''}`} onClick={closeNav}>
+                                                <FaTruckPickup className="me-2" /> Equipos
+                                            </Nav.Link>
+                                        )}
 
-                                {canViewEpps && (
-                                    <Nav.Link as={Link} to="/epps" className={`nav-link ${isActive('/epps') ? 'active' : ''}`} onClick={closeNav}>
-                                        <span className="me-2">🦺</span> EPPs-C
-                                    </Nav.Link>
-                                )}
-
-
+                                        {canViewEpps && (
+                                            <Nav.Link as={Link} to="/epps" className={`nav-link ${isActive('/epps') ? 'active' : ''}`} onClick={closeNav}>
+                                                <FaUserShield className="me-2" /> EPPs-C
+                                            </Nav.Link>
+                                        )}
+                                    </div>
+                                </Collapse>
                             </>
                         )}
 

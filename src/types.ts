@@ -188,6 +188,8 @@ export interface DetalleOC {
     detalle_sc?: DetalleSC; // Unido
     cantidad: number;
     precio_unitario?: number;
+    moneda?: string;      // Nuevo: MN o ME
+    tipo_cambio?: number;  // Nuevo
     created_at: string;
 }
 
@@ -197,6 +199,7 @@ export interface Equipo {
     nombre: string;
     codigo: string;
     marca: string;
+    es_unidad_fisica?: boolean;
     created_at?: string;
 }
 

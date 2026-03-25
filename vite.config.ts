@@ -70,6 +70,15 @@ export default defineConfig({
             }
         })
     ],
+    server: {
+        proxy: {
+            '/api-decolecta': {
+                target: 'https://api.decolecta.com',
+                changeOrigin: true,
+                rewrite: (path) => path.replace(/^\/api-decolecta/, ''),
+            },
+        },
+    },
     build: {
         target: 'es2020',
         cssTarget: 'chrome61',

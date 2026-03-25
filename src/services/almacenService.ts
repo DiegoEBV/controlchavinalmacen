@@ -77,7 +77,10 @@ export const getMovimientos = async (
     page: number = 1,
     pageSize: number = 15,
     searchTerm: string = '',
-    tipo?: 'ENTRADA' | 'SALIDA'
+    tipo?: 'ENTRADA' | 'SALIDA',
+    filterType: string = 'todo',
+    mes?: number,
+    anio?: number
 ) => {
     let query = supabase
         .from('movimientos_almacen')
@@ -97,29 +100,53 @@ export const getMovimientos = async (
         query = query.eq('tipo', tipo);
     }
 
+    if (mes !== undefined && anio !== undefined) {
+        const startDate = new Date(anio, mes - 1, 1).toISOString();
+        const endDate = new Date(anio, mes, 0, 23, 59, 59).toISOString();
+        query = query.gte('fecha', startDate).lte('fecha', endDate);
+    }
+
     if (searchTerm) {
-        // Get matching item IDs for search first
-        const [mats, eqs, epps] = await Promise.all([
-            supabase.from('materiales').select('id').ilike('descripcion', `%${searchTerm}%`),
-            supabase.from('equipos').select('id').ilike('nombre', `%${searchTerm}%`),
-            supabase.from('epps_c').select('id').ilike('descripcion', `%${searchTerm}%`)
-        ]);
-
-        const matIds = mats.data?.map(m => m.id).slice(0, 50) || [];
-        const eqIds = eqs.data?.map(e => e.id).slice(0, 50) || [];
-        const eppIds = epps.data?.map(e => e.id).slice(0, 50) || [];
-
         let orParts = [];
-        if (matIds.length) orParts.push(`material_id.in.(${matIds.join(',')})`);
-        if (eqIds.length) orParts.push(`equipo_id.in.(${eqIds.join(',')})`);
-        if (eppIds.length) orParts.push(`epp_id.in.(${eppIds.join(',')})`);
 
-        // Always add base table columns that match
-        orParts.push(`numero_vale.ilike.%${searchTerm}%`);
-        orParts.push(`solicitante.ilike.%${searchTerm}%`);
-        orParts.push(`destino_o_uso.ilike.%${searchTerm}%`);
+        if (filterType === 'todo' || filterType === 'material') {
+            // Get matching item IDs for search first
+            const [mats, eqs, epps] = await Promise.all([
+                supabase.from('materiales').select('id').ilike('descripcion', `%${searchTerm}%`),
+                supabase.from('equipos').select('id').ilike('nombre', `%${searchTerm}%`),
+                supabase.from('epps_c').select('id').ilike('descripcion', `%${searchTerm}%`)
+            ]);
 
-        query = query.or(orParts.join(','));
+            const matIds = mats.data?.map(m => m.id).slice(0, 50) || [];
+            const eqIds = eqs.data?.map(e => e.id).slice(0, 50) || [];
+            const eppIds = epps.data?.map(e => e.id).slice(0, 50) || [];
+
+            if (matIds.length) orParts.push(`material_id.in.(${matIds.join(',')})`);
+            if (eqIds.length) orParts.push(`equipo_id.in.(${eqIds.join(',')})`);
+            if (eppIds.length) orParts.push(`epp_id.in.(${eppIds.join(',')})`);
+        }
+
+        if (filterType === 'todo' || filterType === 'doc') {
+            orParts.push(`documento_referencia.ilike.%${searchTerm}%`);
+        }
+
+        if (filterType === 'todo' || filterType === 'req') {
+            // Requerimiento correlativo search - this needs a join or a separate search if it's too complex for Supabase or()
+            // Fortunately movimientos_almacen has requerimiento_id. We can search in requerimientos table first.
+            const { data: reqs } = await supabase.from('requerimientos').select('id').ilike('item_correlativo', `%${searchTerm}%`);
+            const reqIds = reqs?.map(r => r.id) || [];
+            if (reqIds.length) orParts.push(`requerimiento_id.in.(${reqIds.join(',')})`);
+        }
+
+        if (filterType === 'todo') {
+            orParts.push(`numero_vale.ilike.%${searchTerm}%`);
+            orParts.push(`solicitante.ilike.%${searchTerm}%`);
+            orParts.push(`destino_o_uso.ilike.%${searchTerm}%`);
+        }
+
+        if (orParts.length > 0) {
+            query = query.or(orParts.join(','));
+        }
     }
 
     const { data, error, count } = await query
