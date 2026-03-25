@@ -25,6 +25,7 @@ import GestionEPPs from './components/GestionEPPs';
 import GestionEspecialidades from './pages/GestionEspecialidades';
 import GestionTerceros from './pages/GestionTerceros';
 import GestionPedidosSalida from './pages/GestionPedidosSalida';
+import GestionMovimientoEquipos from './pages/GestionMovimientoEquipos.tsx';
 import Layout from './components/Layout';
 import Login from './pages/Login';
 import ObraSelector from './pages/ObraSelector';
@@ -107,6 +108,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                                     <Route path="/almacen/entradas" element={<EntradasAlmacen />} />
                                     <Route path="/almacen/salidas" element={<SalidasAlmacen />} />
                                     <Route path="/almacen/devoluciones" element={<DevolucionesAlmacen />} />
+                                    <Route path="/movimiento-equipos" element={<GestionMovimientoEquipos />} />
                                 </Route>
 
                                 <Route element={<ProtectedRoute allowedRoles={['almacenero', 'produccion', 'coordinador', 'logistica']} />}>

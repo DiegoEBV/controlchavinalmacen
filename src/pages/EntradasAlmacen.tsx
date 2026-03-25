@@ -120,13 +120,23 @@ const EntradasAlmacen: React.FC = () => {
             setAllSCs([]);
             setHistorial([]);
         }
-    }, [selectedObra, currentPage, searchTerm]);
+    }, [selectedObra, currentPage, searchTerm, filterType, filterMes]);
 
     const loadData = async (refreshOCId?: string) => {
         if (!selectedObra) return;
+
+        let mes: number | undefined;
+        let anio: number | undefined;
+
+        if (filterMes === 'actual') {
+            const now = new Date();
+            mes = now.getMonth() + 1;
+            anio = now.getFullYear();
+        }
+
         const [reqsData, movesData, fullMovesData, ocsData, scsData] = await Promise.all([
             getRequerimientos(selectedObra.id),
-            getMovimientos(selectedObra.id, currentPage, pageSize, searchTerm, 'ENTRADA'),
+            getMovimientos(selectedObra.id, currentPage, pageSize, searchTerm, 'ENTRADA', filterType, mes, anio),
             getAllMovimientos(selectedObra.id, 'ENTRADA'),
             getOrdenesCompra(selectedObra.id),
             getSolicitudesCompra(selectedObra.id)
@@ -1137,11 +1147,7 @@ const EntradasAlmacen: React.FC = () => {
                         </thead>
                         <tbody>
                             {(() => {
-                            const nowDate = new Date();
-                            const filtered = filterMes === 'actual' ? historial.filter(h => {
-                                const d = new Date(h.fecha || h.created_at);
-                                return d.getFullYear() === nowDate.getFullYear() && d.getMonth() === nowDate.getMonth();
-                            }) : historial;
+                            const filtered = historial;
                             return filtered.length === 0 ? (
                                 <tr>
                                     <td colSpan={6} className="text-center text-muted p-4">No hay entradas registradas.</td>

@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { supabase } from '../config/supabaseClient';
 import { useNavigate } from 'react-router-dom';
-import { Container, Row, Col, Form, Button, Alert, Card } from 'react-bootstrap';
+import { FaHardHat, FaEnvelope, FaLock, FaUserCircle } from 'react-icons/fa';
+import './Login.css';
 
 const Login = () => {
     const [email, setEmail] = useState('');
@@ -32,54 +33,130 @@ const Login = () => {
     };
 
     return (
-        <Container className="d-flex align-items-center justify-content-center" style={{ minHeight: '100vh', backgroundColor: '#f8f9fa' }}>
-            <Row className="w-100 justify-content-center">
-                <Col md={6} lg={4}>
-                    <Card className="shadow-sm border-0">
-                        <Card.Body className="p-4">
-                            <div className="text-center mb-4">
-                                <h3 className="fw-bold text-primary">Control Obras</h3>
-                                <p className="text-muted">Inicia sesión para continuar</p>
+        <div className="login-container">
+            <div className="login-form-side">
+                <div className="login-form-wrapper fade-in">
+                    <div className="login-logo">
+                        <FaHardHat size={28} />
+                        <span>Control Obras</span>
+                    </div>
+                    
+                    <div className="login-header">
+                        <h1>¡Hola de nuevo!</h1>
+                        <p>Gestiona tus obras con eficiencia y control</p>
+                    </div>
+
+                    {error && (
+                        <div className="alert alert-danger" style={{ 
+                            padding: '12px', 
+                            borderRadius: '12px', 
+                            backgroundColor: '#FEF2F2', 
+                            color: '#DC2626', 
+                            border: '1px solid #FEE2E2',
+                            marginBottom: '20px',
+                            fontSize: '14px'
+                        }}>
+                            {error}
+                        </div>
+                    )}
+
+                    <form className="login-form" onSubmit={handleLogin}>
+                        <div className="form-group">
+                            <label htmlFor="email">Correo Electrónico</label>
+                            <div style={{ position: 'relative' }}>
+                                <input
+                                    type="email"
+                                    id="email"
+                                    className="form-control"
+                                    placeholder="ejemplo@correo.com"
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
+                                    required
+                                />
                             </div>
+                        </div>
 
-                            {error && <Alert variant="danger">{error}</Alert>}
+                        <div className="form-group">
+                            <label htmlFor="password">Contraseña</label>
+                            <div style={{ position: 'relative' }}>
+                                <input
+                                    type="password"
+                                    id="password"
+                                    className="form-control"
+                                    placeholder="••••••••"
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    required
+                                />
+                            </div>
+                        </div>
 
-                            <Form onSubmit={handleLogin}>
-                                <Form.Group className="mb-3" controlId="formBasicEmail">
-                                    <Form.Label>Correo Electrónico</Form.Label>
-                                    <Form.Control
-                                        type="email"
-                                        placeholder="Ingresa tu correo"
-                                        value={email}
-                                        onChange={(e) => setEmail(e.target.value)}
-                                        required
-                                        className="py-2"
-                                    />
-                                </Form.Group>
+                        <div className="form-options">
+                            <label className="remember-me">
+                                <input type="checkbox" /> Recordarme
+                            </label>
+                            {/* Forgot password removed as requested */}
+                        </div>
 
-                                <Form.Group className="mb-4" controlId="formBasicPassword">
-                                    <Form.Label>Contraseña</Form.Label>
-                                    <Form.Control
-                                        type="password"
-                                        placeholder="Contraseña"
-                                        value={password}
-                                        onChange={(e) => setPassword(e.target.value)}
-                                        required
-                                        className="py-2"
-                                    />
-                                </Form.Group>
+                        <button type="submit" className="login-btn" disabled={loading}>
+                            {loading ? 'Cargando...' : 'Iniciar Sesión'}
+                        </button>
+                    </form>
 
-                                <div className="d-grid">
-                                    <Button variant="primary" type="submit" disabled={loading} className="py-2 fw-semibold">
-                                        {loading ? 'Cargando...' : 'Iniciar Sesión'}
-                                    </Button>
+                    {/* Registration footer removed as requested */}
+                </div>
+            </div>
+
+            <div className="login-visual-side">
+                <div className="decoration-circle circle-1"></div>
+                <div className="decoration-circle circle-2"></div>
+                
+                <div className="visual-content">
+                    <div className="mock-dashboard-card fade-in">
+                        <div className="card-header">
+                            <div className="card-user">
+                                <FaUserCircle size={40} style={{ opacity: 0.5 }} />
+                                <div className="user-info">
+                                    <p className="name" style={{ margin: 0 }}>Residente de Obra</p>
+                                    <p className="role" style={{ margin: 0 }}>Control de Almacén</p>
                                 </div>
-                            </Form>
-                        </Card.Body>
-                    </Card>
-                </Col>
-            </Row>
-        </Container>
+                            </div>
+                        </div>
+                        
+                        <div className="card-stat">
+                            <p className="stat-label">Progreso General</p>
+                            <p className="stat-value">68.4%</p>
+                        </div>
+                        
+                        <div className="progress-tracks">
+                            <div className="track-item">
+                                <div className="track-info">
+                                    <span>Suministros</span>
+                                    <span>80%</span>
+                                </div>
+                                <div className="progress-bar-bg">
+                                    <div className="progress-bar-fill" style={{ width: '80%' }}></div>
+                                </div>
+                            </div>
+                            <div className="track-item">
+                                <div className="track-info">
+                                    <span>Movimientos</span>
+                                    <span>45%</span>
+                                </div>
+                                <div className="progress-bar-bg">
+                                    <div className="progress-bar-fill" style={{ width: '45%' }}></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <h2 className="visual-title">Optimiza tu gestión</h2>
+                    <p className="visual-description">
+                        Lleva el control total de tus insumos, equipos y movimientos en tiempo real desde cualquier lugar.
+                    </p>
+                </div>
+            </div>
+        </div>
     );
 };
 

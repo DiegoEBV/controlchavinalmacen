@@ -4,6 +4,7 @@ import { Card, Button, Table, Badge, Modal, Form, Row, Col, Spinner, Accordion }
 import { RiFileExcel2Line } from 'react-icons/ri';
 
 import { getSolicitudesCompra, createOrdenCompra, getOrdenesCompra, getOrdenCompraById, getSolicitudCompraById, getOrdenesCompraExport, updateOrdenCompra } from '../services/comprasService';
+import { getSunatExchangeRate } from '../services/sunatService';
 import { FaEdit } from 'react-icons/fa';
 import { getAllMovimientos } from '../services/almacenService';
 import { SolicitudCompra, OrdenCompra, MovimientoAlmacen } from '../types';
@@ -32,6 +33,9 @@ const GestionOrdenes: React.FC = () => {
     const [nFactura, setNFactura] = useState('');
     const [fechaVencimiento, setFechaVencimiento] = useState('');
     const [itemsToOrder, setItemsToOrder] = useState<any[]>([]);
+    const [moneda, setMoneda] = useState<'MN' | 'ME'>('MN');
+    const [tipoCambio, setTipoCambio] = useState<number>(1);
+    const [isFetchingTC, setIsFetchingTC] = useState(false);
     const [showOnlySelected, setShowOnlySelected] = useState(false);
     const [showEditModal, setShowEditModal] = useState(false);
     const [editingOC, setEditingOC] = useState<OrdenCompra | null>(null);
@@ -135,6 +139,8 @@ const GestionOrdenes: React.FC = () => {
         setFechaAtencion('');
         setNFactura('');
         setFechaVencimiento('');
+        setMoneda('MN');
+        setTipoCambio(1);
 
         const allItems: any[] = [];
         scs.forEach(sc => {
@@ -180,6 +186,27 @@ const GestionOrdenes: React.FC = () => {
         setShowModal(true);
     };
 
+    const handleFetchTC = async () => {
+        setIsFetchingTC(true);
+        try {
+            const tc = await getSunatExchangeRate();
+            if (tc > 0) {
+                setTipoCambio(tc);
+            } else {
+                alert("No se pudo obtener el tipo de cambio automáticamente. Ingrese el valor manualmente.");
+            }
+        } finally {
+            setIsFetchingTC(false);
+        }
+    };
+
+    const handleMonedaChange = (newMoneda: 'MN' | 'ME') => {
+        setMoneda(newMoneda);
+        if (newMoneda === 'ME' && tipoCambio === 1) {
+            handleFetchTC();
+        }
+    };
+
     const toggleSelectSC = (scId: string) => {
         setSelectedSCIds(prev => {
             const next = new Set(prev);
@@ -211,7 +238,11 @@ const GestionOrdenes: React.FC = () => {
         const selectedItems = itemsToOrder.filter(i => i.selected && i.cantidad_compra > 0).map(i => ({
             detalle_sc_id: i.detalle_sc_id,
             cantidad: parseFloat(i.cantidad_compra),
-            precio_unitario: parseFloat(i.precio_unitario) || 0
+            precio_unitario: moneda === 'ME' 
+                ? (parseFloat(i.precio_unitario) || 0) * tipoCambio 
+                : (parseFloat(i.precio_unitario) || 0),
+            moneda: moneda,
+            tipo_cambio: tipoCambio
         }));
 
         if (selectedItems.length === 0) return alert("Seleccione al menos un item");
@@ -291,17 +322,35 @@ const GestionOrdenes: React.FC = () => {
         setFechaAtencion(oc.fecha_aproximada_atencion || '');
         setNFactura(oc.n_factura || '');
         setFechaVencimiento(oc.fecha_vencimiento || '');
+        
+        // Recuperar moneda y TC del primer item (asumimos consistencia en la OC)
+        const firstItem = oc.detalles?.[0];
+        const recoveredMoneda = (firstItem as any)?.moneda || 'MN';
+        const recoveredTC = (firstItem as any)?.tipo_cambio || 1;
+        
+        setMoneda(recoveredMoneda as 'MN' | 'ME');
+        setTipoCambio(recoveredTC);
 
         // Cargar ítems para edición
-        const items = oc.detalles?.map(d => ({
-            detalle_sc_id: d.detalle_sc_id,
-            material_desc: d.detalle_sc?.material?.descripcion || d.detalle_sc?.equipo?.nombre || d.detalle_sc?.epp?.descripcion || 'Sin descripción',
-            cantidad_sc: d.detalle_sc?.cantidad || 0,
-            unidad: d.detalle_sc?.unidad || '-',
-            cantidad_compra: d.cantidad,
-            precio_unitario: d.precio_unitario || 0,
-            selected: true
-        })) || [];
+        const items = oc.detalles?.map(d => {
+            const itemMoneda = (d as any).moneda || 'MN';
+            const itemTC = (d as any).tipo_cambio || 1;
+            
+            // Si estaba en ME, revertimos el precio para mostrarlo en dólares en el input
+            const displayPrice = itemMoneda === 'ME' 
+                ? (d.precio_unitario || 0) / itemTC 
+                : (d.precio_unitario || 0);
+
+            return {
+                detalle_sc_id: d.detalle_sc_id,
+                material_desc: d.detalle_sc?.material?.descripcion || d.detalle_sc?.equipo?.nombre || d.detalle_sc?.epp?.descripcion || 'Sin descripción',
+                cantidad_sc: d.detalle_sc?.cantidad || 0,
+                unidad: d.detalle_sc?.unidad || '-',
+                cantidad_compra: d.cantidad,
+                precio_unitario: displayPrice,
+                selected: true
+            };
+        }) || [];
 
         setItemsToOrder(items);
         setShowEditModal(true);
@@ -313,7 +362,11 @@ const GestionOrdenes: React.FC = () => {
         const items = itemsToOrder.map(i => ({
             detalle_sc_id: i.detalle_sc_id,
             cantidad: parseFloat(i.cantidad_compra),
-            precio_unitario: parseFloat(i.precio_unitario) || 0
+            precio_unitario: moneda === 'ME' 
+                ? (parseFloat(i.precio_unitario) || 0) * tipoCambio 
+                : (parseFloat(i.precio_unitario) || 0),
+            moneda: moneda,
+            tipo_cambio: tipoCambio
         }));
 
         try {
@@ -661,6 +714,46 @@ const GestionOrdenes: React.FC = () => {
                                 />
                             </Form.Group>
                         </Col>
+                        <Col xs={12} md={3}>
+                            <Form.Group>
+                                <Form.Label>Moneda</Form.Label>
+                                <div className="d-flex align-items-center gap-2 mt-1">
+                                    <span className={moneda === 'MN' ? 'fw-bold text-primary' : 'text-muted'}>MN</span>
+                                    <Form.Check 
+                                        type="switch"
+                                        id="moneda-switch"
+                                        checked={moneda === 'ME'}
+                                        onChange={(e) => handleMonedaChange(e.target.checked ? 'ME' : 'MN')}
+                                    />
+                                    <span className={moneda === 'ME' ? 'fw-bold text-primary' : 'text-muted'}>ME</span>
+                                </div>
+                            </Form.Group>
+                        </Col>
+                        {moneda === 'ME' && (
+                            <Col xs={12} md={3}>
+                                <Form.Group>
+                                    <Form.Label>TC (SUNAT)</Form.Label>
+                                    <div className="d-flex align-items-center gap-1">
+                                        <Form.Control
+                                            type="number"
+                                            step="0.001"
+                                            value={tipoCambio}
+                                            onChange={e => setTipoCambio(parseFloat(e.target.value) || 0)}
+                                            size="sm"
+                                        />
+                                        <Button 
+                                            variant="link" 
+                                            size="sm" 
+                                            onClick={handleFetchTC}
+                                            disabled={isFetchingTC}
+                                            className="p-0 text-secondary"
+                                        >
+                                            {isFetchingTC ? <Spinner animation="border" size="sm" /> : <i className="bi bi-arrow-clockwise fs-5"></i>}
+                                        </Button>
+                                    </div>
+                                </Form.Group>
+                            </Col>
+                        )}
                     </Row>
 
                     <Card className="mb-4 bg-light">
@@ -716,7 +809,7 @@ const GestionOrdenes: React.FC = () => {
                                 </th>
                                 <th style={{ width: '15%' }}>Cant. SC</th>
                                 <th style={{ width: '20%' }}>A Comprar</th>
-                                <th style={{ width: '20%' }}>P. Unit S/.</th>
+                                <th style={{ width: '20%' }}>P. Unit {moneda === 'MN' ? 'S/.' : 'ME'}</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -794,6 +887,11 @@ const GestionOrdenes: React.FC = () => {
                                                             placeholder="0.00"
                                                             className="bg-light bg-opacity-10"
                                                         />
+                                                        {moneda === 'ME' && tipoCambio > 0 && it.precio_unitario > 0 && (
+                                                            <small className="text-muted d-block mt-1" style={{ fontSize: '0.75em' }}>
+                                                                ≈ S/. {(it.precio_unitario * tipoCambio).toFixed(2)}
+                                                            </small>
+                                                        )}
                                                     </td>
                                                 </tr>
                                             );
@@ -802,6 +900,17 @@ const GestionOrdenes: React.FC = () => {
                                 );
                             })}
                         </tbody>
+                        <tfoot className="bg-light fw-bold">
+                            <tr>
+                                <td colSpan={4} className="text-end py-3">Total Estimado {moneda === 'ME' ? '(ME → MN)' : '(MN)'}:</td>
+                                <td className="text-end py-3 text-primary fs-5">
+                                    S/. {itemsToOrder
+                                        .filter(it => it.selected)
+                                        .reduce((sum, it) => sum + (it.cantidad_compra * it.precio_unitario * (moneda === 'ME' ? tipoCambio : 1)), 0)
+                                        .toFixed(2)}
+                                </td>
+                            </tr>
+                        </tfoot>
                     </Table>
                 </Modal.Body>
                 <Modal.Footer>
@@ -858,6 +967,50 @@ const GestionOrdenes: React.FC = () => {
                                 />
                             </Form.Group>
                         </Col>
+                        {!isOCAttended && (
+                            <>
+                                <Col xs={12} md={3}>
+                                    <Form.Group>
+                                        <Form.Label>Moneda</Form.Label>
+                                        <div className="d-flex align-items-center gap-2 mt-1">
+                                            <span className={moneda === 'MN' ? 'fw-bold text-primary' : 'text-muted'}>MN</span>
+                                            <Form.Check 
+                                                type="switch"
+                                                id="moneda-switch-edit"
+                                                checked={moneda === 'ME'}
+                                                onChange={(e) => handleMonedaChange(e.target.checked ? 'ME' : 'MN')}
+                                            />
+                                            <span className={moneda === 'ME' ? 'fw-bold text-primary' : 'text-muted'}>ME</span>
+                                        </div>
+                                    </Form.Group>
+                                </Col>
+                                {moneda === 'ME' && (
+                                    <Col xs={12} md={3}>
+                                        <Form.Group>
+                                            <Form.Label>TC (SUNAT)</Form.Label>
+                                            <div className="d-flex align-items-center gap-1">
+                                                <Form.Control
+                                                    type="number"
+                                                    step="0.001"
+                                                    value={tipoCambio}
+                                                    onChange={e => setTipoCambio(parseFloat(e.target.value) || 0)}
+                                                    size="sm"
+                                                />
+                                                <Button 
+                                                    variant="link" 
+                                                    size="sm" 
+                                                    onClick={handleFetchTC}
+                                                    disabled={isFetchingTC}
+                                                    className="p-0 text-secondary"
+                                                >
+                                                    {isFetchingTC ? <Spinner animation="border" size="sm" /> : <i className="bi bi-arrow-clockwise fs-5"></i>}
+                                                </Button>
+                                            </div>
+                                        </Form.Group>
+                                    </Col>
+                                )}
+                            </>
+                        )}
                     </Row>
 
                     <Card className="mb-4 bg-light">
@@ -894,7 +1047,7 @@ const GestionOrdenes: React.FC = () => {
                                 <th style={{ width: '40%' }}>Descripción del Item</th>
                                 <th style={{ width: '20%' }}>Cant. SC</th>
                                 <th style={{ width: '20%' }}>A Comprar</th>
-                                <th style={{ width: '20%' }}>P. Unit S/.</th>
+                                <th style={{ width: '20%' }}>P. Unit {moneda === 'MN' ? 'S/.' : 'ME'}</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -936,10 +1089,25 @@ const GestionOrdenes: React.FC = () => {
                                             placeholder="0.00"
                                             className="bg-light bg-opacity-10"
                                         />
+                                        {moneda === 'ME' && tipoCambio > 0 && it.precio_unitario > 0 && (
+                                            <small className="text-muted d-block mt-1" style={{ fontSize: '0.75em' }}>
+                                                ≈ S/. {(it.precio_unitario * tipoCambio).toFixed(2)}
+                                            </small>
+                                        )}
                                     </td>
                                 </tr>
                             ))}
                         </tbody>
+                        <tfoot className="bg-light fw-bold border-top">
+                            <tr>
+                                <td colSpan={3} className="text-end py-3">Total Estimado {moneda === 'ME' ? '(ME → MN)' : '(MN)'}:</td>
+                                <td className="text-end py-3 text-warning fs-5">
+                                    S/. {itemsToOrder
+                                        .reduce((sum, it) => sum + (it.cantidad_compra * it.precio_unitario * (moneda === 'ME' ? tipoCambio : 1)), 0)
+                                        .toFixed(2)}
+                                </td>
+                            </tr>
+                        </tfoot>
                     </Table>
                 </Modal.Body>
                 <Modal.Footer>
