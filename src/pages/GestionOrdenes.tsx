@@ -5,7 +5,7 @@ import { RiFileExcel2Line } from 'react-icons/ri';
 
 import { getSolicitudesCompra, createOrdenCompra, getOrdenesCompra, getOrdenCompraById, getSolicitudCompraById, getOrdenesCompraExport, updateOrdenCompra } from '../services/comprasService';
 import { getSunatExchangeRate } from '../services/sunatService';
-import { FaEdit } from 'react-icons/fa';
+import { FaEdit, FaTrash } from 'react-icons/fa';
 import { getAllMovimientos } from '../services/almacenService';
 import { SolicitudCompra, OrdenCompra, MovimientoAlmacen } from '../types';
 import { exportOrdenesCompra } from '../utils/ocExcelExport';
@@ -1045,9 +1045,10 @@ const GestionOrdenes: React.FC = () => {
                         <thead className="bg-light">
                             <tr>
                                 <th style={{ width: '40%' }}>Descripción del Item</th>
-                                <th style={{ width: '20%' }}>Cant. SC</th>
+                                <th style={{ width: '15%' }}>Cant. SC</th>
                                 <th style={{ width: '20%' }}>A Comprar</th>
                                 <th style={{ width: '20%' }}>P. Unit {moneda === 'MN' ? 'S/.' : 'ME'}</th>
+                                <th style={{ width: '5%' }} className="text-center"></th>
                             </tr>
                         </thead>
                         <tbody>
@@ -1095,12 +1096,27 @@ const GestionOrdenes: React.FC = () => {
                                             </small>
                                         )}
                                     </td>
+                                    <td className="text-center">
+                                        <Button
+                                            variant="outline-danger"
+                                            size="sm"
+                                            disabled={isOCAttended || itemsToOrder.length <= 1}
+                                            onClick={() => {
+                                                const newItems = itemsToOrder.filter((_, i) => i !== idx);
+                                                setItemsToOrder(newItems);
+                                            }}
+                                            title={itemsToOrder.length <= 1 ? "La OC debe tener al menos un ítem" : "Quitar ítem"}
+                                            className="d-flex align-items-center justify-content-center mx-auto rounded-pill px-3 py-1"
+                                        >
+                                            <FaTrash size={14} />
+                                        </Button>
+                                    </td>
                                 </tr>
                             ))}
                         </tbody>
                         <tfoot className="bg-light fw-bold border-top">
                             <tr>
-                                <td colSpan={3} className="text-end py-3">Total Estimado {moneda === 'ME' ? '(ME → MN)' : '(MN)'}:</td>
+                                <td colSpan={4} className="text-end py-3">Total Estimado {moneda === 'ME' ? '(ME → MN)' : '(MN)'}:</td>
                                 <td className="text-end py-3 text-warning fs-5">
                                     S/. {itemsToOrder
                                         .reduce((sum, it) => sum + (it.cantidad_compra * it.precio_unitario * (moneda === 'ME' ? tipoCambio : 1)), 0)

@@ -27,6 +27,198 @@ CREATE TABLE public.categorias (
   created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
   CONSTRAINT categorias_pkey PRIMARY KEY (id)
 );
+CREATE TABLE public.cierre_valorizado_2026_01 (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  obra_id uuid,
+  material_id uuid,
+  equipo_id uuid,
+  epp_id uuid,
+  cantidad numeric DEFAULT 0,
+  costo_promedio numeric DEFAULT 0,
+  subtotal numeric DEFAULT 0,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT cierre_valorizado_2026_01_pkey PRIMARY KEY (id),
+  CONSTRAINT cierre_valorizado_2026_01_obra_id_fkey FOREIGN KEY (obra_id) REFERENCES public.obras(id),
+  CONSTRAINT cierre_valorizado_2026_01_material_id_fkey FOREIGN KEY (material_id) REFERENCES public.materiales(id),
+  CONSTRAINT cierre_valorizado_2026_01_equipo_id_fkey FOREIGN KEY (equipo_id) REFERENCES public.equipos(id),
+  CONSTRAINT cierre_valorizado_2026_01_epp_id_fkey FOREIGN KEY (epp_id) REFERENCES public.epps_c(id)
+);
+CREATE TABLE public.cierre_valorizado_2026_02 (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  obra_id uuid,
+  material_id uuid,
+  equipo_id uuid,
+  epp_id uuid,
+  cantidad numeric DEFAULT 0,
+  costo_promedio numeric DEFAULT 0,
+  subtotal numeric DEFAULT 0,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT cierre_valorizado_2026_02_pkey PRIMARY KEY (id),
+  CONSTRAINT cierre_valorizado_2026_02_obra_id_fkey FOREIGN KEY (obra_id) REFERENCES public.obras(id),
+  CONSTRAINT cierre_valorizado_2026_02_material_id_fkey FOREIGN KEY (material_id) REFERENCES public.materiales(id),
+  CONSTRAINT cierre_valorizado_2026_02_equipo_id_fkey FOREIGN KEY (equipo_id) REFERENCES public.equipos(id),
+  CONSTRAINT cierre_valorizado_2026_02_epp_id_fkey FOREIGN KEY (epp_id) REFERENCES public.epps_c(id)
+);
+CREATE TABLE public.cierre_valorizado_2026_03 (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  obra_id uuid,
+  material_id uuid,
+  equipo_id uuid,
+  epp_id uuid,
+  cantidad numeric DEFAULT 0,
+  costo_promedio numeric DEFAULT 0,
+  subtotal numeric DEFAULT 0,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT cierre_valorizado_2026_03_pkey PRIMARY KEY (id),
+  CONSTRAINT cierre_valorizado_2026_03_obra_id_fkey FOREIGN KEY (obra_id) REFERENCES public.obras(id),
+  CONSTRAINT cierre_valorizado_2026_03_material_id_fkey FOREIGN KEY (material_id) REFERENCES public.materiales(id),
+  CONSTRAINT cierre_valorizado_2026_03_equipo_id_fkey FOREIGN KEY (equipo_id) REFERENCES public.equipos(id),
+  CONSTRAINT cierre_valorizado_2026_03_epp_id_fkey FOREIGN KEY (epp_id) REFERENCES public.epps_c(id)
+);
+CREATE TABLE public.cierre_valorizado_2026_04 (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  obra_id uuid,
+  material_id uuid,
+  equipo_id uuid,
+  epp_id uuid,
+  cantidad numeric DEFAULT 0,
+  costo_promedio numeric DEFAULT 0,
+  subtotal numeric DEFAULT 0,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT cierre_valorizado_2026_04_pkey PRIMARY KEY (id),
+  CONSTRAINT cierre_valorizado_2026_04_obra_id_fkey FOREIGN KEY (obra_id) REFERENCES public.obras(id),
+  CONSTRAINT cierre_valorizado_2026_04_material_id_fkey FOREIGN KEY (material_id) REFERENCES public.materiales(id),
+  CONSTRAINT cierre_valorizado_2026_04_equipo_id_fkey FOREIGN KEY (equipo_id) REFERENCES public.equipos(id),
+  CONSTRAINT cierre_valorizado_2026_04_epp_id_fkey FOREIGN KEY (epp_id) REFERENCES public.epps_c(id)
+);
+CREATE TABLE public.cierre_valorizado_2026_05 (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  obra_id uuid,
+  material_id uuid,
+  equipo_id uuid,
+  epp_id uuid,
+  cantidad numeric DEFAULT 0,
+  costo_promedio numeric DEFAULT 0,
+  subtotal numeric DEFAULT 0,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT cierre_valorizado_2026_05_pkey PRIMARY KEY (id),
+  CONSTRAINT cierre_valorizado_2026_05_obra_id_fkey FOREIGN KEY (obra_id) REFERENCES public.obras(id),
+  CONSTRAINT cierre_valorizado_2026_05_material_id_fkey FOREIGN KEY (material_id) REFERENCES public.materiales(id),
+  CONSTRAINT cierre_valorizado_2026_05_equipo_id_fkey FOREIGN KEY (equipo_id) REFERENCES public.equipos(id),
+  CONSTRAINT cierre_valorizado_2026_05_epp_id_fkey FOREIGN KEY (epp_id) REFERENCES public.epps_c(id)
+);
+CREATE TABLE public.cierre_valorizado_2026_06 (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  obra_id uuid,
+  material_id uuid,
+  equipo_id uuid,
+  epp_id uuid,
+  cantidad numeric DEFAULT 0,
+  costo_promedio numeric DEFAULT 0,
+  subtotal numeric DEFAULT 0,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT cierre_valorizado_2026_06_pkey PRIMARY KEY (id),
+  CONSTRAINT cierre_valorizado_2026_06_obra_id_fkey FOREIGN KEY (obra_id) REFERENCES public.obras(id),
+  CONSTRAINT cierre_valorizado_2026_06_material_id_fkey FOREIGN KEY (material_id) REFERENCES public.materiales(id),
+  CONSTRAINT cierre_valorizado_2026_06_equipo_id_fkey FOREIGN KEY (equipo_id) REFERENCES public.equipos(id),
+  CONSTRAINT cierre_valorizado_2026_06_epp_id_fkey FOREIGN KEY (epp_id) REFERENCES public.epps_c(id)
+);
+CREATE TABLE public.cierre_valorizado_2026_07 (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  obra_id uuid,
+  material_id uuid,
+  equipo_id uuid,
+  epp_id uuid,
+  cantidad numeric DEFAULT 0,
+  costo_promedio numeric DEFAULT 0,
+  subtotal numeric DEFAULT 0,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT cierre_valorizado_2026_07_pkey PRIMARY KEY (id),
+  CONSTRAINT cierre_valorizado_2026_07_obra_id_fkey FOREIGN KEY (obra_id) REFERENCES public.obras(id),
+  CONSTRAINT cierre_valorizado_2026_07_material_id_fkey FOREIGN KEY (material_id) REFERENCES public.materiales(id),
+  CONSTRAINT cierre_valorizado_2026_07_equipo_id_fkey FOREIGN KEY (equipo_id) REFERENCES public.equipos(id),
+  CONSTRAINT cierre_valorizado_2026_07_epp_id_fkey FOREIGN KEY (epp_id) REFERENCES public.epps_c(id)
+);
+CREATE TABLE public.cierre_valorizado_2026_08 (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  obra_id uuid,
+  material_id uuid,
+  equipo_id uuid,
+  epp_id uuid,
+  cantidad numeric DEFAULT 0,
+  costo_promedio numeric DEFAULT 0,
+  subtotal numeric DEFAULT 0,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT cierre_valorizado_2026_08_pkey PRIMARY KEY (id),
+  CONSTRAINT cierre_valorizado_2026_08_obra_id_fkey FOREIGN KEY (obra_id) REFERENCES public.obras(id),
+  CONSTRAINT cierre_valorizado_2026_08_material_id_fkey FOREIGN KEY (material_id) REFERENCES public.materiales(id),
+  CONSTRAINT cierre_valorizado_2026_08_equipo_id_fkey FOREIGN KEY (equipo_id) REFERENCES public.equipos(id),
+  CONSTRAINT cierre_valorizado_2026_08_epp_id_fkey FOREIGN KEY (epp_id) REFERENCES public.epps_c(id)
+);
+CREATE TABLE public.cierre_valorizado_2026_09 (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  obra_id uuid,
+  material_id uuid,
+  equipo_id uuid,
+  epp_id uuid,
+  cantidad numeric DEFAULT 0,
+  costo_promedio numeric DEFAULT 0,
+  subtotal numeric DEFAULT 0,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT cierre_valorizado_2026_09_pkey PRIMARY KEY (id),
+  CONSTRAINT cierre_valorizado_2026_09_obra_id_fkey FOREIGN KEY (obra_id) REFERENCES public.obras(id),
+  CONSTRAINT cierre_valorizado_2026_09_material_id_fkey FOREIGN KEY (material_id) REFERENCES public.materiales(id),
+  CONSTRAINT cierre_valorizado_2026_09_equipo_id_fkey FOREIGN KEY (equipo_id) REFERENCES public.equipos(id),
+  CONSTRAINT cierre_valorizado_2026_09_epp_id_fkey FOREIGN KEY (epp_id) REFERENCES public.epps_c(id)
+);
+CREATE TABLE public.cierre_valorizado_2026_10 (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  obra_id uuid,
+  material_id uuid,
+  equipo_id uuid,
+  epp_id uuid,
+  cantidad numeric DEFAULT 0,
+  costo_promedio numeric DEFAULT 0,
+  subtotal numeric DEFAULT 0,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT cierre_valorizado_2026_10_pkey PRIMARY KEY (id),
+  CONSTRAINT cierre_valorizado_2026_10_obra_id_fkey FOREIGN KEY (obra_id) REFERENCES public.obras(id),
+  CONSTRAINT cierre_valorizado_2026_10_material_id_fkey FOREIGN KEY (material_id) REFERENCES public.materiales(id),
+  CONSTRAINT cierre_valorizado_2026_10_equipo_id_fkey FOREIGN KEY (equipo_id) REFERENCES public.equipos(id),
+  CONSTRAINT cierre_valorizado_2026_10_epp_id_fkey FOREIGN KEY (epp_id) REFERENCES public.epps_c(id)
+);
+CREATE TABLE public.cierre_valorizado_2026_11 (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  obra_id uuid,
+  material_id uuid,
+  equipo_id uuid,
+  epp_id uuid,
+  cantidad numeric DEFAULT 0,
+  costo_promedio numeric DEFAULT 0,
+  subtotal numeric DEFAULT 0,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT cierre_valorizado_2026_11_pkey PRIMARY KEY (id),
+  CONSTRAINT cierre_valorizado_2026_11_obra_id_fkey FOREIGN KEY (obra_id) REFERENCES public.obras(id),
+  CONSTRAINT cierre_valorizado_2026_11_material_id_fkey FOREIGN KEY (material_id) REFERENCES public.materiales(id),
+  CONSTRAINT cierre_valorizado_2026_11_equipo_id_fkey FOREIGN KEY (equipo_id) REFERENCES public.equipos(id),
+  CONSTRAINT cierre_valorizado_2026_11_epp_id_fkey FOREIGN KEY (epp_id) REFERENCES public.epps_c(id)
+);
+CREATE TABLE public.cierre_valorizado_2026_12 (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  obra_id uuid,
+  material_id uuid,
+  equipo_id uuid,
+  epp_id uuid,
+  cantidad numeric DEFAULT 0,
+  costo_promedio numeric DEFAULT 0,
+  subtotal numeric DEFAULT 0,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT cierre_valorizado_2026_12_pkey PRIMARY KEY (id),
+  CONSTRAINT cierre_valorizado_2026_12_obra_id_fkey FOREIGN KEY (obra_id) REFERENCES public.obras(id),
+  CONSTRAINT cierre_valorizado_2026_12_material_id_fkey FOREIGN KEY (material_id) REFERENCES public.materiales(id),
+  CONSTRAINT cierre_valorizado_2026_12_equipo_id_fkey FOREIGN KEY (equipo_id) REFERENCES public.equipos(id),
+  CONSTRAINT cierre_valorizado_2026_12_epp_id_fkey FOREIGN KEY (epp_id) REFERENCES public.epps_c(id)
+);
 CREATE TABLE public.cierres_mensuales (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   obra_id uuid NOT NULL,
@@ -71,6 +263,8 @@ CREATE TABLE public.detalles_oc (
   cantidad numeric NOT NULL,
   precio_unitario numeric,
   created_at timestamp with time zone DEFAULT now(),
+  moneda text DEFAULT 'MN'::text,
+  tipo_cambio numeric DEFAULT 1,
   CONSTRAINT detalles_oc_pkey PRIMARY KEY (id),
   CONSTRAINT detalles_oc_oc_id_fkey FOREIGN KEY (oc_id) REFERENCES public.ordenes_compra(id),
   CONSTRAINT detalles_oc_detalle_sc_id_fkey FOREIGN KEY (detalle_sc_id) REFERENCES public.detalles_sc(id)
@@ -173,6 +367,7 @@ CREATE TABLE public.equipos (
   fecha_adquisicion date DEFAULT CURRENT_DATE,
   created_at timestamp with time zone DEFAULT now(),
   marca text,
+  es_unidad_fisica boolean DEFAULT false,
   CONSTRAINT equipos_pkey PRIMARY KEY (id),
   CONSTRAINT equipos_obra_id_fkey FOREIGN KEY (obra_id) REFERENCES public.obras(id)
 );
