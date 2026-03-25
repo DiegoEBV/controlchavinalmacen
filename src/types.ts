@@ -199,6 +199,7 @@ export interface Equipo {
     nombre: string;
     codigo: string;
     marca: string;
+    es_unidad_fisica?: boolean;
     created_at?: string;
 }
 
