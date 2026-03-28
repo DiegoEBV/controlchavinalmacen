@@ -38,20 +38,20 @@ const Login = () => {
                 <div className="login-form-wrapper fade-in">
                     <div className="login-logo">
                         <FaHardHat size={28} />
-                        <span>Control Obras</span>
+                        <span>Control de Inventario</span>
                     </div>
-                    
+
                     <div className="login-header">
                         <h1>¡Hola de nuevo!</h1>
-                        <p>Gestiona tus obras con eficiencia y control</p>
+                        <p>Gestiona tu inventario en obra con eficiencia y control</p>
                     </div>
 
                     {error && (
-                        <div className="alert alert-danger" style={{ 
-                            padding: '12px', 
-                            borderRadius: '12px', 
-                            backgroundColor: '#FEF2F2', 
-                            color: '#DC2626', 
+                        <div className="alert alert-danger" style={{
+                            padding: '12px',
+                            borderRadius: '12px',
+                            backgroundColor: '#FEF2F2',
+                            color: '#DC2626',
                             border: '1px solid #FEE2E2',
                             marginBottom: '20px',
                             fontSize: '14px'
@@ -110,7 +110,7 @@ const Login = () => {
             <div className="login-visual-side">
                 <div className="decoration-circle circle-1"></div>
                 <div className="decoration-circle circle-2"></div>
-                
+
                 <div className="visual-content">
                     <div className="mock-dashboard-card fade-in">
                         <div className="card-header">
@@ -118,16 +118,16 @@ const Login = () => {
                                 <FaUserCircle size={40} style={{ opacity: 0.5 }} />
                                 <div className="user-info">
                                     <p className="name" style={{ margin: 0 }}>Residente de Obra</p>
-                                    <p className="role" style={{ margin: 0 }}>Control de Almacén</p>
+                                    <p className="role" style={{ margin: 0 }}>Control de Inventario</p>
                                 </div>
                             </div>
                         </div>
-                        
+
                         <div className="card-stat">
                             <p className="stat-label">Progreso General</p>
                             <p className="stat-value">68.4%</p>
                         </div>
-                        
+
                         <div className="progress-tracks">
                             <div className="track-item">
                                 <div className="track-info">
